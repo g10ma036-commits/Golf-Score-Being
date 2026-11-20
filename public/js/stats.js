@@ -1,0 +1,287 @@
+// スコア統計の計算（すべてクライアント側で実施）
+
+export const RESULT_KEYS = ['eagle', 'birdie', 'par', 'bogey', 'double', 'triple'];
+export const RESULT_LABELS = {
+  eagle: 'イーグル以上', birdie: 'バーディ', par: 'パー', bogey: 'ボギー', double: 'ダブルボギー', triple: 'トリプル以上',
+};
+export const resultColor = (k) => `var(--score-${k})`;
+export const resultInk = (k) => `var(--ink-${k})`;
+
+export function resultKey(strokes, par) {
+  const d = strokes - par;
+  if (d <= -2) return 'eagle';
+  if (d === -1) return 'birdie';
+  if (d === 0) return 'par';
+  if (d === 1) return 'bogey';
+  if (d === 2) return 'double';
+  return 'triple';
+}
+
+export const played = (h) => Number.isFinite(h.strokes) && h.strokes > 0;
+export const isGir = (h) => Number.isFinite(h.putts) && h.strokes - h.putts <= h.par - 2;
+
+const mean = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+const ratio = (a, b) => (b ? a / b : null);
+
+// 1ラウンドの集計
+export function summarize(round) {
+  const holes = (round.holes || []).filter(played);
+  const half = () => ({ strokes: 0, par: 0, holes: 0 });
+  const s = {
+    id: round.id, date: round.date, course: round.course_name, courseId: round.course_id,
+    rating: round.rating, slope: round.slope,
+    holes: holes.length, complete: holes.length === 18,
+    strokes: 0, par: 0, adjStrokes: 0,
+    putts: 0, puttHoles: 0, threePutts: 0, onePutts: 0,
+    fwHit: 0, fwLeft: 0, fwRight: 0, fwTotal: 0,
+    gir: 0, girKnown: 0, scrChances: 0, scrSaves: 0,
+    sandChances: 0, sandSaves: 0, penalties: 0,
+    front: half(), back: half(),
+    byPar: { 3: { n: 0, strokes: 0, par: 0 }, 4: { n: 0, strokes: 0, par: 0 }, 5: { n: 0, strokes: 0, par: 0 } },
+    results: Object.fromEntries(RESULT_KEYS.map((k) => [k, 0])),
+    worstHole: null, bestRun: 0,
+  };
+  let run = 0;
+  for (const h of [...holes].sort((a, b) => a.hole_no - b.hole_no)) {
+    s.strokes += h.strokes;
+    s.par += h.par;
+    s.adjStrokes += Math.min(h.strokes, h.par + 3); // 簡易ハンディキャップ用（1ホールの上限をトリプルボギーに）
+    const hf = h.hole_no <= 9 ? s.front : s.back;
+    hf.strokes += h.strokes; hf.par += h.par; hf.holes++;
+    const bp = s.byPar[h.par >= 5 ? 5 : h.par <= 3 ? 3 : 4];
+    bp.n++; bp.strokes += h.strokes; bp.par += h.par;
+    s.results[resultKey(h.strokes, h.par)]++;
+    if (Number.isFinite(h.putts)) {
+      s.putts += h.putts; s.puttHoles++;
+      if (h.putts >= 3) s.threePutts++;
+      if (h.putts === 1) s.onePutts++;
+      s.girKnown++;
+      if (isGir(h)) s.gir++;
+      else { s.scrChances++; if (h.strokes <= h.par) s.scrSaves++; }
+    }
+    if (h.par >= 4 && h.fairway) {
+      s.fwTotal++;
+      if (h.fairway === 'hit') s.fwHit++;
+      else if (h.fairway === 'left') s.fwLeft++;
+      else if (h.fairway === 'right') s.fwRight++;
+    }
+    s.penalties += h.penalties || 0;
+    if (h.bunker > 0) { s.sandChances++; if (h.strokes <= h.par) s.sandSaves++; }
+    const over = h.strokes - h.par;
+    if (!s.worstHole || over > s.worstHole.over) s.worstHole = { hole_no: h.hole_no, over, strokes: h.strokes, par: h.par };
+    run = over <= 0 ? run + 1 : 0;
+    s.bestRun = Math.max(s.bestRun, run);
+  }
+  s.toPar = s.strokes - s.par;
+  return s;
+}
+
+// 複数ラウンドの集計
+export function aggregate(sums) {
+  const complete = sums.filter((s) => s.complete);
+  const tot = (k) => sums.reduce((a, s) => a + s[k], 0);
+  const holes = tot('holes');
+  const puttHoles = tot('puttHoles');
+  const fwTotal = tot('fwTotal');
+  const byPar = {};
+  for (const p of [3, 4, 5]) {
+    const n = sums.reduce((a, s) => a + s.byPar[p].n, 0);
+    const st = sums.reduce((a, s) => a + s.byPar[p].strokes, 0);
+    const pr = sums.reduce((a, s) => a + s.byPar[p].par, 0);
+    byPar[p] = { n, avg: ratio(st, n), toPar: n ? (st - pr) / n : null };
+  }
+  const results = Object.fromEntries(RESULT_KEYS.map((k) => [k, sums.reduce((a, s) => a + s.results[k], 0)]));
+  const fullFront = sums.filter((s) => s.front.holes === 9);
+  const fullBack = sums.filter((s) => s.back.holes === 9);
+  const sortedComplete = [...complete].sort((a, b) => a.strokes - b.strokes || a.date.localeCompare(b.date));
+  return {
+    rounds: sums.length,
+    completeRounds: complete.length,
+    holes,
+    avgScore: mean(complete.map((s) => s.strokes)),
+    avgToPar: mean(complete.map((s) => s.toPar)),
+    best: sortedComplete[0] || null,
+    worst: sortedComplete[sortedComplete.length - 1] || null,
+    puttsPerRound: puttHoles ? (tot('putts') / puttHoles) * 18 : null,
+    puttsPerHole: ratio(tot('putts'), puttHoles),
+    threePuttRate: ratio(tot('threePutts'), puttHoles),
+    onePuttRate: ratio(tot('onePutts'), puttHoles),
+    threePuttsPerRound: puttHoles ? (tot('threePutts') / puttHoles) * 18 : null,
+    fwRate: ratio(tot('fwHit'), fwTotal),
+    fwLeftRate: ratio(tot('fwLeft'), fwTotal),
+    fwRightRate: ratio(tot('fwRight'), fwTotal),
+    fwHit: tot('fwHit'), fwLeft: tot('fwLeft'), fwRight: tot('fwRight'), fwTotal,
+    girRate: ratio(tot('gir'), tot('girKnown')),
+    scrambleRate: ratio(tot('scrSaves'), tot('scrChances')),
+    sandSaveRate: ratio(tot('sandSaves'), tot('sandChances')),
+    sandChances: tot('sandChances'),
+    penaltiesPerRound: holes ? (tot('penalties') / holes) * 18 : null,
+    byPar,
+    results,
+    parOrBetterRate: holes ? (results.eagle + results.birdie + results.par) / holes : null,
+    doublePlusRate: holes ? (results.double + results.triple) / holes : null,
+    birdiesPerRound: holes ? ((results.eagle + results.birdie) / holes) * 18 : null,
+    frontAvg: mean(fullFront.map((s) => s.front.strokes)),
+    backAvg: mean(fullBack.map((s) => s.back.strokes)),
+    frontToPar: mean(fullFront.map((s) => s.front.strokes - s.front.par)),
+    backToPar: mean(fullBack.map((s) => s.back.strokes - s.back.par)),
+    handicap: handicapEstimate(sums),
+  };
+}
+
+// 推定ハンディキャップ（WHS の考え方を簡略化：直近20ラウンドのうち良い8つのディファレンシャル平均）
+const HC_TABLE = { 3: [1, -2], 4: [1, -1], 5: [1, 0], 6: [2, -1], 7: [2, 0], 8: [2, 0], 9: [3, 0], 10: [3, 0], 11: [3, 0], 12: [4, 0], 13: [4, 0], 14: [4, 0], 15: [5, 0], 16: [5, 0], 17: [6, 0], 18: [6, 0], 19: [7, 0], 20: [8, 0] };
+export function handicapEstimate(sums) {
+  const recent = sums.filter((s) => s.complete).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+  if (recent.length < 3) return null;
+  const diffs = recent.map((s) => {
+    const rating = Number.isFinite(s.rating) ? s.rating : s.par;
+    const slope = Number.isFinite(s.slope) ? s.slope : 113;
+    return (113 / slope) * (s.adjStrokes - rating);
+  }).sort((a, b) => a - b);
+  const [use, adj] = HC_TABLE[recent.length];
+  const v = mean(diffs.slice(0, use)) + adj;
+  return Math.min(54, Math.round(v * 10) / 10);
+}
+
+// 期間・コースでの絞り込み
+export const PERIODS = [
+  ['all', '全期間'], ['year', '今年'], ['12m', '直近12か月'], ['last10', '直近10ラウンド'], ['last20', '直近20ラウンド'],
+];
+export function filterRounds(rounds, { period = 'all', courseId = '' } = {}) {
+  let list = [...rounds].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  if (courseId) list = list.filter((r) => String(r.course_id) === String(courseId));
+  const now = new Date();
+  if (period === 'year') list = list.filter((r) => r.date.startsWith(String(now.getFullYear())));
+  if (period === '12m') {
+    const d = new Date(now); d.setFullYear(d.getFullYear() - 1);
+    const iso = d.toISOString().slice(0, 10);
+    list = list.filter((r) => r.date >= iso);
+  }
+  if (period === 'last10') list = list.slice(0, 10);
+  if (period === 'last20') list = list.slice(0, 20);
+  return list;
+}
+
+// 移動平均
+export function movingAverage(values, w = 5) {
+  return values.map((_, i) => {
+    if (i < w - 1) return null;
+    const win = values.slice(i - w + 1, i + 1).filter(Number.isFinite);
+    return win.length === w ? win.reduce((a, b) => a + b, 0) / w : null;
+  });
+}
+
+// コースのホール別分析
+export function holeAnalysis(rounds) {
+  const out = [];
+  for (let no = 1; no <= 18; no++) {
+    const hs = [];
+    for (const r of rounds) {
+      const h = (r.holes || []).find((x) => x.hole_no === no);
+      if (h && played(h)) hs.push(h);
+    }
+    if (!hs.length) { out.push({ hole_no: no, n: 0 }); continue; }
+    const putts = hs.filter((h) => Number.isFinite(h.putts));
+    const results = Object.fromEntries(RESULT_KEYS.map((k) => [k, 0]));
+    hs.forEach((h) => results[resultKey(h.strokes, h.par)]++);
+    out.push({
+      hole_no: no,
+      par: hs[0].par,
+      n: hs.length,
+      avg: mean(hs.map((h) => h.strokes)),
+      toPar: mean(hs.map((h) => h.strokes - h.par)),
+      best: Math.min(...hs.map((h) => h.strokes)),
+      avgPutts: mean(putts.map((h) => h.putts)),
+      parOrBetter: (results.eagle + results.birdie + results.par) / hs.length,
+      results,
+    });
+  }
+  return out;
+}
+
+// ラウンドの振り返りコメント（他のラウンドの平均と比較）
+export function roundInsights(sum, base, { isBest = false } = {}) {
+  const items = [];
+  const good = (text) => items.push({ type: 'good', text });
+  const bad = (text) => items.push({ type: 'bad', text });
+  const info = (text) => items.push({ type: 'info', text });
+  const hasBase = base && base.rounds > 0;
+
+  if (isBest && sum.complete) good(`ベストスコア ${sum.strokes} を記録しました！`);
+  if (hasBase && sum.complete && base.avgScore != null) {
+    const d = sum.strokes - base.avgScore;
+    if (d <= -2) good(`平均スコア（${base.avgScore.toFixed(1)}）より ${Math.abs(d).toFixed(1)} 打良いラウンドでした。`);
+    else if (d >= 3) bad(`平均スコア（${base.avgScore.toFixed(1)}）より ${d.toFixed(1)} 打多く叩きました。`);
+  }
+  if (sum.puttHoles === sum.holes && sum.holes > 0) {
+    const pr = (sum.putts / sum.holes) * 18;
+    if (hasBase && base.puttsPerRound != null) {
+      const d = pr - base.puttsPerRound;
+      if (d <= -1.5) good(`パットが好調：18H換算 ${pr.toFixed(1)} 回（平均より ${Math.abs(d).toFixed(1)} 回少ない）。`);
+      else if (d >= 1.5) bad(`パットに課題：18H換算 ${pr.toFixed(1)} 回（平均より ${d.toFixed(1)} 回多い）。`);
+    }
+  }
+  if (sum.threePutts >= 3) bad(`3パット以上が ${sum.threePutts} 回ありました。ファーストパットの距離感を意識しましょう。`);
+  if (sum.fwTotal >= 5 && hasBase && base.fwRate != null) {
+    const r = sum.fwHit / sum.fwTotal;
+    const d = r - base.fwRate;
+    if (d >= 0.1) good(`ティーショットが安定：FWキープ率 ${Math.round(r * 100)}%（平均 +${Math.round(d * 100)}pt）。`);
+    else if (d <= -0.1) {
+      const side = sum.fwLeft > sum.fwRight * 1.5 ? '（左へのミスが多め）' : sum.fwRight > sum.fwLeft * 1.5 ? '（右へのミスが多め）' : '';
+      bad(`FWキープ率 ${Math.round(r * 100)}%（平均 ${Math.round(d * 100)}pt）${side}。`);
+    }
+  }
+  if (sum.girKnown >= 9 && hasBase && base.girRate != null) {
+    const r = sum.gir / sum.girKnown;
+    const d = r - base.girRate;
+    if (d >= 0.08) good(`パーオン率 ${Math.round(r * 100)}%：ショットの精度が高いラウンドでした。`);
+    else if (d <= -0.08) bad(`パーオン率 ${Math.round(r * 100)}%（平均 ${Math.round(d * 100)}pt）。セカンドショットを見直しましょう。`);
+  }
+  if (sum.holes >= 9) {
+    if (sum.penalties === 0) good('OB・ペナルティなしのクリーンなラウンド。');
+    else if (sum.penalties >= 3) bad(`OB・ペナルティが ${sum.penalties} 打。安全なクラブ選択でスコアを守れる可能性があります。`);
+  }
+  if (sum.bestRun >= 3) good(`パー以上が ${sum.bestRun} ホール連続しました。`);
+  if (sum.worstHole && sum.worstHole.over >= 3) bad(`${sum.worstHole.hole_no}番（Par${sum.worstHole.par}）で ${sum.worstHole.strokes} 打の大叩き。ここを抑えれば ${sum.worstHole.over - 1} 打縮まります。`);
+  if (sum.front.holes === 9 && sum.back.holes === 9) {
+    const d = (sum.back.strokes - sum.back.par) - (sum.front.strokes - sum.front.par);
+    if (d >= 4) info(`後半に ${d} 打崩れました（前半 ${sum.front.strokes} / 後半 ${sum.back.strokes}）。体力・集中力の配分を意識しましょう。`);
+    else if (d <= -4) info(`後半に ${Math.abs(d)} 打巻き返しました（前半 ${sum.front.strokes} / 後半 ${sum.back.strokes}）。`);
+  }
+  if (hasBase) {
+    for (const p of [3, 4, 5]) {
+      const bp = sum.byPar[p];
+      const ba = base.byPar[p];
+      if (bp.n < 3 || ba.toPar == null) continue;
+      const tp = (bp.strokes - bp.par) / bp.n;
+      if (tp - ba.toPar <= -0.4) good(`パー${p}が好調（平均 ${tp >= 0 ? '+' : ''}${tp.toFixed(2)}／ホール）。`);
+      else if (tp - ba.toPar >= 0.5) bad(`パー${p}で苦戦（平均 +${tp.toFixed(2)}／ホール）。`);
+    }
+  }
+  if (!items.length) info('平均的な内容のラウンドでした。ラウンドを重ねると比較コメントが充実します。');
+  return items;
+}
+
+// 全体傾向のコメント（直近と以前の比較）
+export function trendInsights(sums) {
+  const complete = sums.filter((s) => s.complete).sort((a, b) => b.date.localeCompare(a.date));
+  const items = [];
+  if (complete.length < 6) return items;
+  const recent = aggregate(complete.slice(0, 5));
+  const prev = aggregate(complete.slice(5, 15));
+  const cmp = (label, a, b, { better = 'lower', fmt = (v) => v.toFixed(1), threshold = 0 }) => {
+    if (a == null || b == null) return;
+    const d = a - b;
+    if (Math.abs(d) <= threshold) return;
+    const improved = better === 'lower' ? d < 0 : d > 0;
+    items.push({ type: improved ? 'good' : 'bad', text: `${label}：直近5R ${fmt(a)}（以前 ${fmt(b)}）` });
+  };
+  const p = (v) => `${Math.round(v * 100)}%`;
+  cmp('平均スコア', recent.avgScore, prev.avgScore, { threshold: 1 });
+  cmp('平均パット', recent.puttsPerRound, prev.puttsPerRound, { threshold: 0.8 });
+  cmp('FWキープ率', recent.fwRate, prev.fwRate, { better: 'higher', fmt: p, threshold: 0.05 });
+  cmp('パーオン率', recent.girRate, prev.girRate, { better: 'higher', fmt: p, threshold: 0.04 });
+  cmp('ペナルティ/R', recent.penaltiesPerRound, prev.penaltiesPerRound, { threshold: 0.5 });
+  return items;
+}

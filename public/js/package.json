@@ -1,0 +1,4 @@
+{
+  "//": "public/js 配下はブラウザ用の ES モジュール。サーバー（Node.js）からも shared/ を共用するため type: module を指定",
+  "type": "module"
+}

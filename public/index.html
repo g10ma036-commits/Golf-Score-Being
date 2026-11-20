@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Golf Enjoy Manager</title>
+  <meta name="theme-color" content="#17663f">
+  <!-- スマホのホーム画面に追加したときの設定（iPhone / Android） -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Golf">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <script src="js/theme.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="#/">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--accent)"/><path d="M12 24V7l9 4-9 4" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="16" cy="24.5" rx="7" ry="1.6" fill="#fff" opacity=".8"/></svg>
+        <span>Golf Enjoy<br><small>Manager</small></span>
+      </a>
+      <nav id="nav" class="nav" aria-label="メインメニュー"></nav>
+      <button type="button" id="phone-btn" class="nav-phone" hidden></button>
+    </aside>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+  <!-- スマホ用：画面下のタブバー -->
+  <nav id="tabbar" class="tabbar" aria-label="メインメニュー（スマホ）"></nav>
+  <div id="more-sheet" class="more-sheet" hidden></div>
+  <div id="app-banner" class="app-banner" hidden></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+  <div id="viz-tooltip" class="viz-tooltip" role="tooltip" hidden></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

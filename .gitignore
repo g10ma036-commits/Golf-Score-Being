@@ -1,0 +1,6 @@
+# 個人データ（スコア・写真）はリポジトリに含めない
+data/
+node_modules/
+*.log
+# npm run build:phone の出力
+dist/

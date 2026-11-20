@@ -1,0 +1,208 @@
+// 統計分析
+import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '../util.js';
+import { api } from '../api.js';
+import {
+  summarize, aggregate, filterRounds, movingAverage, trendInsights, PERIODS,
+  RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
+} from '../stats.js';
+import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
+import { navigate } from '../main.js';
+
+const state = { period: 'all', course: '' };
+
+export async function render(root) {
+  const rounds = await api.get('/api/rounds');
+  const courses = [...new Map(rounds.filter((r) => r.course_id).map((r) => [r.course_id, r.course_name])).entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], 'ja'));
+
+  mount(root, html`
+    <div class="page-header"><div><h1>統計分析</h1><div class="sub">期間とコースで絞り込むと、下のすべての数値・グラフが連動します</div></div></div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="期間">${PERIODS.map(([k, l]) => html`<button data-period="${k}" class="${state.period === k ? 'on' : ''}">${l}</button>`)}</div>
+      <select id="f-course" aria-label="コース"><option value="">すべてのコース</option>
+        ${courses.map(([cid, n]) => html`<option value="${cid}" ${String(cid) === state.course ? 'selected' : ''}>${n}</option>`)}</select>
+    </div>
+    <div id="body"></div>
+  `);
+  const body = $('#body', root);
+
+  const draw = () => {
+    clearCharts();
+    const list = filterRounds(rounds, { period: state.period, courseId: state.course });
+    if (!list.length) {
+      mount(body, html`<div class="card empty">${icon('stats')}<h2>対象のラウンドがありません</h2><p>期間やコースの条件を変えるか、スコアを入力してください。</p>
+        <a class="btn btn-primary" href="#/rounds/new">${icon('plus')}スコアを入力</a></div>`);
+      return;
+    }
+    const sums = list.map(summarize);
+    const a = aggregate(sums);
+    const complete = sums.filter((s) => s.complete).sort((x, y) => x.date.localeCompare(y.date));
+    const scores = complete.map((s) => s.strokes);
+    const ma = movingAverage(scores, 5);
+    const puttRounds = complete.filter((s) => s.puttHoles === 18);
+    const rateRounds = complete.filter((s) => s.fwTotal || s.girKnown);
+    const insights = trendInsights(sums);
+    const top5 = [...complete].sort((x, y) => x.strokes - y.strokes).slice(0, 5);
+
+    // 月別平均（18H）
+    const byMonth = new Map();
+    for (const s of complete) {
+      const k = s.date.slice(0, 7);
+      if (!byMonth.has(k)) byMonth.set(k, []);
+      byMonth.get(k).push(s.strokes);
+    }
+    const months = [...byMonth.entries()].sort((x, y) => x[0].localeCompare(y[0])).slice(-12)
+      .map(([k, v]) => ({ k, n: v.length, avg: v.reduce((p, c) => p + c, 0) / v.length }));
+
+    const t = (label, value, sub = '') => html`<div class="tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+    mount(body, html`
+      <div class="tiles">
+        ${t('ラウンド数', a.rounds, `18ホール ${a.completeRounds} R`)}
+        ${t('平均スコア', fmt(a.avgScore, 1), a.avgToPar != null ? `パー比 ${toPar(Math.round(a.avgToPar * 10) / 10)}` : '')}
+        ${t('ベストスコア', a.best ? a.best.strokes : '—', a.best ? `${shortDate(a.best.date)}` : '')}
+        ${t('推定ハンディキャップ', a.handicap != null ? a.handicap.toFixed(1) : '—', '簡易計算')}
+        ${t('平均パット', fmt(a.puttsPerRound, 1), `1ホール ${fmt(a.puttsPerHole, 2)}`)}
+        ${t('FWキープ率', pct(a.fwRate), a.fwTotal ? `${a.fwHit}/${a.fwTotal}` : '')}
+        ${t('パーオン率', pct(a.girRate))}
+        ${t('リカバリー率', pct(a.scrambleRate), 'パーオンせずパー以上')}
+        ${t('サンドセーブ率', pct(a.sandSaveRate), a.sandChances ? `バンカー ${a.sandChances} ホール` : '簡易：バンカー後パー以上')}
+        ${t('3パット率', pct(a.threePuttRate, 1), `1R あたり ${fmt(a.threePuttsPerRound, 1)} 回`)}
+        ${t('OB・ペナ / R', fmt(a.penaltiesPerRound, 1))}
+        ${t('バーディ / R', fmt(a.birdiesPerRound, 2), `パー以上率 ${pct(a.parOrBetterRate)}`)}
+      </div>
+
+      ${chartCard('trend', 'スコアの推移', `18ホールのラウンド ${complete.length} 件・点をクリックで詳細`, 'section')}
+
+      <div class="grid grid-2 section">
+        ${chartCard('dist', 'スコア内訳', `全 ${a.holes} ホールの結果`)}
+        ${chartCard('bypar', 'パー別の平均（パー比）', 'ホールあたり。小さいほど良い')}
+        ${chartCard('putts', 'パット数の推移', '18ホールすべてパットを記録したラウンド')}
+        ${chartCard('rates', 'FWキープ率・パーオン率の推移', 'ラウンドごと')}
+        ${chartCard('fw', 'ティーショットの方向', 'パー4・パー5')}
+        ${chartCard('months', '月別の平均スコア', '直近12か月分（18ホール）')}
+      </div>
+
+      <div class="grid grid-2 section">
+        <div class="card">
+          <h2 style="margin-bottom:12px">前半・後半</h2>
+          <div class="tiles">
+            ${t('前半（OUT）平均', fmt(a.frontAvg, 1), a.frontToPar != null ? `パー比 ${toPar(Math.round(a.frontToPar * 10) / 10)}` : '')}
+            ${t('後半（IN）平均', fmt(a.backAvg, 1), a.backToPar != null ? `パー比 ${toPar(Math.round(a.backToPar * 10) / 10)}` : '')}
+          </div>
+          <h2 style="margin:20px 0 12px">直近の傾向</h2>
+          ${insights.length ? html`<ul class="insights">${insights.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '↑' : '↓'}</span><span>${i.text}</span></li>`)}</ul>`
+            : html`<p class="muted small">18ホールのラウンドが6つ以上で、直近5ラウンドと以前を比較します。</p>`}
+        </div>
+        <div class="card">
+          <h2 style="margin-bottom:8px">ベストスコア TOP5</h2>
+          ${top5.length ? html`<table class="data"><thead><tr><th>#</th><th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パット</th></tr></thead>
+            <tbody>${top5.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${i + 1}</td><td>${fmtDate(s.date)}</td><td>${s.course}</td>
+              <td class="r"><strong>${s.strokes}</strong></td><td class="r">${s.puttHoles ? s.putts : '—'}</td></tr>`)}</tbody></table>`
+            : html`<p class="muted small">18ホールのラウンドがありません。</p>`}
+        </div>
+      </div>
+    `);
+    $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
+
+    setupChart(body, 'trend', (el) => lineChart(el, {
+      labels: complete.map((s) => shortDate(s.date)),
+      series: [
+        { name: 'スコア', color: 'var(--series-1)', values: scores },
+        { name: '5ラウンド移動平均', color: 'var(--series-2)', values: ma, dots: false },
+      ],
+      tooltipTitle: (i) => `${fmtDate(complete[i].date)} ${complete[i].course}`,
+      onClick: (i) => navigate(`/rounds/${complete[i].id}`),
+      height: 260,
+      ariaLabel: 'スコアの推移',
+    }), {
+      columns: [{ label: '日付' }, { label: 'コース' }, { label: 'スコア', align: 'r' }, { label: '5R平均', align: 'r' }],
+      rows: complete.map((s, i) => [fmtDate(s.date), s.course, String(s.strokes), fmt(ma[i], 1)]),
+    });
+
+    setupChart(body, 'dist', (el) => segmentedBar(el, {
+      parts: RESULT_KEYS.map((k) => ({ label: RESULT_LABELS[k], value: a.results[k], color: resultColor(k), ink: resultInk(k) })),
+      format: (v) => `${v}H`,
+      ariaLabel: 'スコア内訳',
+    }), {
+      columns: [{ label: '結果' }, { label: 'ホール数', align: 'r' }, { label: '割合', align: 'r' }],
+      rows: RESULT_KEYS.map((k) => [RESULT_LABELS[k], String(a.results[k]), pct(a.holes ? a.results[k] / a.holes : null, 1)]),
+    });
+
+    setupChart(body, 'bypar', (el) => barChart(el, {
+      bars: [3, 4, 5].map((p) => ({
+        label: `パー${p}`,
+        value: a.byPar[p].toPar,
+        color: 'var(--series-1)',
+        tip: [{ value: toPar(Math.round(a.byPar[p].toPar * 100) / 100), label: 'パー比 / ホール', color: 'var(--series-1)', swatch: true }, { value: fmt(a.byPar[p].avg, 2), label: '平均打数' }, { value: `${a.byPar[p].n} H`, label: 'ホール数' }],
+      })),
+      yFormat: (v) => (v > 0 ? '+' : '') + (Math.round(v * 100) / 100),
+      height: 200,
+      ariaLabel: 'パー別の平均パー比',
+    }), {
+      columns: [{ label: 'パー' }, { label: '平均打数', align: 'r' }, { label: 'パー比', align: 'r' }, { label: 'ホール数', align: 'r' }],
+      rows: [3, 4, 5].map((p) => [`パー${p}`, fmt(a.byPar[p].avg, 2), a.byPar[p].toPar != null ? toPar(Math.round(a.byPar[p].toPar * 100) / 100) : '—', String(a.byPar[p].n)]),
+    });
+
+    setupChart(body, 'putts', (el) => lineChart(el, {
+      labels: puttRounds.map((s) => shortDate(s.date)),
+      series: [{ name: 'パット数', color: 'var(--series-1)', values: puttRounds.map((s) => s.putts) }],
+      tooltipTitle: (i) => `${fmtDate(puttRounds[i].date)} ${puttRounds[i].course}`,
+      onClick: (i) => navigate(`/rounds/${puttRounds[i].id}`),
+      height: 200,
+      ariaLabel: 'パット数の推移',
+    }), {
+      columns: [{ label: '日付' }, { label: 'パット', align: 'r' }, { label: '3パット', align: 'r' }],
+      rows: puttRounds.map((s) => [fmtDate(s.date), String(s.putts), String(s.threePutts)]),
+    });
+
+    const fwVals = rateRounds.map((s) => (s.fwTotal ? (s.fwHit / s.fwTotal) * 100 : null));
+    const girVals = rateRounds.map((s) => (s.girKnown ? (s.gir / s.girKnown) * 100 : null));
+    setupChart(body, 'rates', (el) => lineChart(el, {
+      labels: rateRounds.map((s) => shortDate(s.date)),
+      series: [
+        { name: 'FWキープ率', color: 'var(--series-1)', values: fwVals },
+        { name: 'パーオン率', color: 'var(--series-2)', values: girVals },
+      ],
+      yFormat: (v) => `${Math.round(v)}%`,
+      yDomain: [0, 100],
+      tooltipTitle: (i) => `${fmtDate(rateRounds[i].date)} ${rateRounds[i].course}`,
+      onClick: (i) => navigate(`/rounds/${rateRounds[i].id}`),
+      height: 200,
+      ariaLabel: 'FWキープ率とパーオン率の推移',
+    }), {
+      columns: [{ label: '日付' }, { label: 'FWキープ率', align: 'r' }, { label: 'パーオン率', align: 'r' }],
+      rows: rateRounds.map((s, i) => [fmtDate(s.date), fwVals[i] != null ? `${Math.round(fwVals[i])}%` : '—', girVals[i] != null ? `${Math.round(girVals[i])}%` : '—']),
+    });
+
+    const fwParts = [
+      { label: '左ミス', value: a.fwLeft, color: 'var(--series-2)', ink: '#fff' },
+      { label: 'FWキープ', value: a.fwHit, color: 'var(--series-1)', ink: '#fff' },
+      { label: '右ミス', value: a.fwRight, color: 'var(--series-3)', ink: '#fff' },
+    ];
+    setupChart(body, 'fw', (el) => segmentedBar(el, { parts: fwParts, format: (v) => `${v}回`, ariaLabel: 'ティーショットの方向' }), {
+      columns: [{ label: '方向' }, { label: '回数', align: 'r' }, { label: '割合', align: 'r' }],
+      rows: fwParts.map((p) => [p.label, String(p.value), pct(a.fwTotal ? p.value / a.fwTotal : null, 1)]),
+    });
+
+    // 平均スコアは 0 から始まる棒だと差が見えないため、折れ線で表示
+    setupChart(body, 'months', (el) => lineChart(el, {
+      labels: months.map((m) => `${m.k.slice(2, 4)}/${Number(m.k.slice(5))}`),
+      series: [{ name: '平均スコア', color: 'var(--series-1)', values: months.map((m) => m.avg) }],
+      yFormat: (v) => fmt(v, Number.isInteger(v) ? 0 : 1),
+      tooltipTitle: (i) => `${months[i].k.slice(0, 4)}年${Number(months[i].k.slice(5))}月（${months[i].n} R）`,
+      height: 200,
+      ariaLabel: '月別の平均スコア',
+    }), {
+      columns: [{ label: '月' }, { label: '平均スコア', align: 'r' }, { label: 'ラウンド数', align: 'r' }],
+      rows: months.map((m) => [m.k, fmt(m.avg, 1), String(m.n)]),
+    });
+  };
+
+  $$('[data-period]', root).forEach((b) => b.addEventListener('click', () => {
+    state.period = b.dataset.period;
+    $$('[data-period]', root).forEach((x) => x.classList.toggle('on', x === b));
+    draw();
+  }));
+  $('#f-course', root).addEventListener('change', (e) => { state.course = e.target.value; draw(); });
+  draw();
+}

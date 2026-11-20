@@ -1,0 +1,4 @@
+# 改行コードをそろえる（start.bat は Windows のコマンドプロンプト用に CRLF）
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
