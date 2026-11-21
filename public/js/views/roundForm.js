@@ -6,6 +6,7 @@ import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
 import { loadDraft, saveDraft, clearDraft, draftText, draftTime, draftHref } from '../draft.js';
+import { parseParty, MAX_PARTY } from '../shared/model.js';
 
 const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker'];
 const META_TEXT = ['date', 'course_name', 'tee', 'weather', 'companions', 'memo'];
@@ -72,6 +73,8 @@ export async function render(root, params) {
       }
     });
   }
+  // 同伴者のスコア（任意。自分の統計には使わない）
+  let party = parseParty(resumed ? draft.party : round?.party);
   const currentCourse = () => courses.find((c) => c.id === meta.course_id) || null;
   // 前半・後半の 9 ホールがコースの範囲に収まるようにする（9 ホールだけのコースは同じ 9 ホールを 2 周）
   const fitNines = (c) => {
@@ -107,7 +110,7 @@ export async function render(root, params) {
     const fd = new FormData(form);
     const m = { ...meta };
     for (const k of ['date', 'tee', 'weather', 'companions', 'memo']) m[k] = String(fd.get(k) ?? '');
-    draftOk = saveDraft({ edit_id: editId, meta: m, holes });
+    draftOk = saveDraft({ edit_id: editId, meta: m, holes, party });
     const st = $('#draft-status', root);
     if (st) st.textContent = draftOk ? `✓ 下書きを自動保存しました（${draftTime({ saved_at: new Date().toISOString() })}）` : '⚠ この環境では下書きを保存できません。保存するまで画面を閉じないでください';
   };
@@ -198,6 +201,7 @@ export async function render(root, params) {
         <div id="card-entry">
           <div class="table-wrap">${half(0)}</div>
           <div class="table-wrap" style="margin-top:12px">${half(9)}</div>
+          <div id="party-card" class="party-card"></div>
         </div>
         <div class="tiles" style="margin-top:16px" id="totals"></div>
       </div>
@@ -387,6 +391,21 @@ export async function render(root, params) {
         <div><div class="he-label">OB・ペナルティ</div>${stepper('penalties', h.penalties ?? 0, 'OB・ペナルティ')}</div>
         <div><div class="he-label">バンカー</div>${stepper('bunker', h.bunker ?? 0, 'バンカー')}</div>
       </div>
+      <div class="he-row he-party">
+        <div class="he-label">同伴者のスコア<span class="small muted">（任意）</span></div>
+        ${party.map((p, i) => {
+          const v = p.strokes[cur - 1];
+          const total = p.strokes.reduce((a, x) => a + (x || 0), 0);
+          return html`<div class="pt-row">
+            <button type="button" class="pt-name" data-party-edit="${i}" aria-label="${p.name}さんの名前を変更・削除">${p.name}<span class="pt-total">${total ? `計 ${total}` : ''}</span></button>
+            <div class="stepper pt-stepper">
+              <button type="button" class="btn btn-icon" data-pstep="${i}" data-d="-1" aria-label="${p.name}さんのスコアを減らす">−</button>
+              <span class="st-val ${v ? `res-txt-${resultKey(v, h.par)}` : ''}" aria-live="polite">${v ?? '–'}</span>
+              <button type="button" class="btn btn-icon" data-pstep="${i}" data-d="1" aria-label="${p.name}さんのスコアを増やす">＋</button></div>
+          </div>`;
+        })}
+        ${party.length < MAX_PARTY ? html`<button type="button" class="link-btn" data-party-add>＋ 同伴者を追加</button>` : ''}
+      </div>
       <div class="he-row"><div class="he-label">パー（コース未登録のとき）</div>
         <div class="chips">${[3, 4, 5].map((p) => chip('par', p, h.par === p, `Par ${p}`))}</div></div>
       <button type="button" class="btn btn-primary he-nextbig" ${cur === 18 ? 'data-done' : 'data-next'}>${cur < 18 ? `次へ（${cur + 1}番ホール） ›` : '18ホール入力完了 ✓'}</button>
@@ -402,6 +421,20 @@ export async function render(root, params) {
     if (b.hasAttribute('data-next')) { cur = Math.min(18, cur + 1); drawHole(); holeEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     if (b.hasAttribute('data-done')) { $('#totals', root).scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     if (b.hasAttribute('data-memo-edit')) { editHoleMemo(); return; }
+    if (b.hasAttribute('data-party-add')) { editPartyMember(null); return; }
+    if (b.dataset.partyEdit != null) { editPartyMember(Number(b.dataset.partyEdit)); return; }
+    if (b.dataset.pstep != null) {
+      // 同伴者のスコア：最初の＋でパー、1 から−で未入力に戻す
+      navigator.vibrate?.(8);
+      const p = party[Number(b.dataset.pstep)];
+      const d = Number(b.dataset.d);
+      const now = p.strokes[cur - 1];
+      p.strokes[cur - 1] = now == null ? h.par : now + d < 1 ? null : Math.min(20, now + d);
+      markDirty();
+      drawPartyTable();
+      drawHole();
+      return;
+    }
     navigator.vibrate?.(8); // 押した手応え（対応している Android のみ）
     if (b.dataset.field) {
       const f = b.dataset.field;
@@ -440,6 +473,76 @@ export async function render(root, params) {
     cur = next;
     drawHole();
   }, { passive: true });
+
+  // ---- 同伴者のスコア ----
+  // 同伴者の欄（例:「田中さん、佐藤さん」）から名前の候補を作る
+  const nameCandidates = () => String(new FormData(form).get('companions') || '')
+    .split(/[、,，・\s]+/).map((s) => s.trim()).filter((s) => s && !party.some((p) => p.name === s)).slice(0, 6);
+  const editPartyMember = (i) => {
+    const p = i == null ? null : party[i];
+    const cands = p ? [] : nameCandidates();
+    const m = openModal({
+      title: p ? `${p.name}さん` : '同伴者を追加',
+      body: html`<label class="field"><span>名前</span><input data-party-name maxlength="30" value="${p?.name || ''}" placeholder="例：田中さん"></label>
+        ${cands.length ? html`<div class="chips" style="margin-top:10px">${cands.map((c) => html`<button type="button" class="chip" data-cand="${c}">${c}</button>`)}</div>` : ''}
+        <p class="small muted" style="margin-top:8px">同伴者のスコアはラウンド詳細のランキングに表示されます。自分の統計や AI 分析には使いません。</p>`,
+      footer: html`${p ? html`<button class="btn btn-danger" data-party-del>削除</button>` : ''}<button class="btn" data-party-cancel>キャンセル</button><button class="btn btn-primary" data-party-ok>${p ? '保存' : '追加'}</button>`,
+    });
+    const input = $('[data-party-name]', m.el);
+    $$('[data-cand]', m.el).forEach((b) => b.addEventListener('click', () => { input.value = b.dataset.cand; }));
+    const done = () => { markDirty(); m.close(); drawPartyTable(); if (!holeEl.hidden) drawHole(); };
+    $('[data-party-cancel]', m.el).addEventListener('click', () => m.close());
+    $('[data-party-del]', m.el)?.addEventListener('click', async () => {
+      if (p.strokes.some((v) => v != null) && !(await confirmDialog(`${p.name}さんのスコアを削除しますか？`, { danger: true, okText: '削除する' }))) return;
+      party = party.filter((x) => x !== p);
+      done();
+    });
+    $('[data-party-ok]', m.el).addEventListener('click', () => {
+      const name = input.value.trim().slice(0, 30);
+      if (!name) { errorToast('名前を入力してください'); return; }
+      if (party.some((x) => x !== p && x.name === name)) { errorToast('同じ名前の同伴者がいます'); return; }
+      if (p) p.name = name;
+      else party = [...party, { name, strokes: Array(18).fill(null) }];
+      done();
+    });
+  };
+  // スコアカード入力：同伴者の表（名前の行 × 18 ホール）
+  const partyBox = $('#party-card', form);
+  function drawPartyTable() {
+    if (!partyBox) return;
+    if (!party.length) {
+      mount(partyBox, html`<button type="button" class="btn btn-sm" data-party-add-card>${icon('plus')}同伴者のスコアも記録する</button>`);
+    } else {
+      const table = (from) => html`<table class="scorecard party-table">
+        <thead><tr><th>${from ? '10〜18' : '1〜9'}</th>${Array.from({ length: 9 }, (_, k) => html`<th>${from + k + 1}</th>`)}<th class="sum">${from ? 'IN' : 'OUT'}</th></tr></thead>
+        <tbody>${party.map((p, i) => html`<tr><td><button type="button" class="link-btn" data-party-edit-card="${i}">${p.name}</button></td>
+          ${Array.from({ length: 9 }, (_, k) => html`<td><input type="number" inputmode="numeric" min="1" max="20" data-pi="${i}" data-ph="${from + k}" value="${p.strokes[from + k] ?? ''}" aria-label="${p.name}さん ${from + k + 1}番"></td>`)}
+          <td class="sum">${p.strokes.slice(from, from + 9).reduce((a, v) => a + (v || 0), 0) || ''}</td></tr>`)}</tbody></table>`;
+      mount(partyBox, html`<h3 style="margin:16px 0 6px">同伴者のスコア</h3>
+        <div class="table-wrap">${table(0)}</div><div class="table-wrap" style="margin-top:8px">${table(9)}</div>
+        ${party.length < MAX_PARTY ? html`<button type="button" class="btn btn-sm" style="margin-top:8px" data-party-add-card>${icon('plus')}同伴者を追加</button>` : ''}`);
+    }
+  }
+  partyBox?.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-party-add-card')) editPartyMember(null);
+    else if (b.dataset.partyEditCard != null) editPartyMember(Number(b.dataset.partyEditCard));
+  });
+  partyBox?.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.dataset.pi == null) return;
+    e.stopPropagation(); // 自分のスコアの入力処理には渡さない
+    const v = Number(el.value);
+    const p = party[Number(el.dataset.pi)];
+    p.strokes[Number(el.dataset.ph)] = el.value !== '' && Number.isInteger(v) && v >= 1 && v <= 20 ? v : null;
+    // その行の OUT / IN の合計だけを書き換える（入力中の欄はそのまま）
+    const from = Number(el.dataset.ph) < 9 ? 0 : 9;
+    const sumCell = el.closest('tr').querySelector('.sum');
+    if (sumCell) sumCell.textContent = p.strokes.slice(from, from + 9).reduce((a, x) => a + (x || 0), 0) || '';
+    markDirty();
+  });
+  drawPartyTable();
 
   // ホールの攻略メモ（コースに保存。次に同じコースを回るときにも表示される）
   const editHoleMemo = () => {
@@ -598,6 +701,7 @@ export async function render(root, params) {
       front_nine: c ? meta.front_nine : null,
       back_nine: c ? meta.back_nine : null,
       holes,
+      party,
     };
     $$('[data-save]', root).forEach((b) => { b.disabled = true; });
     try {

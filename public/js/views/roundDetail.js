@@ -65,6 +65,33 @@ export async function render(root, [idStr]) {
     </table>`;
   };
 
+  // 同伴者のスコア：ランキング（合計の少ない順）とホールごとの表。自分も含める
+  const partyCard = () => {
+    if (!round.party?.length) return '';
+    const sumOf = (arr, from, to) => arr.slice(from, to).reduce((a, v) => a + (v || 0), 0);
+    const me = { name: '自分', me: true, strokes: holes.map((h) => (played(h) ? h.strokes : null)) };
+    const players = [me, ...round.party].map((p) => ({ ...p, out: sumOf(p.strokes, 0, 9), in: sumOf(p.strokes, 9, 18), n: p.strokes.filter((v) => v != null).length }))
+      .map((p) => ({ ...p, total: p.out + p.in }));
+    const ranked = [...players].sort((x, y) => (y.n === 18) - (x.n === 18) || x.total - y.total);
+    let rank = 0;
+    let prev = null;
+    ranked.forEach((p, i) => { if (p.total !== prev) { rank = i + 1; prev = p.total; } p.rank = rank; });
+    const row = (p, from) => html`<tr class="${p.me ? 'me' : ''}"><td>${p.name}</td>${p.strokes.slice(from, from + 9).map((v, k) => {
+      const h = holes[from + k];
+      return html`<td>${v != null && h.par ? html`<span class="mark ${resultKey(v, h.par)}">${v}</span>` : v ?? ''}</td>`;
+    })}<td class="sum">${from ? p.in || '' : p.out || ''}</td></tr>`;
+    const grid = (from) => html`<table class="scorecard party-score"><thead><tr><th>${from ? 'IN' : 'OUT'}</th>${holes.slice(from, from + 9).map((h) => html`<th>${h.hole_no}</th>`)}<th class="sum">計</th></tr>
+      <tr class="par-row"><td>パー</td>${holes.slice(from, from + 9).map((h) => html`<td>${h.par ?? ''}</td>`)}<td class="sum">${holes.slice(from, from + 9).reduce((a, h) => a + (h.par || 0), 0) || ''}</td></tr></thead>
+      <tbody>${players.map((p) => row(p, from))}</tbody></table>`;
+    return html`<div class="card section">
+      <div class="card-header"><div><h2>同伴者のスコア</h2><div class="sub">合計の少ない順（18ホールすべて入力した人が先）</div></div></div>
+      <ol class="party-rank">${ranked.map((p) => html`<li class="${p.me ? 'me' : ''}"><span class="pr-rank">${p.rank}</span><span class="pr-name">${p.name}</span>
+        <span class="pr-detail small muted">${p.n ? `OUT ${p.out || '—'}・IN ${p.in || '—'}${p.n < 18 ? `（${p.n}H）` : ''}` : '未入力'}</span><strong class="pr-total">${p.total || '—'}</strong></li>`)}</ol>
+      <div class="table-wrap" style="margin-top:12px">${grid(0)}</div>
+      <div class="table-wrap" style="margin-top:8px">${grid(9)}</div>
+    </div>`;
+  };
+
   // 今回 vs いつもの自分
   const n18 = (v, h) => (h ? (v / h) * 18 : null);
   const cmpRows = [
@@ -137,6 +164,8 @@ export async function render(root, [idStr]) {
       <div class="table-wrap">${half(0)}</div>
       <div class="table-wrap" style="margin-top:12px">${half(9)}</div>
     </div>
+
+    ${partyCard()}
 
     <div class="grid grid-2 section">
       ${chartCard('holes', 'ホール別 パー比', '棒の色はスコア結果（青＝アンダー、赤＝オーバー）')}

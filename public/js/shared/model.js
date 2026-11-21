@@ -32,7 +32,7 @@ export const SCHEMA = {
   course_holes: { course_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', hdcp: 'int', memo: 'text' },
   rounds: {
     id: 'id', date: 'text!', course_id: 'int', course_name: 'text', tee: 'text', weather: 'text', companions: 'text',
-    memo: 'text', rating: 'real', slope: 'int', created_at: 'ts', updated_at: 'ts', front_nine: 'int', back_nine: 'int',
+    memo: 'text', rating: 'real', slope: 'int', created_at: 'ts', updated_at: 'ts', front_nine: 'int', back_nine: 'int', party: 'text',
   },
   round_holes: {
     round_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', strokes: 'int', putts: 'int',
@@ -201,8 +201,40 @@ export function normalizeRound(b, courseInfo) {
     rating: num('コースレート', b.rating, { min: 50, max: 90 }),
     slope: num('スロープ', b.slope, { min: 55, max: 155, integer: true }),
     front_nine: front, back_nine: back,
+    party: normalizeParty(b.party),
   };
   return { row, holes: normalizeRoundHoles(b.holes) };
+}
+
+// ---------- 同伴者のスコア ----------
+// rounds.party は JSON 文字列: [{ name: '田中', strokes: [5, 4, null, …（18 個）] }]。自分の統計には使わない
+export const MAX_PARTY = 3;
+const cleanStrokes = (list) => Array.from({ length: 18 }, (_, i) => {
+  const v = Array.isArray(list) ? Number(list[i]) : NaN;
+  return Number.isInteger(v) && v >= 1 && v <= 20 ? v : null;
+});
+// 保存されている値（JSON 文字列・配列・不正な値）→ 配列（不正な値は取り除く）
+export function parseParty(v) {
+  let list = v;
+  if (typeof v === 'string') { try { list = JSON.parse(v); } catch { list = null; } }
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, MAX_PARTY)
+    .filter((p) => p && typeof p === 'object' && typeof p.name === 'string' && p.name.trim())
+    .map((p) => ({ name: p.name.trim().slice(0, 30), strokes: cleanStrokes(p.strokes) }));
+}
+export const serializeParty = (list) => (list.length ? JSON.stringify(list) : null);
+function normalizeParty(v) {
+  if (v == null) return null;
+  if (!Array.isArray(v)) throw new ApiError(400, '同伴者のスコアの形式が不正です');
+  if (v.length > MAX_PARTY) throw new ApiError(400, `同伴者のスコアは ${MAX_PARTY} 人まで記録できます`);
+  for (const p of v) {
+    if (!p || typeof p.name !== 'string' || !p.name.trim()) throw new ApiError(400, '同伴者の名前を入力してください');
+    if (p.strokes != null && !Array.isArray(p.strokes)) throw new ApiError(400, '同伴者のスコアの形式が不正です');
+    for (const s of p.strokes || []) {
+      if (s != null && s !== '' && !(Number.isInteger(Number(s)) && Number(s) >= 1 && Number(s) <= 20)) throw new ApiError(400, `${p.name.trim()}さんのスコアは 1〜20 で入力してください`);
+    }
+  }
+  return serializeParty(parseParty(v));
 }
 function normalizeRoundHoles(list) {
   if (!Array.isArray(list)) return [];
@@ -325,6 +357,8 @@ export function cleanImport(data, { hasFile = () => true, now = localNow() } = {
     }
     out[t] = rows;
   }
+  // 同伴者のスコアは形を整え直す（壊れた値は捨てる）
+  for (const r of out.rounds) r.party = serializeParty(parseParty(r.party));
   // 参照切れの修正（SQLite の外部キーと同じ考え方：子は削除、任意の参照は NULL）
   const has = (t) => new Set(out[t].map((r) => r.id));
   const uniq = (rows, key) => { const s = new Set(); return rows.filter((r) => { const k = key(r); if (s.has(k)) return false; s.add(k); return true; }); };

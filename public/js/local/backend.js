@@ -3,7 +3,7 @@
 import {
   ApiError, SCHEMA, TABLES, ID_TABLES, SETTING_KEYS, SETTING_DEFAULTS, localNow, uuid, num, id,
   normalizeSetting, normalizeCourse, normalizeRound, normalizeClub, normalizeDistance, normalizeAlbum, normalizeCover,
-  photoLinks, imageExt, thumbExt, originalName, takenAt, text, cleanImport, isPhotoName, isThumbName, parseNines, ninesLabel,
+  photoLinks, imageExt, thumbExt, originalName, takenAt, text, cleanImport, isPhotoName, isThumbName, parseNines, ninesLabel, parseParty,
 } from '../shared/model.js';
 import { generateSample, pickSample } from '../shared/sample.js';
 import { readBackup, backupParts, mimeOf } from '../shared/backup.js';
@@ -121,6 +121,7 @@ export function createLocalBackend(store, {
       return {
         ...r,
         course_name: c?.name ?? r.course_name,
+        party: parseParty(r.party),
         photo_count: D.photos.filter((p) => p.round_id === r.id).length,
         nines_label: r.course_id != null ? ninesLabel(parseNines(c?.nines), r.front_nine, r.back_nine) : null,
         holes: (byRound.get(r.id) || []).sort((a, b) => a.hole_no - b.hole_no),

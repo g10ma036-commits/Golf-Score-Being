@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS rounds (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   front_nine  INTEGER,  -- 前半・後半に回ったまとまり（1 から。NULL は 1・2）
-  back_nine   INTEGER
+  back_nine   INTEGER,
+  party       TEXT      -- 同伴者のスコア（JSON 配列）
 );
 CREATE INDEX IF NOT EXISTS idx_rounds_date ON rounds(date);
 
@@ -129,6 +130,7 @@ function migrate(raw) {
   const rc = cols('rounds');
   if (!rc.includes('front_nine')) raw.exec('ALTER TABLE rounds ADD COLUMN front_nine INTEGER');
   if (!rc.includes('back_nine')) raw.exec('ALTER TABLE rounds ADD COLUMN back_nine INTEGER');
+  if (!rc.includes('party')) raw.exec('ALTER TABLE rounds ADD COLUMN party TEXT');
   // ホール番号の上限（18 → 54）を広げる。SQLite は CHECK を変更できないので表を作り直す
   const sql = raw.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'course_holes'").get()?.sql || '';
   if (sql.includes('BETWEEN 1 AND 18')) {

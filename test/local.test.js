@@ -141,6 +141,14 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('POST', '/api/rounds', { date: '2026-10-01', course_name: 'x', holes: [{ hole_no: 1, fairway: 'bunker' }] });
   await S('PUT', '/api/rounds/1', { date: '2026-10-02', course_id: 1, memo: 'メモ', holes: rh.slice(0, 18).reverse() });
   await S('PUT', '/api/rounds/77', { date: '2026-10-02', course_name: 'x' });
+  // 同伴者のスコア（不正な値は 400、名前の前後の空白は取り除く、スコアは 18 個にそろえる）
+  const party = await S('POST', '/api/rounds', { date: '2026-10-08', course_id: 1, holes: rh.slice(0, 3), party: [{ name: ' 田中 ', strokes: [5, 4, '6'] }, { name: '佐藤', strokes: [] }] });
+  assert.deepEqual(party.party, [{ name: '田中', strokes: [5, 4, 6, ...Array(15).fill(null)] }, { name: '佐藤', strokes: Array(18).fill(null) }]);
+  await S('PUT', `/api/rounds/${party.id}`, { date: '2026-10-08', course_id: 1, party: [] });
+  await S('POST', '/api/rounds', { date: '2026-10-08', course_name: 'x', party: [{ name: '' }] });
+  await S('POST', '/api/rounds', { date: '2026-10-08', course_name: 'x', party: [{ name: 'A', strokes: [0] }] });
+  await S('POST', '/api/rounds', { date: '2026-10-08', course_name: 'x', party: [{ name: 'A' }, { name: 'B' }, { name: 'C' }, { name: 'D' }] });
+  await S('POST', '/api/rounds', { date: '2026-10-08', course_name: 'x', party: 'abc' });
   await S('GET', '/api/rounds');
   await S('GET', '/api/rounds/2');
 

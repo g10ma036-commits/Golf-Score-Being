@@ -117,7 +117,7 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   const course = { id: 7, name: 'テストカントリー', location: '千葉県', rating: 70.5, slope: 125, nines: ['OUT', 'IN'],
     holes: PARS.map((par, i) => ({ hole_no: i + 1, par, yards: 300 + i * 10, hdcp: i + 1 })) };
   const rounds = [
-    { ...round(1, '2026-09-01', [1, 2]), course_id: 7, course_name: 'テストカントリー', companions: '山田太郎さん', memo: '秘密のメモ', tee: 'レギュラー' },
+    { ...round(1, '2026-09-01', [1, 2]), course_id: 7, course_name: 'テストカントリー', companions: '山田太郎さん', memo: '秘密のメモ', tee: 'レギュラー', party: [{ name: '鈴木一郎', strokes: [5, 4] }] },
     { ...round(2, '2026-10-01', [1]), course_id: 7, course_name: 'テストカントリー', companions: '佐藤花子さん' },
     { ...round(3, '2026-11-01', [0, 1]), course_id: null, course_name: '別のGC' },
   ];
@@ -126,7 +126,7 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   for (const p of ai.AI_PURPOSES) {
     const text = ai.buildAiPrompt(data, { purpose: p.key, period: p.period, roundId: 1, courseId: 7, holes: true, clubs: true, memo: false });
     assert.match(text, new RegExp(`お願い（${p.label}）`));
-    for (const secret of ['本名テスト', '山田太郎', '佐藤花子', '秘密のメモ']) assert.equal(text.includes(secret), false, `${p.key} に ${secret} が入っている`);
+    for (const secret of ['本名テスト', '山田太郎', '佐藤花子', '秘密のメモ', '鈴木一郎']) assert.equal(text.includes(secret), false, `${p.key} に ${secret} が入っている`);
     assert.match(text, /100切り/);
     assert.match(text, /7I,アイアン,31°/);
   }

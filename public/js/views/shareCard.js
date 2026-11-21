@@ -67,7 +67,7 @@ function drawMark(ctx, key, cx, cy, s) {
 }
 
 // 画像を描く。photo は読み込み済みの画像（なければ null）
-async function drawCard(round, { photo, badge, companions }) {
+async function drawCard(round, { photo, badge, companions, party = false }) {
   const sum = summarize(round);
   const F = family();
   const font = (size, weight = 400) => `${weight} ${size}px ${F}`;
@@ -166,6 +166,39 @@ async function drawCard(round, { photo, badge, companions }) {
       ctx.fillText(value, x + 20, y + 94);
     });
     y += 118 + 36;
+    // 同伴者を含めたランキング（選んだときだけ）
+    if (party && round.party?.length) {
+      const sum = (arr, a, b) => arr.slice(a, b).reduce((t, v) => t + (v || 0), 0);
+      const players = [{ name: '自分', strokes: holes.map((h) => (played(h) ? h.strokes : null)) }, ...round.party]
+        .map((p) => ({ name: p.name, out: sum(p.strokes, 0, 9), in: sum(p.strokes, 9, 18), n: p.strokes.filter((v) => v != null).length }))
+        .map((p) => ({ ...p, total: p.out + p.in }))
+        .sort((a, b) => (b.n === 18) - (a.n === 18) || a.total - b.total);
+      ctx.font = font(28, 700);
+      if (draw) { ctx.fillStyle = C.ink; ctx.fillText('ランキング', PAD, y + 28); }
+      y += 48;
+      players.forEach((p, i) => {
+        if (draw) {
+          ctx.fillStyle = i === 0 ? '#fff4d6' : C.soft;
+          roundRect(ctx, PAD, y, inner, 64, 14);
+          ctx.fill();
+          ctx.fillStyle = C.ink;
+          ctx.font = font(30, 800);
+          ctx.fillText(`${i + 1}`, PAD + 22, y + 43);
+          ctx.font = font(30, 700);
+          ctx.fillText(wrap(ctx, p.name, inner - 420, 1)[0] || '', PAD + 70, y + 43);
+          ctx.font = font(24);
+          ctx.fillStyle = C.sub;
+          ctx.textAlign = 'right';
+          ctx.fillText(p.n ? `OUT ${p.out || '—'}・IN ${p.in || '—'}` : '未入力', W - PAD - 110, y + 41);
+          ctx.fillStyle = C.ink;
+          ctx.font = font(34, 800);
+          ctx.fillText(p.total ? String(p.total) : '—', W - PAD - 22, y + 44);
+          ctx.textAlign = 'left';
+        }
+        y += 74;
+      });
+      y += 20;
+    }
     // スコアカード（OUT・IN）
     const labelW = 104;
     const sumW = 92;
@@ -254,6 +287,7 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
   const shareable = canShareFile(new File([''], 'a.png', { type: 'image/png' }));
   let photoIdx = photos.length ? 0 : -1;
   let withCompanions = false;
+  let withParty = false;
   let file = null;
   let url = null;
   let gen = 0;
@@ -267,6 +301,7 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
           ${photos.map((p, i) => html`<button type="button" class="sp" data-photo="${i}" aria-label="写真 ${i + 1}"><img src="${photoUrl(p)}" alt=""></button>`)}
         </div></div>` : ''}
       ${round.companions ? html`<label class="check share-opt"><input type="checkbox" data-companions> 同伴者の名前を入れる</label>` : ''}
+      ${round.party?.length ? html`<label class="check share-opt"><input type="checkbox" data-party> 同伴者のスコア（ランキング）を入れる</label>` : ''}
       <p class="small muted">${shareable ? '「共有する」から LINE で送ったり、「画像を保存」で写真アプリに保存したりできます。' : '「画像を保存」でダウンロードできます。'}</p>
     </div>`,
     footer: html`<button class="btn" data-dl disabled>画像を保存</button>${shareable ? html`<button class="btn btn-primary" data-share disabled>共有する…</button>` : ''}`,
@@ -285,7 +320,7 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
       try { photo = await loadImage(photoUrl(photos[photoIdx], false)); } catch { errorToast('この写真は画像に入れられませんでした'); }
     }
     try {
-      const f = await drawCard(round, { photo, badge, companions: withCompanions });
+      const f = await drawCard(round, { photo, badge, companions: withCompanions, party: withParty });
       if (my !== gen) return;
       file = f;
       if (url) URL.revokeObjectURL(url);
@@ -298,6 +333,7 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
   };
   $$('[data-photo]', m.el).forEach((b) => b.addEventListener('click', () => { photoIdx = Number(b.dataset.photo); render(); }));
   $('[data-companions]', m.el)?.addEventListener('change', (e) => { withCompanions = e.target.checked; render(); });
+  $('[data-party]', m.el)?.addEventListener('change', (e) => { withParty = e.target.checked; render(); });
   // 共有は、ボタンを押した直後に呼ぶ必要がある（iPhone）ので、画像は先に作っておく
   $('[data-share]', m.el)?.addEventListener('click', async () => { if (file && (await shareFile(file, 'スコアカード'))) m.close(); });
   $('[data-dl]', m.el).addEventListener('click', () => { if (file) downloadFile(file); });

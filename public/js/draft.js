@@ -14,9 +14,9 @@ export function loadDraft() {
 }
 
 // 保存できたら true（プライベートブラウズなどで保存できない環境では false）
-export function saveDraft({ edit_id = null, meta, holes }) {
+export function saveDraft({ edit_id = null, meta, holes, party = [] }) {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ v: 1, edit_id, meta, holes, saved_at: new Date().toISOString() }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 1, edit_id, meta, holes, party, saved_at: new Date().toISOString() }));
     return true;
   } catch {
     return false;
