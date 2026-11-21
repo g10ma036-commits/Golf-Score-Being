@@ -2,7 +2,7 @@
 import { html, mount, $, $$, fmt, pct, toPar, signed, fmtDate, icon, confirmDialog, toast, errorToast } from '../util.js';
 import { api, getSettings } from '../api.js';
 import {
-  summarize, aggregate, roundInsights, roundAchievements, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir,
+  summarize, aggregate, roundInsights, roundAchievements, achievements as achievementList, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { barChart, segmentedBar, chartCard, setupChart } from '../charts.js';
@@ -31,6 +31,12 @@ export async function render(root, [idStr]) {
   const insights = roundInsights(sum, base, { isBest });
   const goal = Number(settings.goal) || null;
   const achievements = justSaved ? roundAchievements(sum, otherSums, goal) : [];
+  // このラウンドで新しく達成した「実績」（スコアの節目・バーディはお祝いと重なるので除く）
+  const unlocked = justSaved ? (() => {
+    const before = new Map(achievementList(others).map((a) => [a.key, a.achieved]));
+    return achievementList(rounds).filter((a) => a.achieved && a.round?.id === id && !before.get(a.key) && !/^(u\d+|birdie|eagle|first)$/.test(a.key));
+  })() : [];
+  if (unlocked.length) achievements.push({ key: 'ach', icon: '🏅', title: `実績を達成：${unlocked.map((a) => a.title).join('・')}`, text: '', link: '#/achievements' });
   const goalHit = goal && sum.complete && sum.strokes < goal;
   const shareBadge = isBest ? '🏆 ベストスコア' : goalHit ? `🎯 ${goal}切り達成` : '';
   const sameCourse = round.course_id ? others.filter((r) => r.course_id === round.course_id) : [];
@@ -131,7 +137,7 @@ export async function render(root, [idStr]) {
     </div>
 
     ${achievements.length ? html`<div class="celebrate" role="status">
-      <div class="cel-items">${achievements.map((a) => html`<div class="cel-item"><span class="cel-ico" aria-hidden="true">${a.icon}</span><div><strong>${a.title}</strong>${a.text ? html`<div class="small">${a.text}</div>` : ''}</div></div>`)}</div>
+      <div class="cel-items">${achievements.map((a) => html`<div class="cel-item"><span class="cel-ico" aria-hidden="true">${a.icon}</span><div><strong>${a.title}</strong>${a.text ? html`<div class="small">${a.text}</div>` : ''}${a.link ? html`<div class="small"><a href="${a.link}">実績を見る →</a></div>` : ''}</div></div>`)}</div>
       <div class="cel-actions"><button class="btn btn-sm btn-primary" data-cel-share>${icon('share')}画像で共有</button><a class="btn btn-sm" href="#/ai?purpose=round&amp;round=${id}">${icon('ai')}AIで振り返り</a></div>
     </div>` : ''}
 
