@@ -399,3 +399,26 @@ export function yearReview(rounds, year) {
     first: sums[0] || null, last: sums[sums.length - 1] || null,
   };
 }
+
+// ---------- スコアの分布・ハンディキャップの推移 ----------
+// 18 ホールのスコアを 5 打ごとに数える（例: 85〜89 が 4 回）
+export function scoreDistribution(sums, width = 5) {
+  const scores = sums.filter((s) => s.complete).map((s) => s.strokes);
+  if (!scores.length) return [];
+  const lo = Math.floor(Math.min(...scores) / width) * width;
+  const hi = Math.floor(Math.max(...scores) / width) * width;
+  const out = [];
+  for (let b = lo; b <= hi; b += width) out.push({ from: b, to: b + width - 1, count: scores.filter((v) => v >= b && v < b + width).length });
+  return out;
+}
+
+// ラウンドを重ねるごとの推定ハンディキャップ（その時点までの直近 20 ラウンドで計算）
+export function handicapTrend(sums) {
+  const complete = sums.filter((s) => s.complete).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const out = [];
+  for (let i = 0; i < complete.length; i++) {
+    const hc = handicapEstimate(complete.slice(0, i + 1));
+    if (hc != null) out.push({ id: complete[i].id, date: complete[i].date, course: complete[i].course, handicap: hc });
+  }
+  return out;
+}

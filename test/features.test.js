@@ -192,3 +192,15 @@ test('スコアの CSV：1行 = 1ラウンド、カンマや改行を含む文�
   assert.match(csv, /"1行目\n""2行目"""/);
   assert.match(csv, /2026-05-01,"A,B カントリー",,,,田中さん,18,90,72,18,45,45,36,/);
 });
+
+test('スコアの分布（5打ごと）とハンディキャップの推移', () => {
+  const sums = [round(1, '2026-01-01', [1]), round(2, '2026-02-01', [2, 1]), round(3, '2026-03-01', [1, 1, 2]), round(4, '2026-04-01', [0, 1])].map(stats.summarize);
+  // 90, 99, 96, 81
+  assert.deepEqual(stats.scoreDistribution(sums), [
+    { from: 80, to: 84, count: 1 }, { from: 85, to: 89, count: 0 }, { from: 90, to: 94, count: 1 }, { from: 95, to: 99, count: 2 },
+  ]);
+  const t = stats.handicapTrend(sums);
+  assert.deepEqual(t.map((x) => x.id), [3, 4]); // 3 ラウンド目から計算できる
+  assert.ok(t[1].handicap < t[0].handicap); // 81 で良くなる
+  assert.deepEqual(stats.scoreDistribution([]), []);
+});

@@ -2,7 +2,7 @@
 import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '../util.js';
 import { api } from '../api.js';
 import {
-  summarize, aggregate, filterRounds, movingAverage, trendInsights, PERIODS,
+  summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, PERIODS,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
@@ -81,6 +81,8 @@ export async function render(root) {
         ${chartCard('rates', 'FWキープ率・パーオン率の推移', 'ラウンドごと')}
         ${chartCard('fw', 'ティーショットの方向', 'パー4・パー5')}
         ${chartCard('months', '月別の平均スコア', '直近12か月分（18ホール）')}
+        ${chartCard('scoredist', 'スコアの分布', '18ホールのスコアを5打ごとに')}
+        ${chartCard('hctrend', '推定ハンディキャップの推移', '3ラウンド目から・小さいほど良い')}
       </div>
 
       <div class="grid grid-2 section">
@@ -197,6 +199,23 @@ export async function render(root) {
       columns: [{ label: '月' }, { label: '平均スコア', align: 'r' }, { label: 'ラウンド数', align: 'r' }],
       rows: months.map((m) => [m.k, fmt(m.avg, 1), String(m.n)]),
     });
+
+    const dist = scoreDistribution(sums);
+    const distMax = Math.max(0, ...dist.map((d) => d.count));
+    setupChart(body, 'scoredist', (el) => barChart(el, {
+      bars: dist.map((d) => ({ label: `${d.from}`, value: d.count, color: 'var(--series-1)', title: `${d.from}〜${d.to}`, tip: [{ value: `${d.count} 回` }] })),
+      valueLabels: (b) => b.value > 0, height: 200, ariaLabel: 'スコアの分布',
+      yDomain: [0, Math.max(4, distMax)], yFormat: (v) => (Number.isInteger(v) ? String(v) : ''),
+    }), { columns: [{ label: 'スコア' }, { label: '回数', align: 'r' }], rows: dist.map((d) => [`${d.from}〜${d.to}`, String(d.count)]) });
+
+    const hc = handicapTrend(sums);
+    setupChart(body, 'hctrend', (el) => lineChart(el, {
+      labels: hc.map((x) => shortDate(x.date)),
+      series: [{ name: '推定ハンディキャップ', color: 'var(--series-3)', values: hc.map((x) => x.handicap) }],
+      tooltipTitle: (i) => `${fmtDate(hc[i].date)} ${hc[i].course || ''}`,
+      onClick: (i) => navigate(`/rounds/${hc[i].id}`),
+      height: 200, ariaLabel: '推定ハンディキャップの推移',
+    }), { columns: [{ label: '日付' }, { label: 'コース' }, { label: 'ハンディキャップ', align: 'r' }], rows: hc.map((x) => [fmtDate(x.date), x.course || '', x.handicap.toFixed(1)]) });
   };
 
   $$('[data-period]', root).forEach((b) => b.addEventListener('click', () => {
