@@ -296,3 +296,47 @@ export function trendInsights(sums) {
   cmp('ペナルティ/R', recent.penaltiesPerRound, prev.penaltiesPerRound, { threshold: 0.5 });
   return items;
 }
+
+// ---------- 目標スコア（例: 100 =「100切り」= 99 以下で達成） ----------
+export const GOAL_CHOICES = [120, 110, 100, 95, 90, 85, 80, 75];
+// 直近の平均から、次に目指す目標を選ぶ（平均 97 なら 95切り）
+export function suggestGoal(avg) {
+  if (avg == null) return 100;
+  const next = GOAL_CHOICES.filter((g) => g <= avg);
+  return next.length ? Math.max(...next) : Math.min(...GOAL_CHOICES);
+}
+
+export function goalProgress(sums, goal) {
+  const complete = sums.filter((s) => s.complete).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const achieved = complete.filter((s) => s.strokes < goal);
+  const recentAvg = mean(complete.slice(-5).map((s) => s.strokes));
+  const sorted = [...complete].sort((a, b) => a.strokes - b.strokes || a.date.localeCompare(b.date));
+  // 縮めるポイント：直近 10 ラウンド（18 ホール）の傾向から、打数を減らしやすいところを大きい順に 2 つ
+  const a = aggregate(complete.slice(-10));
+  const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  const tips = [];
+  const dbl = a.holes ? ((a.results.double + a.results.triple) / a.holes) * 18 : 0;
+  if (dbl >= 1) {
+    tips.push({ key: 'double', save: dbl / 2, text: `ダブルボギー以上（1ラウンド平均 ${f1(dbl)} ホール）の半分をボギーで止めると、約 ${f1(dbl / 2)} 打縮まります`, hint: 'トラブルのときは無理をせず、まず安全に出すことを優先しましょう' });
+  }
+  if (a.penaltiesPerRound != null && a.penaltiesPerRound >= 1) {
+    const v = a.penaltiesPerRound;
+    tips.push({ key: 'penalty', save: v / 2, text: `OB・ペナルティ（1ラウンド平均 ${f1(v)} 回）を半分にすると、約 ${f1(v / 2)} 打縮まります`, hint: 'OB が出やすいホールは、曲がっても安全なクラブ・方向を選びましょう' });
+  }
+  if (a.threePuttsPerRound != null && a.threePuttsPerRound >= 1) {
+    const v = a.threePuttsPerRound;
+    tips.push({ key: 'putt', save: v / 2, text: `3パット（1ラウンド平均 ${f1(v)} 回）を半分にすると、約 ${f1(v / 2)} 打縮まります`, hint: '長いパットは入れるより、カップの周り 1m に寄せる距離感を重視しましょう' });
+  }
+  tips.sort((x, y) => y.save - x.save);
+  return {
+    goal,
+    rounds: complete.length,
+    achieved: achieved.length,
+    firstAchieved: achieved[0] || null,
+    best: sorted[0] || null,
+    recentAvg,
+    gap: recentAvg != null ? recentAvg - (goal - 1) : null, // 平均でこれだけ縮めれば達成（0 以下なら達成ペース）
+    last10: complete.slice(-10).map((s) => ({ id: s.id, date: s.date, course: s.course, strokes: s.strokes, ok: s.strokes < goal })),
+    tips: tips.slice(0, 2),
+  };
+}

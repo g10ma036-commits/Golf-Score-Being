@@ -13,8 +13,8 @@ export const IMAGE_EXT = {
   'image/avif': '.avif', 'image/heic': '.heic', 'image/heif': '.heif',
 };
 export const THUMB_MIME = ['image/jpeg', 'image/webp', 'image/png'];
-export const SETTING_KEYS = ['player_name', 'unit', 'theme'];
-export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto' };
+export const SETTING_KEYS = ['player_name', 'unit', 'theme', 'goal'];
+export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto', goal: '' };
 // 1つのゴルフ場に登録できる 9 ホールのまとまり（東・西・南コースなど）の最大数
 export const MAX_NINES = 6;
 
@@ -117,6 +117,11 @@ export function normalizeSetting(k, value) {
   let v = text(value, 100) ?? '';
   if (k === 'unit') v = oneOf('unit', v, ['yd', 'm']) ?? 'yd';
   if (k === 'theme') v = oneOf('theme', v, ['auto', 'light', 'dark']) ?? 'auto';
+  if (k === 'goal') {
+    // 目標スコア（例: 100 →「100切り」）。範囲外や数字以外は「目標なし」
+    const n = Number(v);
+    v = v !== '' && Number.isInteger(n) && n >= 60 && n <= 150 ? String(n) : '';
+  }
   return v;
 }
 

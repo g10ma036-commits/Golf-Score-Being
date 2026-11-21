@@ -5,15 +5,25 @@ import { summarize, aggregate, movingAverage, trendInsights } from '../stats.js'
 import { lineChart, chartCard, setupChart } from '../charts.js';
 import { navigate } from '../main.js';
 import { sampleNoticeHtml, loadSample, deleteSampleFlow } from './sampleTools.js';
+import { loadDraft, clearDraft, draftText, draftHref } from '../draft.js';
+import { goalCardHtml, guideHtml, bindHomeCards } from './homeCards.js';
 
 export async function render(root) {
-  const [rounds, clubs, photos, settings, sample] = await Promise.all([
+  const [rounds, clubs, photos, settings, sample, courses] = await Promise.all([
     api.get('/api/rounds'),
     api.get('/api/clubs'),
     api.get('/api/photos?limit=8'),
     getSettings(),
     api.get('/api/sample').catch(() => null),
+    api.get('/api/courses'),
   ]);
+  // 入力途中のラウンド（編集中のラウンドが削除されていたら下書きも捨てる）
+  let draft = loadDraft();
+  if (draft?.edit_id && !rounds.some((r) => r.id === draft.edit_id)) { clearDraft(); draft = null; }
+  const draftNotice = draft ? html`<div class="notice draft-notice" id="draft-notice">
+    <span>📝 入力途中のラウンドがあります：${draftText(draft)}</span>
+    <a class="btn btn-sm btn-primary" href="${draftHref(draft)}">続きを入力</a></div>` : '';
+  const guide = await guideHtml({ rounds, courses, sample });
   // スマホ単独版：バックアップのお知らせ（サンプルデータしかないときは出さない）
   const onlySample = sample?.present && sample.counts.rounds >= rounds.length && !photos.length;
   const reminder = STANDALONE && !onlySample ? await import('../standalone.js').then((m) => m.backupReminder()).catch(() => null) : null;
@@ -24,8 +34,10 @@ export async function render(root) {
     mount(root, html`
       <div class="page-header"><div><h1>${name ? `${name} さん、ようこそ` : 'ようこそ'} ⛳</h1>
         <div class="sub">スコア・統計・アルバム・クラブ・飛距離をまとめて管理できます</div></div></div>
+      ${draftNotice}
       ${sampleNoticeHtml(sample)}
-      <div class="card empty">
+      ${guide}
+      <div class="card empty section">
         ${icon('score')}
         <h2>まだラウンドが記録されていません</h2>
         <p>最初のスコアを入力してみましょう。コースは入力画面から登録できます。</p>
@@ -39,6 +51,7 @@ export async function render(root) {
       try { await loadSample(); render(root); } catch (e) { errorToast(e); }
     });
     $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
+    bindHomeCards(root, { sums: [], settings, rerender: () => render(root) });
     return;
   }
 
@@ -60,7 +73,9 @@ export async function render(root) {
         <a class="btn btn-primary" href="#/rounds/new">${icon('plus')}スコアを入力</a>
       </div>
     </div>
+    ${draftNotice}
     ${sampleNoticeHtml(sample)}
+    ${guide}
     ${reminder ? html`<div class="notice" id="backup-notice">
       <span>💾 ${reminder.days == null ? 'まだバックアップがありません' : `最後のバックアップから ${reminder.days} 日たっています`}。故障や機種変更に備えて、写真込みのバックアップを作っておきましょう。</span>
       <button class="btn btn-sm btn-primary" id="do-backup">バックアップする</button></div>` : ''}
@@ -82,6 +97,8 @@ export async function render(root) {
         ${tile('今年のラウンド', thisYear, `通算 ${rounds.length} ラウンド`)}
       </div>
     </div>
+
+    <div class="section">${goalCardHtml(sums, settings.goal)}</div>
 
     <div class="grid grid-3 section">
       ${chartCard('trend', 'スコアの推移', `直近 ${trend.length} ラウンド（18ホール）・点をクリックで詳細`, 'span-2')}
@@ -121,6 +138,7 @@ export async function render(root) {
 
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
   $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
+  bindHomeCards(root, { sums, settings, rerender: () => render(root) });
   $('#do-backup', root)?.addEventListener('click', async () => {
     (await import('../standalone.js')).runBackupFlow(() => $('#backup-notice', root)?.remove());
   });

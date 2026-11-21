@@ -36,7 +36,11 @@ export async function render(root) {
   mount(root, html`
     <div class="page-header">
       <div><h1>コース</h1><div class="sub">コースのパー・ヤードを登録しておくと、スコア入力が楽になります</div></div>
-      <div class="actions"><button class="btn btn-primary" id="add">${icon('plus')}コースを追加</button></div>
+      <div class="actions">
+        ${courses.length ? html`<button class="btn" id="export">${icon('share')}友達に渡す</button>` : ''}
+        <button class="btn" id="import">${icon('download')}読み込む</button>
+        <button class="btn btn-primary" id="add">${icon('plus')}コースを追加</button>
+      </div>
     </div>
     ${courses.length ? html`<div class="album-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
       ${courses.map((c) => {
@@ -66,6 +70,8 @@ export async function render(root) {
     const c = await openCourseEditor(null);
     if (c) navigate(`/courses/${c.id}`);
   });
+  $('#export', root)?.addEventListener('click', async () => (await import('./courseShare.js')).openCourseExport(courses));
+  $('#import', root).addEventListener('click', async () => (await import('./courseShare.js')).openCourseImport(courses, () => render(root)));
 }
 
 const HOLE_FIELDS = {

@@ -1,10 +1,15 @@
 // ラウンドの新規入力・編集（スコアカード形式）
-import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, WEATHERS } from '../util.js';
+import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, WEATHERS } from '../util.js';
 import { api, photoUrl } from '../api.js';
 import { summarize, resultKey, played, courseHoleNo, RESULT_LABELS } from '../stats.js';
-import { navigate, setLeaveGuard } from '../main.js';
+import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
+import { loadDraft, saveDraft, clearDraft, draftText, draftTime, draftHref } from '../draft.js';
+
+const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker'];
+const META_TEXT = ['date', 'course_name', 'tee', 'weather', 'companions', 'memo'];
+const finiteOr = (v, d = null) => (Number.isFinite(v) ? v : d);
 
 const FW_CYCLE = [null, 'hit', 'left', 'right'];
 const FW_LABEL = { hit: '○', left: '←', right: '→' };
@@ -44,6 +49,26 @@ export async function render(root, params) {
       bunker: h?.bunker ?? null,
     };
   });
+
+  // 入力途中の下書きがあれば、そこから再開する（同じラウンドの新規入力・編集のときだけ）
+  const draft = loadDraft();
+  const resumed = Boolean(draft && (draft.edit_id ?? null) === editId);
+  const otherDraft = draft && !resumed ? draft : null;
+  if (resumed) {
+    for (const k of META_TEXT) if (typeof draft.meta[k] === 'string') meta[k] = draft.meta[k];
+    meta.course_id = finiteOr(draft.meta.course_id);
+    if (meta.course_id && !courses.some((c) => c.id === meta.course_id)) meta.course_id = null; // コースが削除されていた
+    meta.front_nine = finiteOr(draft.meta.front_nine, 1);
+    meta.back_nine = finiteOr(draft.meta.back_nine, 2);
+    draft.holes.slice(0, 18).forEach((d, i) => {
+      if (!d || typeof d !== 'object') return;
+      for (const k of HOLE_KEYS) {
+        if (k === 'fairway') holes[i].fairway = FW_CYCLE.includes(d.fairway) ? d.fairway : null;
+        else if (k === 'par') holes[i].par = finiteOr(d.par, holes[i].par);
+        else holes[i][k] = finiteOr(d[k]);
+      }
+    });
+  }
   const currentCourse = () => courses.find((c) => c.id === meta.course_id) || null;
   // 前半・後半の 9 ホールがコースの範囲に収まるようにする（9 ホールだけのコースは同じ 9 ホールを 2 周）
   const fitNines = (c) => {
@@ -65,11 +90,39 @@ export async function render(root, params) {
   // まとまりが 3 つ以上のゴルフ場のときの、ホールの説明（例:「南コース 3番」）
   const multiNames = () => { const c = currentCourse(); return c && ninesOf(c).length > 2 ? ninesOf(c) : null; };
   const nineOfHole = (no) => { const n = multiNames(); return n ? `${n[(no <= 9 ? meta.front_nine : meta.back_nine) - 1] ?? ''} ${((no - 1) % 9) + 1}番` : ''; };
-  if (!round && meta.course_id) applyCourse(courses.find((c) => c.id === meta.course_id));
+  if (!round && !resumed && meta.course_id) applyCourse(courses.find((c) => c.id === meta.course_id));
 
+  // 変更があったら少し待って下書きに保存。保存できていれば、画面を離れても確認は出さない（続きから再開できる）
   let dirty = false;
-  setLeaveGuard(() => dirty);
-  const markDirty = () => { dirty = true; };
+  let draftOk = true;
+  let draftTimer = 0;
+  setLeaveGuard(() => dirty && !draftOk);
+  const writeDraft = () => {
+    clearTimeout(draftTimer);
+    draftTimer = 0;
+    if (!dirty) return;
+    const fd = new FormData(form);
+    const m = { ...meta };
+    for (const k of ['date', 'tee', 'weather', 'companions', 'memo']) m[k] = String(fd.get(k) ?? '');
+    draftOk = saveDraft({ edit_id: editId, meta: m, holes });
+    const st = $('#draft-status', root);
+    if (st) st.textContent = draftOk ? `✓ 下書きを自動保存しました（${draftTime({ saved_at: new Date().toISOString() })}）` : '⚠ この環境では下書きを保存できません。保存するまで画面を閉じないでください';
+  };
+  const markDirty = () => {
+    dirty = true;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(writeDraft, 400);
+  };
+  const flushDraft = () => { if (draftTimer) writeDraft(); };
+  const onHide = () => { if (document.visibilityState === 'hidden') flushDraft(); };
+  document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', flushDraft);
+  const dropDraft = () => {
+    dirty = false;
+    clearTimeout(draftTimer);
+    draftTimer = 0;
+    clearDraft();
+  };
 
   const courseOptions = () => html`<option value="">コースを選択…</option>
     ${courses.map((c) => html`<option value="${c.id}" ${c.id === meta.course_id ? 'selected' : ''}>${c.name}</option>`)}
@@ -95,9 +148,16 @@ export async function render(root, params) {
 
   mount(root, html`
     <div class="page-header">
-      <div><a class="small" href="${editId ? `#/rounds/${editId}` : '#/rounds'}">← 戻る</a><h1>${editId ? 'ラウンドを編集' : 'スコアを入力'}</h1></div>
+      <div><a class="small" href="${editId ? `#/rounds/${editId}` : '#/rounds'}">← 戻る</a><h1>${editId ? 'ラウンドを編集' : 'スコアを入力'}</h1>
+        <div class="sub small" id="draft-status">入力内容は自動で下書き保存されます（途中でアプリを閉じても続きから入力できます）</div></div>
       <div class="actions"><button class="btn btn-primary" data-save>保存する</button></div>
     </div>
+    ${resumed ? html`<div class="notice draft-notice" id="draft-notice">
+      <span>📝 入力途中のラウンドを再開しました（${draftTime(draft)} に自動保存した内容）。</span>
+      <button type="button" class="btn btn-sm" data-discard>破棄して最初から</button></div>` : ''}
+    ${otherDraft ? html`<div class="notice draft-notice">
+      <span>📝 別の入力途中のラウンドがあります：${draftText(otherDraft)}。ここで入力を始めると、その下書きは置き換わります。</span>
+      <a class="btn btn-sm btn-primary" href="${draftHref(otherDraft)}">そちらを開く</a></div>` : ''}
     <form id="round-form" autocomplete="off" novalidate>
       <div class="card">
         <h2 style="margin-bottom:12px">基本情報</h2>
@@ -139,7 +199,7 @@ export async function render(root, params) {
         <label class="btn photo-pick"><input type="file" accept="image/*" multiple hidden id="photo-input">${icon('photo')}写真を選ぶ（撮影・写真ライブラリ）</label>
       </div>
       <div class="form-actions">
-        <a class="btn" href="${editId ? `#/rounds/${editId}` : '#/rounds'}">キャンセル</a>
+        <button type="button" class="btn" data-cancel>キャンセル</button>
         <button type="button" class="btn btn-primary" data-save>保存する</button>
       </div>
     </form>
@@ -432,7 +492,7 @@ export async function render(root, params) {
     $$('[data-save]', root).forEach((b) => { b.disabled = true; });
     try {
       const saved = editId ? await api.put(`/api/rounds/${editId}`, body) : await api.post('/api/rounds', body);
-      dirty = false;
+      dropDraft();
       toast('ラウンドを保存しました');
       if (pending.length) {
         const btns = $$('[data-save]', root);
@@ -448,9 +508,27 @@ export async function render(root, params) {
   $$('[data-save]', root).forEach((b) => b.addEventListener('click', save));
   form.addEventListener('submit', (e) => { e.preventDefault(); save(); });
 
+  // キャンセル：入力した内容（下書き）を破棄して戻る
+  $('[data-cancel]', root).addEventListener('click', async () => {
+    if (dirty || resumed) {
+      if (!(await confirmDialog('入力した内容を破棄して戻りますか？', { okText: '破棄する', danger: true }))) return;
+      dropDraft();
+    }
+    navigate(editId ? `/rounds/${editId}` : '/rounds');
+  });
+  $('[data-discard]', root)?.addEventListener('click', async () => {
+    if (!(await confirmDialog('入力途中の内容を破棄して、最初から入力しますか？', { okText: '破棄する', danger: true }))) return;
+    dropDraft();
+    refreshView();
+  });
+
   // PC（スコアカード入力）のときだけ最初の欄にフォーカス（スマホでキーボードが勝手に出ないように）
-  if (!editId && holeEl.hidden) setTimeout(() => (meta.course_id ? $('[data-h="1"][data-k="strokes"]', form) : courseSel).focus(), 0);
+  if (!editId && !resumed && holeEl.hidden) setTimeout(() => (meta.course_id ? $('[data-h="1"][data-k="strokes"]', form) : courseSel).focus(), 0);
   return () => {
+    document.removeEventListener('visibilitychange', onHide);
+    window.removeEventListener('pagehide', flushDraft);
+    flushDraft();
+    if (dirty && draftOk) toast('入力途中の内容は下書きに保存しました。「入力」かホームから続きを入力できます');
     setLeaveGuard(null);
     pending.forEach((p) => URL.revokeObjectURL(p.url));
   };

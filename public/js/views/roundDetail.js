@@ -88,6 +88,7 @@ export async function render(root, [idStr]) {
         <div class="sub">${[round.nines_label, round.tee && `${round.tee}ティー`, round.weather, round.companions && `同伴：${round.companions}`].filter(Boolean).join('　・　')}</div>
       </div>
       <div class="actions">
+        <button class="btn" id="share-card">${icon('share')}画像で共有</button>
         <button class="btn" id="add-photo">${icon('photo')}写真を追加</button>
         <a class="btn" href="#/rounds/${id}/edit">${icon('edit')}編集</a>
         <button class="btn btn-danger" id="del">${icon('trash')}削除</button>
@@ -173,6 +174,9 @@ export async function render(root, [idStr]) {
   });
   bindDropzone($('.dropzone', root), { roundId: id }, () => render(root, [idStr]));
   $('#add-photo', root).addEventListener('click', () => $('#round-photos input[type=file]', root).click());
+  $('#share-card', root).addEventListener('click', async () => {
+    (await import('./shareCard.js')).openShareCard(round, photos, { badge: isBest ? '🏆 ベストスコア' : '' });
+  });
   $$('.photo-grid .ph', root).forEach((b) => b.addEventListener('click', () => openLightbox(photos, Number(b.dataset.idx), { onChanged: () => render(root, [idStr]) })));
 
   const playedHoles = holes.filter(played);

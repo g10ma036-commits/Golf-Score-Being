@@ -42,6 +42,8 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 export function navigate(path) { location.hash = '#' + path; }
+// 今の画面を作り直す（後片付けの処理も通常の画面移動と同じように呼ばれる）
+export function refreshView() { route(); }
 
 export function applyTheme(theme) {
   if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;

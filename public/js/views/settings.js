@@ -4,6 +4,7 @@ import { api, getSettings, saveSettings, STANDALONE, inspectBackup, restoreBacku
 import { applyTheme } from '../main.js';
 import { PHONE_APP_URL } from '../config.js';
 import { sampleCountText, loadSample, deleteSampleFlow } from './sampleTools.js';
+import { GOAL_CHOICES } from '../stats.js';
 
 export async function render(root) {
   const [s, rounds, clubs, courses, sample] = await Promise.all([getSettings(true), api.get('/api/rounds'), api.get('/api/clubs'), api.get('/api/courses'), api.get('/api/sample').catch(() => null)]);
@@ -63,6 +64,9 @@ export async function render(root) {
             <option value="auto" ${!s.theme || s.theme === 'auto' ? 'selected' : ''}>自動（OSの設定に合わせる）</option>
             <option value="light" ${s.theme === 'light' ? 'selected' : ''}>ライト</option>
             <option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>ダーク</option></select></label>
+          <label class="field"><span>目標スコア</span><select name="goal">
+            <option value="">目標なし</option>
+            ${GOAL_CHOICES.map((g) => html`<option value="${g}" ${String(g) === s.goal ? 'selected' : ''}>${g}切り</option>`)}</select></label>
         </div>
         <p class="small muted" style="margin-top:8px">距離の単位は表示ラベルのみ変わります（記録済みの数値は換算されません）。</p>
         <div class="form-actions"><button class="btn btn-primary" type="submit">保存</button></div></form>
@@ -109,7 +113,7 @@ export async function render(root) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      const saved = await saveSettings({ player_name: form.player_name.value, unit: form.unit.value, theme: form.theme.value });
+      const saved = await saveSettings({ player_name: form.player_name.value, unit: form.unit.value, theme: form.theme.value, goal: form.goal.value });
       applyTheme(saved.theme);
       toast('設定を保存しました');
     } catch (err) { errorToast(err); }

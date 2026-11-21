@@ -108,6 +108,10 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('GET', '/api/settings');
   await S('PUT', '/api/settings', { player_name: ' 太郎 ', unit: 'm' });
   await S('PUT', '/api/settings', { theme: 'rainbow' });
+  await S('PUT', '/api/settings', { goal: '100' });
+  await S('PUT', '/api/settings', { goal: 'abc' });
+  await S('PUT', '/api/settings', { goal: 300 });
+  await S('PUT', '/api/settings', { goal: 90 });
   await S('GET', '/api/settings');
 
   // コース
