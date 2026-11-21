@@ -1,14 +1,14 @@
 // コース詳細：ホール別の得意・苦手分析
 import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon, confirmDialog, toast, errorToast } from '../util.js';
-import { api } from '../api.js';
-import { summarize, holeAnalysis, onCourseHoles } from '../stats.js';
+import { api, getSettings } from '../api.js';
+import { summarize, holeAnalysis, onCourseHoles, goalPlan, planLabel } from '../stats.js';
 import { lineChart, barChart, chartCard, setupChart } from '../charts.js';
 import { openCourseEditor, ninesOf, holeName, nineTotals } from './courses.js';
 import { navigate } from '../main.js';
 
 export async function render(root, [idStr]) {
   const id = Number(idStr);
-  const [course, allRounds] = await Promise.all([api.get(`/api/courses/${id}`), api.get('/api/rounds')]);
+  const [course, allRounds, settings] = await Promise.all([api.get(`/api/courses/${id}`), api.get('/api/rounds'), getSettings().catch(() => ({}))]);
   const rounds = allRounds.filter((r) => r.course_id === id);
   const sums = rounds.map(summarize);
   const complete = sums.filter((s) => s.complete).sort((a, b) => a.date.localeCompare(b.date));
@@ -25,6 +25,14 @@ export async function render(root, [idStr]) {
   const sorted = [...played].sort((a, b) => b.toPar - a.toPar);
   const hardest = sorted.slice(0, 3);
   const easiest = sorted.slice(-3).reverse();
+  // 目標スコアの配分（18 ホールのコースで、目標を設定しているとき）
+  const goal = Number(settings.goal) || null;
+  const plan = goal && names.length === 2 ? goalPlan(course.holes, goal, (no) => {
+    const st = holes[no - 1];
+    if (st?.n >= 2) return 100 + st.toPar;
+    const hd = course.holes.find((x) => x.hole_no === no)?.hdcp;
+    return hd ? 50 - hd : 0;
+  }) : null;
 
   mount(root, html`
     <div class="page-header">
@@ -56,12 +64,13 @@ export async function render(root, [idStr]) {
         </div>
       </div>
       <div class="card section">
-        <h2 style="margin-bottom:8px">ホール別データ</h2>
+        <div class="card-header"><div><h2>ホール別データ</h2>${plan ? html`<div class="sub">「目標」は ${goal}切りのための打数の配分（過去に崩しやすいホール・HDCP の小さいホールに多めに配分）</div>` : ""}</div></div>
         <div class="table-wrap"><table class="data">
-          <thead><tr><th>ホール</th><th class="r">パー</th><th class="r">ヤード</th><th class="r">HDCP</th><th class="r">平均</th><th class="r">パー比</th><th class="r">ベスト</th><th class="r">平均パット</th><th class="r">パー以上率</th><th class="r">回数</th></tr></thead>
+          <thead><tr><th>ホール</th><th class="r">パー</th><th class="r">ヤード</th><th class="r">HDCP</th>${plan ? html`<th class="r" title="${goal}切りのための目標打数">目標</th>` : ''}<th class="r">平均</th><th class="r">パー比</th><th class="r">ベスト</th><th class="r">平均パット</th><th class="r">パー以上率</th><th class="r">回数</th></tr></thead>
           <tbody>${holes.map((h) => {
             const ch = course.holes.find((x) => x.hole_no === h.hole_no) || {};
             return html`<tr><td>${label(h.hole_no)}</td><td class="r">${ch.par ?? h.par ?? '—'}</td><td class="r">${ch.yards ?? '—'}</td><td class="r">${ch.hdcp ?? '—'}</td>
+              ${plan ? html`<td class="r" title="${plan.get(h.hole_no) && ch.par ? planLabel(plan.get(h.hole_no), ch.par) : ''}"><strong>${plan.get(h.hole_no) ?? '—'}</strong></td>` : ''}
               <td class="r">${h.n ? fmt(h.avg, 2) : '—'}</td><td class="r ${h.toPar > 0.8 ? 'bad' : h.toPar <= 0.2 ? 'good' : ''}">${h.n ? toPar(h.toPar) : '—'}</td>
               <td class="r">${h.n ? h.best : '—'}</td><td class="r">${fmt(h.avgPutts, 2)}</td><td class="r">${h.n ? pct(h.parOrBetter) : '—'}</td><td class="r">${h.n}</td></tr>`;
           })}</tbody>

@@ -1,7 +1,7 @@
 // ラウンドの新規入力・編集（スコアカード形式）
 import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, openModal, WEATHERS } from '../util.js';
-import { api, photoUrl } from '../api.js';
-import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, RESULT_LABELS } from '../stats.js';
+import { api, photoUrl, getSettings } from '../api.js';
+import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
@@ -19,12 +19,14 @@ const FW_TITLE = { hit: 'フェアウェイキープ', left: '左に外した', 
 export async function render(root, params) {
   const editId = params[0] ? Number(params[0]) : null;
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
-  let [courses, round, savedPhotos, allRounds] = await Promise.all([
+  let [courses, round, savedPhotos, allRounds, settings] = await Promise.all([
     api.get('/api/courses'),
     editId ? api.get(`/api/rounds/${editId}`) : Promise.resolve(null),
     editId ? api.get(`/api/photos?round_id=${editId}`) : Promise.resolve([]),
     api.get('/api/rounds').catch(() => []),
+    getSettings().catch(() => ({})),
   ]);
+  const goal = Number(settings.goal) || null;
 
   const meta = {
     date: round?.date || today(),
@@ -332,6 +334,19 @@ export async function render(root, params) {
     }
     return pastStats;
   };
+  // 目標スコア（設定済みのとき）を 18 ホールに配る。難しいホール（過去のパー比 → HDCP の順）ほど多く
+  const planFor = () => {
+    if (!goal) return null;
+    const c = currentCourse();
+    const past = pastFor();
+    return goalPlan(holes, goal, (no) => {
+      const cno = courseHoleNo(meta, no);
+      const st = past?.[cno - 1];
+      if (st?.n >= 2) return 100 + st.toPar;
+      const hd = c?.holes.find((x) => x.hole_no === cno)?.hdcp;
+      return hd ? 50 - hd : 0;
+    });
+  };
   const drawHole = () => {
     const h = holes[cur - 1];
     const k = played(h) ? resultKey(h.strokes, h.par) : null;
@@ -340,10 +355,14 @@ export async function render(root, params) {
     const ch = c?.holes.find((x) => x.hole_no === cno);
     const past = pastFor()?.[cno - 1];
     const s = summarize({ holes });
+    const plan = planFor();
+    const target = plan?.get(cur);
+    const pace = plan && s.holes ? holes.filter(played).reduce((a, x) => a + x.strokes - (plan.get(x.hole_no) ?? x.par), 0) : null;
     mount(holeEl, html`
       <div class="he-total" aria-live="polite">${s.holes
-        ? html`合計 <strong>${s.strokes}</strong><span class="he-topar">${toPar(s.toPar)}</span><span class="he-tsub">${s.holes}ホール${s.puttHoles ? `・パット ${s.putts}` : ''}</span>`
-        : html`<span class="he-tsub">まだ入力がありません</span>`}</div>
+        ? html`合計 <strong>${s.strokes}</strong><span class="he-topar">${toPar(s.toPar)}</span><span class="he-tsub">${s.holes}ホール${s.puttHoles ? `・パット ${s.putts}` : ''}</span>
+          ${pace != null ? html`<span class="he-pace ${pace <= 0 ? 'ok' : 'over'}">${goal}切りペース ${pace === 0 ? '±0' : pace > 0 ? `+${pace}` : `−${-pace}`}</span>` : ''}`
+        : html`<span class="he-tsub">まだ入力がありません${goal ? `（目標：${goal}切り）` : ''}</span>`}</div>
       <div class="hole-strip">${holes.map((x) => html`<button type="button" class="hs ${x.hole_no === cur ? 'on' : ''} ${played(x) ? `res-${resultKey(x.strokes, x.par)}` : ''}" data-go="${x.hole_no}" aria-label="${x.hole_no}番ホール">
         <span class="hs-no">${x.hole_no}</span><span class="hs-sc">${played(x) ? x.strokes : '·'}</span></button>`)}</div>
       <div class="he-head">
@@ -351,9 +370,10 @@ export async function render(root, params) {
         <div class="he-title"><div class="he-no">${cur}<small> 番ホール</small></div><div class="he-sub">${nineOfHole(cur) ? `${nineOfHole(cur)} ・ ` : ''}Par ${h.par}${h.yards ? ` ・ ${h.yards} yd` : ''}${ch?.hdcp ? ` ・ HDCP ${ch.hdcp}` : ''}</div></div>
         <button type="button" class="btn btn-icon" data-next ${cur === 18 ? 'disabled' : ''} aria-label="次のホール">›</button>
       </div>
-      ${c ? html`<div class="he-info">
+      ${c || target ? html`<div class="he-info">
+        ${target ? html`<span class="he-target">🎯 目標 <strong>${target}</strong>（${planLabel(target, h.par)}）<span class="small muted">${goal}切りの配分</span></span>` : ''}
         ${past?.n ? html`<span class="he-past">このホールの過去：平均 <strong>${past.avg.toFixed(1)}</strong>・ベスト ${past.best}（${past.n}回）</span>` : ''}
-        <span class="he-memo">${ch?.memo ? html`📝 ${ch.memo}` : ''}<button type="button" class="link-btn" data-memo-edit>${ch?.memo ? '編集' : '＋ このホールのメモ'}</button></span>
+        ${c ? html`<span class="he-memo">${ch?.memo ? html`📝 ${ch.memo}` : ''}<button type="button" class="link-btn" data-memo-edit>${ch?.memo ? '編集' : '＋ このホールのメモ'}</button></span>` : ''}
       </div>` : ''}
       <div class="he-row"><div class="he-label">スコア <span class="he-res">${k ? RESULT_LABELS[k] : ''}</span></div>
         <div class="he-line"><div class="chips">${[h.par - 1, h.par, h.par + 1, h.par + 2, h.par + 3].map((v) => chip('strokes', v, h.strokes === v, v))}</div>

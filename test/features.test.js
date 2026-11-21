@@ -204,3 +204,22 @@ test('スコアの分布（5打ごと）とハンディキャップの推移', (
   assert.ok(t[1].handicap < t[0].handicap); // 81 で良くなる
   assert.deepEqual(stats.scoreDistribution([]), []);
 });
+
+test('目標スコアの配分：合計が「目標 − 1」になり、難しいホールほど多く配る', () => {
+  const holes = PARS.map((par, i) => ({ hole_no: i + 1, par }));
+  const hdcp = (no) => 19 - no; // 1番が一番難しい（HDCP 1）とする
+  const plan = stats.goalPlan(holes, 100, hdcp); // 99 = パー72 + 27
+  const sum = [...plan.values()].reduce((a, b) => a + b, 0);
+  assert.equal(sum, 99);
+  // 全ホールボギー（+18）＋ 難しい 9 ホールはダブルボギー
+  assert.equal(plan.get(1), PARS[0] + 2);
+  assert.equal(plan.get(18), PARS[17] + 1);
+  assert.equal([...plan.entries()].filter(([no, v]) => v - PARS[no - 1] === 2).length, 9);
+  const p90 = stats.goalPlan(holes, 90, hdcp); // 89 = +17
+  assert.equal([...p90.values()].reduce((a, b) => a + b, 0), 89);
+  assert.equal(p90.get(18), PARS[17]); // 一番やさしいホールはパー
+  assert.equal(stats.goalPlan(holes, null), null);
+  assert.equal(stats.planLabel(5, 4), 'ボギー');
+  assert.equal(stats.planLabel(4, 4), 'パー');
+  assert.equal(stats.planLabel(8, 4), 'パー+4');
+});

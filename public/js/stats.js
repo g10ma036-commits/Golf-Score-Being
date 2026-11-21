@@ -422,3 +422,21 @@ export function handicapTrend(sums) {
   }
   return out;
 }
+
+// ---------- 目標スコアの配分（例: 100切り → 99 打を 18 ホールに配る） ----------
+// holes: [{ hole_no, par }]（そのラウンドで回る 18 ホール）。difficulty(no) は難しいほど大きい値（過去のパー比や HDCP から）
+// 返り値: Map(hole_no → 目標打数)。難しいホールから順に 1 打ずつ多く配る
+export function goalPlan(holes, goal, difficulty = () => 0) {
+  const list = holes.filter((h) => Number.isFinite(h.par));
+  if (!goal || !list.length) return null;
+  const target = goal - 1;
+  const par = list.reduce((a, h) => a + h.par, 0);
+  const over = target - par;
+  const base = Math.floor(over / list.length);
+  const extra = over - base * list.length;
+  const ranked = [...list].sort((a, b) => difficulty(b.hole_no) - difficulty(a.hole_no) || b.par - a.par || a.hole_no - b.hole_no);
+  const plan = new Map();
+  ranked.forEach((h, i) => plan.set(h.hole_no, Math.max(1, h.par + base + (i < extra ? 1 : 0))));
+  return plan;
+}
+export const planLabel = (strokes, par) => ({ '-2': 'イーグル', '-1': 'バーディ', 0: 'パー', 1: 'ボギー', 2: 'ダブルボギー', 3: 'トリプルボギー' })[strokes - par] ?? `パー${strokes - par > 0 ? '+' : ''}${strokes - par}`;
