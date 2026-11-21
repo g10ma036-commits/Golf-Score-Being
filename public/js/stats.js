@@ -461,3 +461,19 @@ export function roundAchievements(sum, otherSums, goal = null) {
   else if (sum.results.birdie + sum.results.eagle && otherSums.length && !otherSums.some((s) => s.results.birdie + s.results.eagle)) out.push({ key: 'birdie', icon: '🐦', title: '初バーディ！', text: '' });
   return out;
 }
+
+// ---------- パー3 の番手の目安 ----------
+// clubs: API のクラブ（バッグの中だけ使う）。yards: ホールの距離（ヤード）。unit: 飛距離の単位（'yd' | 'm'）
+export function suggestClub(clubs, yards, unit = 'yd') {
+  if (!Number.isFinite(yards) || yards <= 0) return null;
+  const target = unit === 'm' ? yards * 0.9144 : yards;
+  const cands = clubs.filter((c) => c.in_bag && c.category !== 'putter' && c.category !== 'driver')
+    .map((c) => ({ club: c, carry: c.shot_count ? c.avg_carry : c.target_carry }))
+    .filter((x) => Number.isFinite(x.carry) && x.carry > 0);
+  if (!cands.length) return null;
+  // いちばん近い番手（同じくらいなら長いほう。ショートしやすいため）
+  cands.sort((x, y) => Math.abs(x.carry - target) - Math.abs(y.carry - target) || y.carry - x.carry);
+  const best = cands[0];
+  if (Math.abs(best.carry - target) > target * 0.25) return null; // 合う番手がない
+  return { name: best.club.name, carry: Math.round(best.carry), measured: Boolean(best.club.shot_count) };
+}

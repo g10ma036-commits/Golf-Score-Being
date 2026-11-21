@@ -238,3 +238,22 @@ test('ラウンドの達成：ベスト更新・初めての目標達成・初�
   assert.equal(g90.some((x) => x.key === 'm90'), false); // 目標と同じ節目は重ねない
   assert.deepEqual(stats.roundAchievements(stats.summarize(round(4, '2026-04-01', [2, 2, 2])), others, 100).map((x) => x.key), []);
 });
+
+test('パー3 の番手の目安：距離にいちばん近い番手', () => {
+  const clubs = [
+    { name: '1W', category: 'driver', in_bag: 1, shot_count: 5, avg_carry: 220 },
+    { name: '7I', category: 'iron', in_bag: 1, shot_count: 8, avg_carry: 148 },
+    { name: '8I', category: 'iron', in_bag: 1, shot_count: 0, avg_carry: null, target_carry: 138 },
+    { name: '9I', category: 'iron', in_bag: 1, shot_count: 6, avg_carry: 128 },
+    { name: 'PT', category: 'putter', in_bag: 1 },
+    { name: '6I', category: 'iron', in_bag: 0, shot_count: 3, avg_carry: 158 },
+  ];
+  assert.equal(stats.suggestClub(clubs, 148).name, '7I');
+  assert.equal(stats.suggestClub(clubs, 141).name, '8I'); // 8I(138) が 7I(148) より近い
+  assert.equal(stats.suggestClub(clubs, 143).name, '7I'); // ちょうど中間なら長いほう
+  assert.equal(stats.suggestClub(clubs, 137).name, '8I');
+  assert.equal(stats.suggestClub(clubs, 137).measured, false);
+  assert.equal(stats.suggestClub(clubs, 60), null); // 合う番手がない
+  assert.equal(stats.suggestClub(clubs, null), null);
+  assert.equal(stats.suggestClub(clubs, 150, 'm').name, '8I');
+});

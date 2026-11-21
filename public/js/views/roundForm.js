@@ -1,7 +1,7 @@
 // ラウンドの新規入力・編集（スコアカード形式）
 import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, openModal, WEATHERS } from '../util.js';
 import { api, photoUrl, getSettings } from '../api.js';
-import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, RESULT_LABELS } from '../stats.js';
+import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, suggestClub, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
@@ -20,12 +20,13 @@ const FW_TITLE = { hit: 'フェアウェイキープ', left: '左に外した', 
 export async function render(root, params) {
   const editId = params[0] ? Number(params[0]) : null;
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
-  let [courses, round, savedPhotos, allRounds, settings] = await Promise.all([
+  let [courses, round, savedPhotos, allRounds, settings, clubs] = await Promise.all([
     api.get('/api/courses'),
     editId ? api.get(`/api/rounds/${editId}`) : Promise.resolve(null),
     editId ? api.get(`/api/photos?round_id=${editId}`) : Promise.resolve([]),
     api.get('/api/rounds').catch(() => []),
     getSettings().catch(() => ({})),
+    api.get('/api/clubs').catch(() => []),
   ]);
   const goal = Number(settings.goal) || null;
 
@@ -361,6 +362,8 @@ export async function render(root, params) {
     const s = summarize({ holes });
     const plan = planFor();
     const target = plan?.get(cur);
+    const club = h.par === 3 ? suggestClub(clubs, h.yards, settings.unit) : null;
+    const unitLabel = settings.unit === 'm' ? 'm' : 'yd';
     const pace = plan && s.holes ? holes.filter(played).reduce((a, x) => a + x.strokes - (plan.get(x.hole_no) ?? x.par), 0) : null;
     mount(holeEl, html`
       <div class="he-total" aria-live="polite">${s.holes
@@ -374,8 +377,9 @@ export async function render(root, params) {
         <div class="he-title"><div class="he-no">${cur}<small> 番ホール</small></div><div class="he-sub">${nineOfHole(cur) ? `${nineOfHole(cur)} ・ ` : ''}Par ${h.par}${h.yards ? ` ・ ${h.yards} yd` : ''}${ch?.hdcp ? ` ・ HDCP ${ch.hdcp}` : ''}</div></div>
         <button type="button" class="btn btn-icon" data-next ${cur === 18 ? 'disabled' : ''} aria-label="次のホール">›</button>
       </div>
-      ${c || target ? html`<div class="he-info">
+      ${c || target || club ? html`<div class="he-info">
         ${target ? html`<span class="he-target">🎯 目標 <strong>${target}</strong>（${planLabel(target, h.par)}）<span class="small muted">${goal}切りの配分</span></span>` : ''}
+        ${club ? html`<span class="he-club">🏌️ 番手の目安：<strong>${club.name}</strong>（${club.measured ? '平均' : '想定'} ${club.carry}${unitLabel}）</span>` : ''}
         ${past?.n ? html`<span class="he-past">このホールの過去：平均 <strong>${past.avg.toFixed(1)}</strong>・ベスト ${past.best}（${past.n}回）</span>` : ''}
         ${c ? html`<span class="he-memo">${ch?.memo ? html`📝 ${ch.memo}` : ''}<button type="button" class="link-btn" data-memo-edit>${ch?.memo ? '編集' : '＋ このホールのメモ'}</button></span>` : ''}
       </div>` : ''}
