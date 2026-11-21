@@ -86,7 +86,7 @@ test('コース共有ファイル：作成 → 読み取りで同じコースに
   assert.equal(items[0].course.name, '東西南カントリー');
   assert.deepEqual(items[0].course.nines, ['東', '西', '南']);
   assert.equal(items[0].course.holes.length, 27);
-  assert.deepEqual(items[0].course.holes[26], { hole_no: 27, par: 5, yards: 326, hdcp: 27 });
+  assert.deepEqual(items[0].course.holes[26], { hole_no: 27, par: 5, yards: 326, hdcp: 27, memo: null });
   assert.equal(items[0].course.rating, 71.2);
   assert.equal(items[1].course.holes.length, 18);
   assert.deepEqual(items[1].course.nines, ['OUT', 'IN']);

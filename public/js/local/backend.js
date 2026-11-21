@@ -81,7 +81,7 @@ export function createLocalBackend(store, {
 
   // ---------- コース ----------
   const holesOf = (cid) => D.course_holes.filter((h) => h.course_id === cid).sort((a, b) => a.hole_no - b.hole_no)
-    .map(({ hole_no, par, yards, hdcp }) => ({ hole_no, par, yards, hdcp }));
+    .map(({ hole_no, par, yards, hdcp, memo }) => ({ hole_no, par, yards, hdcp, memo: memo ?? null }));
   function listCourses() {
     return [...D.courses]
       .sort((a, b) => cmp(nocase(a.name), nocase(b.name)) || a.id - b.id)

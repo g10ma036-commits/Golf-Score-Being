@@ -29,7 +29,7 @@ export const isThumbName = (s) => typeof s === 'string' && THUMB_NAME_RE.test(s)
 export const SCHEMA = {
   settings: { key: 'text!', value: 'text' },
   courses: { id: 'id', name: 'text!', location: 'text', rating: 'real', slope: 'int', memo: 'text', created_at: 'ts', nines: 'text' },
-  course_holes: { course_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', hdcp: 'int' },
+  course_holes: { course_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', hdcp: 'int', memo: 'text' },
   rounds: {
     id: 'id', date: 'text!', course_id: 'int', course_name: 'text', tee: 'text', weather: 'text', companions: 'text',
     memo: 'text', rating: 'real', slope: 'int', created_at: 'ts', updated_at: 'ts', front_nine: 'int', back_nine: 'int',
@@ -174,6 +174,7 @@ function normalizeCourseHoles(list, nines) {
       par: num(`${label}のパー`, h.par, { min: 3, max: 6, integer: true }) ?? 4,
       yards: num(`${label}のヤード`, h.yards, { min: 0, max: 900, integer: true }),
       hdcp: num(`${label}のHDCP`, h.hdcp, { min: 1, max: maxNo > 18 ? 27 : 18, integer: true }),
+      memo: text(h.memo, 200), // ホールの攻略メモ（例: 左は OB）
     };
   });
 }

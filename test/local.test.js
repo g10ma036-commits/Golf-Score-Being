@@ -115,7 +115,7 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('GET', '/api/settings');
 
   // コース
-  const holes = PARS.map((par, i) => ({ hole_no: i + 1, par, yards: 300 + i, hdcp: (i % 18) + 1 }));
+  const holes = PARS.map((par, i) => ({ hole_no: i + 1, par, yards: 300 + i, hdcp: (i % 18) + 1, ...(i === 0 ? { memo: ' 左はOB ' } : {}) }));
   await S('POST', '/api/courses', { name: 'b テストGC', rating: 71.2, slope: 125, holes });
   await S('POST', '/api/courses', { name: 'A 河川敷', holes: holes.slice(0, 9) });
   await S('POST', '/api/courses', { name: '  ' });

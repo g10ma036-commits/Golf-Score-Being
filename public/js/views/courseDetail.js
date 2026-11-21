@@ -70,6 +70,9 @@ export async function render(root, [idStr]) {
       ${complete.length >= 2 ? chartCard('history', 'このコースでのスコア推移', '点をクリックで詳細', 'section') : ''}
     ` : html`<div class="card empty section">${icon('score')}<p>このコースのラウンドはまだありません。</p></div>`}
 
+    ${course.holes.some((h) => h.memo) ? html`<div class="card section"><div class="card-header"><h2>ホールの攻略メモ</h2><button class="btn btn-sm" data-edit-memo>${icon('edit')}編集</button></div>
+      <ul class="memo-list">${course.holes.filter((h) => h.memo).map((h) => html`<li><span class="memo-no">${label(h.hole_no)}${multi ? '' : '番'}</span><span class="small muted">Par ${h.par}</span><span>${h.memo}</span></li>`)}</ul></div>` : ''}
+
     ${rounds.length ? html`<div class="card section"><h2 style="margin-bottom:8px">ラウンド履歴</h2><div class="table-wrap"><table class="data">
       <thead><tr><th>日付</th>${multi ? html`<th>回ったコース</th>` : ''}<th class="r">スコア</th><th class="r">パー比</th><th class="r">パット</th><th>ティー</th><th>同伴者</th></tr></thead>
       <tbody>${sums.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${fmtDate(s.date)}</td>${multi ? html`<td>${rounds[i].nines_label || ''}</td>` : ''}<td class="r"><strong>${s.holes ? s.strokes : '—'}</strong></td>
@@ -81,6 +84,7 @@ export async function render(root, [idStr]) {
 
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
   $('#edit', root).addEventListener('click', async () => { if (await openCourseEditor(course)) render(root, [idStr]); });
+  $('[data-edit-memo]', root)?.addEventListener('click', async () => { if (await openCourseEditor(course)) render(root, [idStr]); });
   $('#del', root).addEventListener('click', async () => {
     const ok = await confirmDialog(`「${course.name}」を削除しますか？\nこのコースのラウンド記録は残ります（コース名のみ保持）。`, { danger: true, okText: '削除する' });
     if (!ok) return;

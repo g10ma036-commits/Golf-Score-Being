@@ -66,17 +66,17 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
 
   // ---------- コース ----------
   function courseHoles(courseId) {
-    return db.all('SELECT hole_no, par, yards, hdcp FROM course_holes WHERE course_id = ? ORDER BY hole_no', courseId);
+    return db.all('SELECT hole_no, par, yards, hdcp, memo FROM course_holes WHERE course_id = ? ORDER BY hole_no', courseId);
   }
   function listCourses() {
     const courses = db.all(`
       SELECT c.*, (SELECT COUNT(*) FROM rounds r WHERE r.course_id = c.id) AS round_count
       FROM courses c ORDER BY c.name COLLATE NOCASE, c.id`);
-    const holes = db.all('SELECT course_id, hole_no, par, yards, hdcp FROM course_holes ORDER BY course_id, hole_no');
+    const holes = db.all('SELECT course_id, hole_no, par, yards, hdcp, memo FROM course_holes ORDER BY course_id, hole_no');
     const byCourse = new Map();
     for (const h of holes) {
       if (!byCourse.has(h.course_id)) byCourse.set(h.course_id, []);
-      byCourse.get(h.course_id).push({ hole_no: h.hole_no, par: h.par, yards: h.yards, hdcp: h.hdcp });
+      byCourse.get(h.course_id).push({ hole_no: h.hole_no, par: h.par, yards: h.yards, hdcp: h.hdcp, memo: h.memo });
     }
     return courses.map((c) => ({ ...c, nines: parseNines(c.nines), holes: byCourse.get(c.id) || [] }));
   }
@@ -97,7 +97,7 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
       }
       db.run('DELETE FROM course_holes WHERE course_id = ?', courseId);
       for (const h of holes) {
-        db.run('INSERT INTO course_holes(course_id, hole_no, par, yards, hdcp) VALUES (?,?,?,?,?)', courseId, h.hole_no, h.par, h.yards, h.hdcp);
+        db.run('INSERT INTO course_holes(course_id, hole_no, par, yards, hdcp, memo) VALUES (?,?,?,?,?,?)', courseId, h.hole_no, h.par, h.yards, h.hdcp, h.memo);
       }
       return getCourse(courseId);
     });

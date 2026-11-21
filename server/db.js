@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS course_holes (
   par       INTEGER NOT NULL DEFAULT 4,
   yards     INTEGER,
   hdcp      INTEGER,
+  memo      TEXT,     -- ホールの攻略メモ
   PRIMARY KEY (course_id, hole_no)
 );
 
@@ -145,6 +146,8 @@ function migrate(raw) {
       ALTER TABLE course_holes_new RENAME TO course_holes;
       COMMIT;`);
   }
+  // ホールの攻略メモ（後から追加した列）
+  if (!cols('course_holes').includes('memo')) raw.exec('ALTER TABLE course_holes ADD COLUMN memo TEXT');
 }
 
 function openDb(file) {

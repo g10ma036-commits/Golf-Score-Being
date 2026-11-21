@@ -92,7 +92,7 @@ export function openCourseEditor(course, template = null) {
     const valAt = (no) => {
       if (!vals.has(no)) {
         const h = src?.holes?.find((x) => x.hole_no === no);
-        vals.set(no, { par: h?.par ?? DEFAULT_PARS[(no - 1) % 18], yards: h?.yards ?? '', hdcp: h?.hdcp ?? '' });
+        vals.set(no, { par: h?.par ?? DEFAULT_PARS[(no - 1) % 18], yards: h?.yards ?? '', hdcp: h?.hdcp ?? '', memo: h?.memo ?? '' });
       }
       return vals.get(no);
     };
@@ -155,14 +155,21 @@ export function openCourseEditor(course, template = null) {
           <button type="button" class="btn btn-sm" data-add-nine ${names.length >= MAX_NINES ? 'disabled' : ''}>${icon('plus')}9ホールを追加</button>
           ${names.length > 1 ? html`<button type="button" class="btn btn-sm btn-ghost" data-remove-nine>最後の9ホールを削除</button>` : ''}
           <span class="small muted">${help}</span>
-        </div>`);
+        </div>
+        <details class="hole-memos" ${holeMemoCount() ? 'open' : ''}>
+          <summary>📝 ホールごとの攻略メモ${holeMemoCount() ? `（${holeMemoCount()}）` : ''}</summary>
+          <p class="small muted">スコア入力（1ホールずつ）の画面に表示されます。例：「左は OB」「グリーン奥に外すと難しい」</p>
+          <div class="memo-grid">${names.flatMap((_, i) => holeNos(i)).map((no) => html`<label class="memo-row"><span>${holeName(names, no)}</span><input data-memo="${no}" maxlength="200" value="${valAt(no).memo}" placeholder="メモ"></label>`)}</div>
+        </details>`);
       updateSums();
     };
     // 入力欄の値を控える（まとまりを増減して描き直す前に）
     const readInputs = () => {
       $$('[data-h]', form).forEach((el) => { valAt(Number(el.dataset.h))[el.dataset.k] = el.value; });
       $$('[data-nine-name]', form).forEach((el) => { names[Number(el.dataset.nineName)] = el.value; });
+      $$('[data-memo]', form).forEach((el) => { valAt(Number(el.dataset.memo)).memo = el.value; });
     };
+    const holeMemoCount = () => names.flatMap((_, i) => holeNos(i)).filter((no) => String(valAt(no).memo || '').trim()).length;
     // まとまりの数を変える。既定の名前（OUT・IN ↔ Aコース…）は数に合わせて付け直す
     const setCount = (n) => {
       readInputs();
@@ -218,7 +225,7 @@ export function openCourseEditor(course, template = null) {
         nines: names.map((s) => s.trim()),
         holes: Array.from({ length: names.length * 9 }, (_, i) => {
           const v = valAt(i + 1);
-          return { hole_no: i + 1, par: numOrNull(v.par) ?? 4, yards: numOrNull(v.yards), hdcp: numOrNull(v.hdcp) };
+          return { hole_no: i + 1, par: numOrNull(v.par) ?? 4, yards: numOrNull(v.yards), hdcp: numOrNull(v.hdcp), memo: String(v.memo || '').trim() || null };
         }),
       };
       try {

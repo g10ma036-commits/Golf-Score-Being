@@ -270,6 +270,8 @@ test('古い版のデータベース（18 ホールまで）を開くと、27 �
     const db = openDb(file);
     assert.deepEqual(db.all('SELECT hole_no, par, yards FROM course_holes ORDER BY hole_no').map((r) => ({ ...r })), [{ hole_no: 1, par: 5, yards: 500 }, { hole_no: 18, par: 3, yards: 150 }]);
     db.run('INSERT INTO course_holes(course_id, hole_no, par) VALUES (1, 27, 4)');
+    db.run("UPDATE course_holes SET memo = '左はOB' WHERE hole_no = 1"); // 攻略メモの列も追加される
+    assert.equal(db.get('SELECT memo FROM course_holes WHERE hole_no = 1').memo, '左はOB');
     assert.throws(() => db.run('INSERT INTO course_holes(course_id, hole_no, par) VALUES (1, 55, 4)'));
     db.run("UPDATE courses SET nines = '[\"東\",\"西\",\"南\"]' WHERE id = 1");
     db.run('UPDATE rounds SET front_nine = 3, back_nine = 1 WHERE id = 1');

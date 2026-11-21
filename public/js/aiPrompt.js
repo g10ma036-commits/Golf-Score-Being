@@ -126,7 +126,7 @@ function holeLines(r, { memo }) {
   return lines;
 }
 
-function courseLines(course, rounds) {
+function courseLines(course, rounds, { memo = false } = {}) {
   const names = course.nines?.length ? course.nines : ['OUT', 'IN'];
   const multi = names.length > 2;
   const label = (no) => (multi ? `${names[Math.floor((no - 1) / 9)]}${((no - 1) % 9) + 1}` : String(no));
@@ -136,14 +136,15 @@ function courseLines(course, rounds) {
     `- ${names.length * 9}ホール${multi ? `（${names.join('・')} の9ホールずつ）` : ''}、コースレート ${course.rating ?? '不明'}、スロープ ${course.slope ?? '不明'}`,
     `- 私のこのコースでのラウンド数：${rounds.length}`,
     '',
-    'ホール,パー,ヤード,HDCP,私の回数,私の平均,パー比,ベスト,平均パット,パー以内の率,ダボ以上の率',
   ];
+  const withMemo = memo && course.holes.some((h) => h.memo);
+  lines.push(`ホール,パー,ヤード,HDCP,私の回数,私の平均,パー比,ベスト,平均パット,パー以内の率,ダボ以上の率${withMemo ? ',私のメモ' : ''}`);
   for (let no = 1; no <= names.length * 9; no++) {
     const h = course.holes.find((x) => x.hole_no === no) || {};
     const st = stats[no - 1];
     const dbl = st.n ? (st.results.double + st.results.triple) / st.n : null;
     lines.push([label(no), h.par ?? '—', h.yards ?? '—', h.hdcp ?? '—', st.n,
-      st.n ? f2(st.avg) : '—', st.n ? sign(st.toPar, 2) : '—', st.n ? st.best : '—', st.n ? f2(st.avgPutts) : '—', st.n ? pc(st.parOrBetter) : '—', st.n ? pc(dbl) : '—'].join(','));
+      st.n ? f2(st.avg) : '—', st.n ? sign(st.toPar, 2) : '—', st.n ? st.best : '—', st.n ? f2(st.avgPutts) : '—', st.n ? pc(st.parOrBetter) : '—', st.n ? pc(dbl) : '—', ...(withMemo ? [(h.memo || '').replace(/[,\n]/g, '、')] : [])].join(','));
   }
   return lines;
 }
@@ -215,7 +216,7 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
   } else if (purpose.key === 'course') {
     if (course) {
       const atCourse = all.filter((r) => r.course_id === course.id);
-      add('# コースの情報と、このコースでの私の成績', ...courseLines(course, atCourse), '');
+      add('# コースの情報と、このコースでの私の成績', ...courseLines(course, atCourse, { memo: opts.memo }), '');
       if (opts.holes && atCourse.length) {
         add(`# このコースでのホールごとの記録（新しい順・最大 ${MAX_HOLE_ROUNDS} ラウンド）`);
         atCourse.slice(0, MAX_HOLE_ROUNDS).forEach((r) => add(...holeLines(r, { memo: opts.memo }), ''));

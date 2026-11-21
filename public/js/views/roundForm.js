@@ -1,7 +1,7 @@
 // ラウンドの新規入力・編集（スコアカード形式）
-import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, WEATHERS } from '../util.js';
+import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, openModal, WEATHERS } from '../util.js';
 import { api, photoUrl } from '../api.js';
-import { summarize, resultKey, played, courseHoleNo, RESULT_LABELS } from '../stats.js';
+import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
@@ -19,10 +19,11 @@ const FW_TITLE = { hit: 'フェアウェイキープ', left: '左に外した', 
 export async function render(root, params) {
   const editId = params[0] ? Number(params[0]) : null;
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
-  let [courses, round, savedPhotos] = await Promise.all([
+  let [courses, round, savedPhotos, allRounds] = await Promise.all([
     api.get('/api/courses'),
     editId ? api.get(`/api/rounds/${editId}`) : Promise.resolve(null),
     editId ? api.get(`/api/photos?round_id=${editId}`) : Promise.resolve([]),
+    api.get('/api/rounds').catch(() => []),
   ]);
 
   const meta = {
@@ -128,6 +129,9 @@ export async function render(root, params) {
     ${courses.map((c) => html`<option value="${c.id}" ${c.id === meta.course_id ? 'selected' : ''}>${c.name}</option>`)}
     ${!meta.course_id && meta.course_name ? html`<option value="" selected>${meta.course_name}（未登録）</option>` : ''}`;
 
+  // ティー・天気・同伴者・メモは、スマホでは折りたたむ（すぐスコア入力に進めるように）。入力済みなら中身を一行で表示
+  const moreSummary = (m = meta) => [m.tee && `${m.tee}ティー`, m.weather, m.companions && `同伴：${m.companions}`, m.memo && 'メモあり'].filter(Boolean).join('・');
+  const moreOpen = !window.matchMedia('(max-width: 760px)').matches;
   const cell = (h, k, attrs = '') => html`<td><input type="number" inputmode="numeric" data-h="${h.hole_no}" data-k="${k}" value="${h[k] ?? ''}" ${attrs ? raw(attrs) : ''} aria-label="${h.hole_no}番 ${FIELD_LABEL[k]}"></td>`;
   const half = (from) => {
     const hs = holes.slice(from, from + 9);
@@ -168,12 +172,17 @@ export async function render(root, params) {
             <button type="button" class="btn" id="new-course" title="新しいコースを登録">${icon('plus')}新規</button></div></div>
           <div class="field" id="nine-field" style="grid-column:span 2" hidden><label for="front-nine">回ったコース（前半 → 後半）</label>
             <div class="nine-pick"><select id="front-nine" aria-label="前半のコース"></select><span aria-hidden="true">→</span><select id="back-nine" aria-label="後半のコース"></select></div></div>
-          <label class="field"><span>ティー</span><input name="tee" list="tee-list" value="${meta.tee}" placeholder="例: レギュラー">
-            <datalist id="tee-list"><option value="レギュラー"><option value="バック"><option value="フロント"><option value="レディース"><option value="チャンピオン"></datalist></label>
-          <label class="field"><span>天気</span><select name="weather"><option value="">—</option>${WEATHERS.map((w) => html`<option ${w === meta.weather ? 'selected' : ''}>${w}</option>`)}</select></label>
-          <label class="field" style="grid-column:span 2"><span>同伴者</span><input name="companions" value="${meta.companions}" maxlength="300" placeholder="例: 田中さん、佐藤さん"></label>
-          <label class="field wide"><span>メモ・振り返り</span><textarea name="memo" rows="2" maxlength="4000" placeholder="良かった点・反省点など">${meta.memo}</textarea></label>
         </div>
+        <details class="more-fields" ${moreOpen ? 'open' : ''}>
+          <summary><span>ティー・天気・同伴者・メモ</span><span class="small muted" id="more-summary">${moreSummary()}</span></summary>
+          <div class="form-grid">
+            <label class="field"><span>ティー</span><input name="tee" list="tee-list" value="${meta.tee}" placeholder="例: レギュラー">
+              <datalist id="tee-list"><option value="レギュラー"><option value="バック"><option value="フロント"><option value="レディース"><option value="チャンピオン"></datalist></label>
+            <label class="field"><span>天気</span><select name="weather"><option value="">—</option>${WEATHERS.map((w) => html`<option ${w === meta.weather ? 'selected' : ''}>${w}</option>`)}</select></label>
+            <label class="field" style="grid-column:span 2"><span>同伴者</span><input name="companions" value="${meta.companions}" maxlength="300" placeholder="例: 田中さん、佐藤さん"></label>
+            <label class="field wide"><span>メモ・振り返り</span><textarea name="memo" rows="2" maxlength="4000" placeholder="良かった点・反省点など">${meta.memo}</textarea></label>
+          </div>
+        </details>
       </div>
 
       <div class="card">
@@ -268,6 +277,10 @@ export async function render(root, params) {
     }
   });
   form.addEventListener('change', markDirty);
+  form.addEventListener('change', () => {
+    const fd = new FormData(form);
+    $('#more-summary', form).textContent = moreSummary({ tee: fd.get('tee'), weather: fd.get('weather'), companions: fd.get('companions'), memo: fd.get('memo') });
+  });
 
   // Enter で スコア → パット → 次のホールのスコア へ
   form.addEventListener('keydown', (e) => {
@@ -307,17 +320,41 @@ export async function render(root, params) {
     <button type="button" class="btn btn-icon" data-step="${field}" data-d="-1" aria-label="${label}を減らす">−</button>
     <span class="st-val" aria-live="polite">${v ?? '–'}</span>
     <button type="button" class="btn btn-icon" data-step="${field}" data-d="1" aria-label="${label}を増やす">＋</button></div>`;
+  // 同じコースでの過去の成績（ホールごと）。コースが変わったときだけ計算し直す
+  let pastKey = null;
+  let pastStats = null;
+  const pastFor = () => {
+    const c = currentCourse();
+    if ((c?.id ?? null) !== pastKey) {
+      pastKey = c?.id ?? null;
+      const rs = c ? allRounds.filter((r) => r.course_id === c.id && r.id !== editId) : [];
+      pastStats = rs.length ? holeAnalysis(rs.map(onCourseHoles), 54) : null;
+    }
+    return pastStats;
+  };
   const drawHole = () => {
     const h = holes[cur - 1];
     const k = played(h) ? resultKey(h.strokes, h.par) : null;
+    const c = currentCourse();
+    const cno = courseHoleNo(meta, cur);
+    const ch = c?.holes.find((x) => x.hole_no === cno);
+    const past = pastFor()?.[cno - 1];
+    const s = summarize({ holes });
     mount(holeEl, html`
+      <div class="he-total" aria-live="polite">${s.holes
+        ? html`合計 <strong>${s.strokes}</strong><span class="he-topar">${toPar(s.toPar)}</span><span class="he-tsub">${s.holes}ホール${s.puttHoles ? `・パット ${s.putts}` : ''}</span>`
+        : html`<span class="he-tsub">まだ入力がありません</span>`}</div>
       <div class="hole-strip">${holes.map((x) => html`<button type="button" class="hs ${x.hole_no === cur ? 'on' : ''} ${played(x) ? `res-${resultKey(x.strokes, x.par)}` : ''}" data-go="${x.hole_no}" aria-label="${x.hole_no}番ホール">
         <span class="hs-no">${x.hole_no}</span><span class="hs-sc">${played(x) ? x.strokes : '·'}</span></button>`)}</div>
       <div class="he-head">
         <button type="button" class="btn btn-icon" data-prev ${cur === 1 ? 'disabled' : ''} aria-label="前のホール">‹</button>
-        <div class="he-title"><div class="he-no">${cur}<small> 番ホール</small></div><div class="he-sub">${nineOfHole(cur) ? `${nineOfHole(cur)} ・ ` : ''}Par ${h.par}${h.yards ? ` ・ ${h.yards} yd` : ''}</div></div>
+        <div class="he-title"><div class="he-no">${cur}<small> 番ホール</small></div><div class="he-sub">${nineOfHole(cur) ? `${nineOfHole(cur)} ・ ` : ''}Par ${h.par}${h.yards ? ` ・ ${h.yards} yd` : ''}${ch?.hdcp ? ` ・ HDCP ${ch.hdcp}` : ''}</div></div>
         <button type="button" class="btn btn-icon" data-next ${cur === 18 ? 'disabled' : ''} aria-label="次のホール">›</button>
       </div>
+      ${c ? html`<div class="he-info">
+        ${past?.n ? html`<span class="he-past">このホールの過去：平均 <strong>${past.avg.toFixed(1)}</strong>・ベスト ${past.best}（${past.n}回）</span>` : ''}
+        <span class="he-memo">${ch?.memo ? html`📝 ${ch.memo}` : ''}<button type="button" class="link-btn" data-memo-edit>${ch?.memo ? '編集' : '＋ このホールのメモ'}</button></span>
+      </div>` : ''}
       <div class="he-row"><div class="he-label">スコア <span class="he-res">${k ? RESULT_LABELS[k] : ''}</span></div>
         <div class="he-line"><div class="chips">${[h.par - 1, h.par, h.par + 1, h.par + 2, h.par + 3].map((v) => chip('strokes', v, h.strokes === v, v))}</div>
         ${stepper('strokes', h.strokes, 'スコア')}</div></div>
@@ -344,6 +381,8 @@ export async function render(root, params) {
     if (b.hasAttribute('data-prev')) { cur = Math.max(1, cur - 1); drawHole(); return; }
     if (b.hasAttribute('data-next')) { cur = Math.min(18, cur + 1); drawHole(); holeEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     if (b.hasAttribute('data-done')) { $('#totals', root).scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    if (b.hasAttribute('data-memo-edit')) { editHoleMemo(); return; }
+    navigator.vibrate?.(8); // 押した手応え（対応している Android のみ）
     if (b.dataset.field) {
       const f = b.dataset.field;
       let v = f === 'fairway' ? b.dataset.value : Number(b.dataset.value);
@@ -363,6 +402,57 @@ export async function render(root, params) {
     drawHole();
   });
 
+  // 左右にスワイプしてホールを移動（上のホール番号の列は横にスクロールするので除く）
+  let touch = null;
+  holeEl.addEventListener('touchstart', (e) => {
+    touch = e.touches.length === 1 && !e.target.closest('.hole-strip') ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null;
+  }, { passive: true });
+  holeEl.addEventListener('touchend', (e) => {
+    if (!touch) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touch.x;
+    const dy = t.clientY - touch.y;
+    const quick = Date.now() - touch.t < 600;
+    touch = null;
+    if (!quick || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+    const next = dx < 0 ? Math.min(18, cur + 1) : Math.max(1, cur - 1);
+    if (next === cur) return;
+    cur = next;
+    drawHole();
+  }, { passive: true });
+
+  // ホールの攻略メモ（コースに保存。次に同じコースを回るときにも表示される）
+  const editHoleMemo = () => {
+    const c = currentCourse();
+    if (!c) return;
+    const cno = courseHoleNo(meta, cur);
+    const ch = c.holes.find((x) => x.hole_no === cno);
+    const m = openModal({
+      title: `${nineOfHole(cur) || `${cur}番`}ホールのメモ`,
+      body: html`<label class="field"><span>${c.name}</span><input data-memo-input maxlength="200" value="${ch?.memo || ''}" placeholder="例：左は OB。ティーショットは右目に"></label>
+        <p class="small muted" style="margin-top:8px">コースに保存され、次に同じコースを回るときにも表示されます。</p>`,
+      footer: html`<button class="btn" data-cancel-memo>キャンセル</button><button class="btn btn-primary" data-save-memo>保存</button>`,
+    });
+    $('[data-cancel-memo]', m.el).addEventListener('click', () => m.close());
+    $('[data-save-memo]', m.el).addEventListener('click', async () => {
+      const memo = $('[data-memo-input]', m.el).value.trim() || null;
+      const list = c.holes.some((x) => x.hole_no === cno) ? c.holes : [...c.holes, { hole_no: cno, par: holes[cur - 1].par }];
+      const body = {
+        name: c.name, location: c.location, rating: c.rating, slope: c.slope, memo: c.memo, nines: ninesOf(c),
+        holes: list.map((x) => ({ hole_no: x.hole_no, par: x.par, yards: x.yards ?? null, hdcp: x.hdcp ?? null, memo: x.hole_no === cno ? memo : x.memo ?? null })),
+      };
+      try {
+        const saved = await api.put(`/api/courses/${c.id}`, body);
+        courses = courses.map((x) => (x.id === c.id ? { ...x, ...saved } : x));
+        toast(memo ? 'メモを保存しました' : 'メモを消しました');
+        m.close();
+        drawHole();
+      } catch (e) {
+        errorToast(e);
+      }
+    });
+  };
+
   // 入力方法の切り替え（スマホは「1ホールずつ」が既定）
   const setMode = (mode) => {
     try { localStorage.setItem('golf-entry-mode', mode); } catch { /* ignore */ }
@@ -370,7 +460,7 @@ export async function render(root, params) {
     holeEl.hidden = mode !== 'hole';
     $('#card-entry', form).hidden = mode !== 'card';
     $('#mode-help', form).textContent = mode === 'hole'
-      ? 'ボタンをタップして入力。上の数字でホールを移動できます。もう一度タップすると解除。'
+      ? 'タップで入力（もう一度タップで解除）。左右にスワイプするか、上の数字でホールを移動できます。'
       : 'スコア入力後に Enter でパット → 次のホールへ移動。FW は押すたびに ○(キープ) → ←(左) → →(右) → 未記録 と切り替わります。';
     if (mode === 'hole') drawHole();
   };

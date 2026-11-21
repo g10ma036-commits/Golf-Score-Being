@@ -303,3 +303,37 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
   .ai-p-desc { font-size: 11px; line-height: 1.4; }
 }
 .ai-links .btn svg { width: 14px; height: 14px; }
+
+/* 1ホールずつ入力：合計・過去の成績・攻略メモ */
+.he-total { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 6px 10px; margin-bottom: 8px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+.he-total strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.he-topar { font-weight: 650; color: var(--text-secondary); }
+.he-tsub { color: var(--text-secondary); font-size: 12px; }
+.he-info { display: flex; flex-direction: column; gap: 4px; margin: -4px 0 10px; padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--border-strong); font-size: 13px; }
+.he-past { color: var(--text-secondary); }
+.he-past strong { color: var(--text-primary); }
+.he-memo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+/* コース編集：ホールごとの攻略メモ */
+.hole-memos { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; }
+.hole-memos > summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.hole-memos[open] { padding-bottom: 12px; }
+.memo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; margin-top: 8px; }
+.memo-row { display: flex; align-items: center; gap: 8px; }
+.memo-row > span { flex: none; min-width: 52px; font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+.memo-row input { flex: 1; min-width: 0; }
+.memo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.memo-list li { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.memo-list li:first-child { border-top: 0; }
+.memo-no { font-weight: 700; min-width: 44px; }
+/* 横スワイプはホール移動に使う（ブラウザの「戻る」操作にしない）。上のホール番号の列は横スクロールのまま */
+.hole-entry { touch-action: pan-y; }
+.hole-strip { touch-action: pan-x pan-y; }
+/* スコア入力：ティー・天気・同伴者・メモ（折りたたみ） */
+.more-fields { margin-top: 12px; border-top: 1px solid var(--border); }
+.more-fields > summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; cursor: pointer; padding: 12px 0 4px; font-weight: 600; color: var(--accent); list-style: none; }
+.more-fields > summary::-webkit-details-marker { display: none; }
+.more-fields > summary::before { content: '▸'; display: inline-block; transition: transform .15s; color: var(--text-muted); }
+.more-fields[open] > summary::before { transform: rotate(90deg); }
+.more-fields > summary .muted { font-weight: 400; }
+.more-fields > .form-grid { margin-top: 8px; }
