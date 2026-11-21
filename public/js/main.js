@@ -26,6 +26,7 @@ const ROUTES = [
   [/^\/rounds\/(\d+)$/, () => import('./views/roundDetail.js')],
   [/^\/stats$/, () => import('./views/stats.js')],
   [/^\/ai$/, () => import('./views/ai.js')],
+  [/^\/review$/, () => import('./views/review.js')],
   [/^\/courses$/, () => import('./views/courses.js')],
   [/^\/courses\/(\d+)$/, () => import('./views/courseDetail.js')],
   [/^\/clubs$/, () => import('./views/clubs.js')],

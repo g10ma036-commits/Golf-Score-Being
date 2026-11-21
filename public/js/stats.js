@@ -340,3 +340,62 @@ export function goalProgress(sums, goal) {
     tips: tips.slice(0, 2),
   };
 }
+
+// ---------- 年間のまとめ ----------
+export function reviewYears(rounds) {
+  return [...new Set(rounds.map((r) => Number(r.date.slice(0, 4))))].filter(Boolean).sort((a, b) => b - a);
+}
+
+export function yearReview(rounds, year) {
+  const ys = String(year);
+  const sums = rounds.filter((r) => r.date.startsWith(ys)).map(summarize).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const prevSums = rounds.filter((r) => r.date.startsWith(String(year - 1))).map(summarize);
+  const earlier = rounds.filter((r) => r.date < `${ys}-01-01`).map(summarize).filter((s) => s.complete);
+  const a = aggregate(sums);
+  const p = prevSums.length ? aggregate(prevSums) : null;
+  const complete = sums.filter((s) => s.complete);
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const m = sums.filter((s) => Number(s.date.slice(5, 7)) === i + 1);
+    return { month: i + 1, rounds: m.length, avg: mean(m.filter((s) => s.complete).map((s) => s.strokes)) };
+  });
+  const courses = new Map();
+  for (const s of sums) {
+    const key = s.course || '不明';
+    if (!courses.has(key)) courses.set(key, { name: key, courseId: s.courseId, rounds: 0, scores: [] });
+    const c = courses.get(key);
+    c.rounds++;
+    if (s.complete) c.scores.push(s.strokes);
+  }
+  const courseList = [...courses.values()].map((c) => ({ name: c.name, courseId: c.courseId, rounds: c.rounds, avg: mean(c.scores), best: c.scores.length ? Math.min(...c.scores) : null }))
+    .sort((x, y) => y.rounds - x.rounds || (x.avg ?? 999) - (y.avg ?? 999));
+  const pick = (list, score, better) => list.reduce((best, s) => (best == null || better(score(s), score(best)) ? s : best), null);
+  const fullPutts = sums.filter((s) => s.puttHoles === 18);
+  const fewestPutts = pick(fullPutts, (s) => s.putts, (x, y) => x < y);
+  const birdieRound = pick(sums.filter((s) => s.results.eagle + s.results.birdie > 0), (s) => s.results.eagle + s.results.birdie, (x, y) => x > y);
+  const runRound = pick(sums.filter((s) => s.bestRun > 0), (s) => s.bestRun, (x, y) => x > y);
+  // 節目（100・90・80 を初めて切ったラウンド。前の年までに切っていれば「今年初」）
+  const milestones = [];
+  for (const goal of [120, 110, 100, 90, 80, 72]) {
+    const first = complete.find((s) => s.strokes < goal);
+    if (!first) continue;
+    milestones.push({ goal, round: first, everFirst: !earlier.some((s) => s.strokes < goal) });
+  }
+  const cmp = (label, cur, prev, better, fmt) => (cur == null || prev == null ? null : { label, cur, prev, diff: cur - prev, improved: better === 'lower' ? cur < prev : cur > prev, fmt });
+  const comparisons = p ? [
+    cmp('平均スコア', a.avgScore, p.avgScore, 'lower', 'num'),
+    cmp('平均パット', a.puttsPerRound, p.puttsPerRound, 'lower', 'num'),
+    cmp('FWキープ率', a.fwRate, p.fwRate, 'higher', 'pct'),
+    cmp('パーオン率', a.girRate, p.girRate, 'higher', 'pct'),
+    cmp('OB・ペナルティ/R', a.penaltiesPerRound, p.penaltiesPerRound, 'lower', 'num'),
+    cmp('ダブルボギー以上の率', a.doublePlusRate, p.doublePlusRate, 'lower', 'pct'),
+  ].filter(Boolean) : [];
+  return {
+    year, rounds: sums.length, completeRounds: complete.length, holes: a.holes,
+    avgScore: a.avgScore, best: a.best, puttsPerRound: a.puttsPerRound, fwRate: a.fwRate, girRate: a.girRate,
+    results: a.results, prevRounds: prevSums.length, prevAvg: p?.avgScore ?? null,
+    months, courses: courseList,
+    records: { fewestPutts, birdieRound, runRound },
+    milestones, comparisons,
+    first: sums[0] || null, last: sums[sums.length - 1] || null,
+  };
+}

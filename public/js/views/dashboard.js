@@ -100,6 +100,11 @@ export async function render(root) {
 
     <div class="section">${goalCardHtml(sums, settings.goal)}</div>
 
+    <div class="quick-links section">
+      <a class="quick-link" href="#/review"><span class="ql-ico">🗓</span><span><strong>${new Date().getFullYear()}年のまとめ</strong><span class="small muted">ラウンド数・ベスト・前年比・記録</span></span></a>
+      <a class="quick-link" href="#/ai"><span class="ql-ico">✨</span><span><strong>AIに分析してもらう</strong><span class="small muted">練習メニュー・コース攻略などを相談</span></span></a>
+    </div>
+
     <div class="grid grid-3 section">
       ${chartCard('trend', 'スコアの推移', `直近 ${trend.length} ラウンド（18ホール）・点をクリックで詳細`, 'span-2')}
       <div class="card">

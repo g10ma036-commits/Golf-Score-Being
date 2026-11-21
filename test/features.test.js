@@ -148,3 +148,33 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   const empty = ai.buildAiPrompt({ rounds: [], courses: [], clubs: [], settings: {} }, { purpose: 'overall' });
   assert.match(empty, /まだラウンドの記録がありません/);
 });
+
+test('年間のまとめ：ラウンド数・ベスト・月別・節目・前の年との比較', () => {
+  const rounds = [
+    round(1, '2025-06-01', [2, 2, 1]), // 102（前の年）
+    round(2, '2025-08-01', [2, 1]), // 99（前の年に 100 切り済み）
+    round(3, '2026-03-10', [2, 1, 1]), // 96
+    round(4, '2026-03-20', [1], { putts: (i) => (i % 2 ? 1 : 2) }), // 90（パット 27）
+    round(5, '2026-07-05', [0, 1]), // 81 → 90 切り（初）
+    { id: 6, date: '2026-09-01', course_name: '9ホール', holes: PARS.slice(0, 9).map((par, i) => ({ hole_no: i + 1, par, strokes: par })) },
+  ];
+  const r = stats.yearReview(rounds, 2026);
+  assert.equal(r.rounds, 4);
+  assert.equal(r.completeRounds, 3);
+  assert.equal(r.best.strokes, 81);
+  assert.equal(r.avgScore, (96 + 90 + 81) / 3);
+  assert.equal(r.months[2].rounds, 2);
+  assert.equal(r.months[2].avg, 93);
+  assert.equal(r.months[8].rounds, 1);
+  assert.equal(r.months[8].avg, null);
+  assert.equal(r.records.fewestPutts.putts, 27);
+  assert.deepEqual(r.milestones.map((m) => [m.goal, m.everFirst, m.round.id]), [[120, false, 3], [110, false, 3], [100, false, 3], [90, true, 5]]);
+  assert.equal(r.prevRounds, 2);
+  const avg = r.comparisons.find((c) => c.label === '平均スコア');
+  assert.equal(avg.prev, (102 + 99) / 2);
+  assert.equal(avg.improved, true);
+  assert.equal(r.courses[0].name, 'テストGC');
+  assert.equal(r.courses[0].rounds, 3);
+  assert.deepEqual(stats.reviewYears(rounds), [2026, 2025]);
+  assert.equal(stats.yearReview(rounds, 2024).rounds, 0);
+});

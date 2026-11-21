@@ -11,7 +11,7 @@ const C = {
   bg: '#ffffff', ink: '#16181d', sub: '#6b6a65', muted: '#9a9893', line: '#e2e0da', soft: '#f3f2ee', accent: '#17663f',
   eagle: '#184f95', birdie: '#3a84e0', bogey: '#e34948', double: '#e34948', triple: '#9b1c22',
 };
-const family = () => getComputedStyle(document.body).fontFamily || 'sans-serif';
+export const family = () => getComputedStyle(document.body).fontFamily || 'sans-serif';
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
@@ -23,7 +23,7 @@ function loadImage(src) {
 }
 
 // 長い文字を幅に合わせて折り返す（最大 maxLines 行。あふれたら「…」）
-function wrap(ctx, text, maxWidth, maxLines) {
+export function wrap(ctx, text, maxWidth, maxLines) {
   const lines = [];
   let line = '';
   for (const ch of [...text]) {
@@ -44,7 +44,7 @@ function wrap(ctx, text, maxWidth, maxLines) {
   return lines;
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+export function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -302,4 +302,31 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
   $('[data-share]', m.el)?.addEventListener('click', async () => { if (file && (await shareFile(file, 'スコアカード'))) m.close(); });
   $('[data-dl]', m.el).addEventListener('click', () => { if (file) downloadFile(file); });
   render();
+}
+
+// 作った画像をプレビューして、共有／保存する（年間のまとめなど）。makeFile は File を返す関数
+export function openImagePreview(title, makeFile, shareTitle = title) {
+  const shareable = canShareFile(new File([''], 'a.png', { type: 'image/png' }));
+  let file = null;
+  let url = null;
+  const m = openModal({
+    title,
+    body: html`<div class="share-card"><div class="share-preview"><div class="loading">画像を作成中…</div></div>
+      <p class="small muted">${shareable ? '「共有する」から LINE で送ったり、「画像を保存」で写真アプリに保存したりできます。' : '「画像を保存」でダウンロードできます。'}</p></div>`,
+    footer: html`<button class="btn" data-dl disabled>画像を保存</button>${shareable ? html`<button class="btn btn-primary" data-share disabled>共有する…</button>` : ''}`,
+    onClose: () => { if (url) URL.revokeObjectURL(url); },
+  });
+  (async () => {
+    try {
+      if (document.fonts?.ready) await document.fonts.ready.catch(() => {});
+      file = await makeFile();
+      url = URL.createObjectURL(file);
+      mount($('.share-preview', m.el), html`<img src="${url}" alt="共有する画像のプレビュー">`);
+      $$('[data-dl], [data-share]', m.el).forEach((b) => { b.disabled = false; });
+    } catch (e) {
+      mount($('.share-preview', m.el), html`<p class="bad">${e.message}</p>`);
+    }
+  })();
+  $('[data-share]', m.el)?.addEventListener('click', async () => { if (file && (await shareFile(file, shareTitle))) m.close(); });
+  $('[data-dl]', m.el).addEventListener('click', () => { if (file) downloadFile(file); });
 }
