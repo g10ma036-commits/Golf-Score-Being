@@ -609,7 +609,7 @@ export async function render(root, params) {
         await uploadPhotos(pending.map((p) => p.file), { roundId: saved.id }, (d, n) => btns.forEach((b) => { b.textContent = `写真を保存中… ${d}/${n}`; }));
         [...pending].forEach(dropPending);
       }
-      navigate(`/rounds/${saved.id}`);
+      navigate(`/rounds/${saved.id}?saved=1`);
     } catch (e) {
       errorToast(e);
       $$('[data-save]', root).forEach((b) => { b.disabled = false; });

@@ -377,3 +377,15 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 .faq dd { margin: 4px 0 0; color: var(--text-secondary); line-height: 1.7; }
 .help + p svg { width: 14px; height: 14px; vertical-align: -2px; }
 .help > .card + .card { margin-top: 0; }
+
+/* 達成のお祝い（保存した直後のラウンド詳細） */
+.celebrate { margin-bottom: 16px; padding: 14px 16px; border-radius: var(--radius); background: linear-gradient(135deg, #fff6d8, #e3f0e8); border: 1px solid #f0dca0; animation: cel-in .5s ease-out; }
+:root[data-theme="dark"] .celebrate { background: linear-gradient(135deg, #3b3214, #1d3327); border-color: #5a4718; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .celebrate { background: linear-gradient(135deg, #3b3214, #1d3327); border-color: #5a4718; } }
+.cel-items { display: flex; flex-direction: column; gap: 8px; }
+.cel-item { display: flex; align-items: center; gap: 12px; }
+.cel-item strong { font-size: 17px; }
+.cel-ico { font-size: 30px; line-height: 1; flex: none; }
+.cel-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+@keyframes cel-in { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .celebrate { animation: none; } }

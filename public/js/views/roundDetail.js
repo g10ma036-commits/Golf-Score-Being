@@ -1,8 +1,8 @@
 // ラウンド詳細・ラウンド分析
 import { html, mount, $, $$, fmt, pct, toPar, signed, fmtDate, icon, confirmDialog, toast, errorToast } from '../util.js';
-import { api } from '../api.js';
+import { api, getSettings } from '../api.js';
 import {
-  summarize, aggregate, roundInsights, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir,
+  summarize, aggregate, roundInsights, roundAchievements, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { barChart, segmentedBar, chartCard, setupChart } from '../charts.js';
@@ -13,11 +13,15 @@ const FW_MARK = { hit: '○', left: '←', right: '→' };
 
 export async function render(root, [idStr]) {
   const id = Number(idStr);
-  const [round, rounds, photos] = await Promise.all([
+  const [round, rounds, photos, settings] = await Promise.all([
     api.get(`/api/rounds/${id}`),
     api.get('/api/rounds'),
     api.get(`/api/photos?round_id=${id}`),
+    getSettings().catch(() => ({})),
   ]);
+  // 保存した直後なら、ベスト更新・目標達成などをお祝いする（1 回だけ。再読み込みでは出さない）
+  const justSaved = new URLSearchParams(location.hash.split('?')[1] || '').get('saved') === '1';
+  if (justSaved) history.replaceState(null, '', `#/rounds/${id}`);
   const sum = summarize(round);
   const others = rounds.filter((r) => r.id !== id);
   const otherSums = others.map(summarize);
@@ -25,6 +29,10 @@ export async function render(root, [idStr]) {
   const otherComplete = otherSums.filter((s) => s.complete);
   const isBest = sum.complete && otherComplete.length > 0 && otherComplete.every((s) => s.strokes > sum.strokes);
   const insights = roundInsights(sum, base, { isBest });
+  const goal = Number(settings.goal) || null;
+  const achievements = justSaved ? roundAchievements(sum, otherSums, goal) : [];
+  const goalHit = goal && sum.complete && sum.strokes < goal;
+  const shareBadge = isBest ? '🏆 ベストスコア' : goalHit ? `🎯 ${goal}切り達成` : '';
   const sameCourse = round.course_id ? others.filter((r) => r.course_id === round.course_id) : [];
   // 同じホールどうしで比べる（27 ホールのゴルフ場では、回った 9 ホールの組み合わせが違っても同じホールを集計）
   const courseAvg = sameCourse.length ? holeAnalysis(sameCourse.map(onCourseHoles), 54) : null;
@@ -94,6 +102,11 @@ export async function render(root, [idStr]) {
         <a class="btn" href="#/rounds/${id}/edit">${icon('edit')}編集</a>
       </div>
     </div>
+
+    ${achievements.length ? html`<div class="celebrate" role="status">
+      <div class="cel-items">${achievements.map((a) => html`<div class="cel-item"><span class="cel-ico" aria-hidden="true">${a.icon}</span><div><strong>${a.title}</strong>${a.text ? html`<div class="small">${a.text}</div>` : ''}</div></div>`)}</div>
+      <div class="cel-actions"><button class="btn btn-sm btn-primary" data-cel-share>${icon('share')}画像で共有</button><a class="btn btn-sm" href="#/ai?purpose=round&amp;round=${id}">${icon('ai')}AIで振り返り</a></div>
+    </div>` : ''}
 
     ${photos.length ? photoCard : ''}
 
@@ -176,8 +189,9 @@ export async function render(root, [idStr]) {
   });
   bindDropzone($('.dropzone', root), { roundId: id }, () => render(root, [idStr]));
   $('#add-photo', root).addEventListener('click', () => $('#round-photos input[type=file]', root).click());
+  $('[data-cel-share]', root)?.addEventListener('click', () => $('#share-card', root).click());
   $('#share-card', root).addEventListener('click', async () => {
-    (await import('./shareCard.js')).openShareCard(round, photos, { badge: isBest ? '🏆 ベストスコア' : '' });
+    (await import('./shareCard.js')).openShareCard(round, photos, { badge: shareBadge });
   });
   $$('.photo-grid .ph', root).forEach((b) => b.addEventListener('click', () => openLightbox(photos, Number(b.dataset.idx), { onChanged: () => render(root, [idStr]) })));
 

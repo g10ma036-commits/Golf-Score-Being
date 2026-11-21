@@ -440,3 +440,24 @@ export function goalPlan(holes, goal, difficulty = () => 0) {
   return plan;
 }
 export const planLabel = (strokes, par) => ({ '-2': 'イーグル', '-1': 'バーディ', 0: 'パー', 1: 'ボギー', 2: 'ダブルボギー', 3: 'トリプルボギー' })[strokes - par] ?? `パー${strokes - par > 0 ? '+' : ''}${strokes - par}`;
+
+// ---------- ラウンドの達成（ベスト更新・目標達成・初めての 100 切り・初バーディなど） ----------
+export function roundAchievements(sum, otherSums, goal = null) {
+  const out = [];
+  const oc = otherSums.filter((s) => s.complete);
+  if (sum.complete && oc.length && oc.every((s) => s.strokes > sum.strokes)) {
+    out.push({ key: 'best', icon: '🏆', title: 'ベストスコア更新！', text: `${sum.strokes}（これまでのベストは ${Math.min(...oc.map((s) => s.strokes))}）` });
+  }
+  if (goal && sum.complete && sum.strokes < goal) {
+    const n = oc.filter((s) => s.strokes < goal).length;
+    out.push({ key: 'goal', icon: '🎯', title: n === 0 && oc.length ? `初めての${goal}切り！` : `${goal}切り達成！`, text: n === 0 ? '目標を達成しました。おめでとうございます！' : `${n + 1} 回目の達成です` });
+  }
+  for (const m of [80, 90, 100]) {
+    if (m === goal || !sum.complete || sum.strokes >= m || !oc.length || oc.some((s) => s.strokes < m)) continue;
+    out.push({ key: `m${m}`, icon: '🎉', title: `初めての${m}切り！`, text: `${sum.strokes} で回りました` });
+    break;
+  }
+  if (sum.results.eagle && !otherSums.some((s) => s.results.eagle)) out.push({ key: 'eagle', icon: '🦅', title: '初イーグル！', text: '' });
+  else if (sum.results.birdie + sum.results.eagle && otherSums.length && !otherSums.some((s) => s.results.birdie + s.results.eagle)) out.push({ key: 'birdie', icon: '🐦', title: '初バーディ！', text: '' });
+  return out;
+}

@@ -223,3 +223,18 @@ test('目標スコアの配分：合計が「目標 − 1」になり、難し�
   assert.equal(stats.planLabel(4, 4), 'パー');
   assert.equal(stats.planLabel(8, 4), 'パー+4');
 });
+
+test('ラウンドの達成：ベスト更新・初めての目標達成・初めての90切り・初バーディ', () => {
+  const others = [round(1, '2026-01-01', [2, 1]), round(2, '2026-02-01', [2, 2, 1])].map(stats.summarize); // 99, 102
+  const r88 = stats.summarize({ ...round(3, '2026-03-01', [1, 1, 0]), holes: round(3, '2026-03-01', [1, 1, 0]).holes.map((h, i) => (i === 0 ? { ...h, strokes: h.par - 1 } : h)) });
+  // 72 + 12 − 1 = 83 → ベスト更新・目標（100）は 2 回目（99 で達成済み）・初めての90切り・初バーディ
+  const a = stats.roundAchievements(r88, others, 100);
+  assert.deepEqual(a.map((x) => x.key), ['best', 'goal', 'm90', 'birdie']);
+  assert.match(a[0].text, /これまでのベストは 99/);
+  assert.equal(a[1].title, '100切り達成！');
+  assert.equal(a[1].text, '2 回目の達成です');
+  const g90 = stats.roundAchievements(r88, others, 90);
+  assert.equal(g90.find((x) => x.key === 'goal').title, '初めての90切り！');
+  assert.equal(g90.some((x) => x.key === 'm90'), false); // 目標と同じ節目は重ねない
+  assert.deepEqual(stats.roundAchievements(stats.summarize(round(4, '2026-04-01', [2, 2, 2])), others, 100).map((x) => x.key), []);
+});
