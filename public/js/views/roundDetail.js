@@ -119,7 +119,7 @@ export async function render(root, [idStr]) {
         <div class="card-header"><div><h2>スコア内訳</h2><div class="sub">${sum.holes} ホールの結果</div></div></div>
         <div class="chart"></div>
         <h3 style="margin:20px 0 6px">パー別の平均</h3>
-        <table class="data"><thead><tr><th></th><th class="r">今回</th><th class="r">いつもの平均</th><th class="r">差</th></tr></thead>
+        <div class="table-wrap"><table class="data"><thead><tr><th></th><th class="r">今回</th><th class="r">いつもの平均</th><th class="r">差</th></tr></thead>
           <tbody>${[3, 4, 5].map((p) => {
             const bp = sum.byPar[p];
             const cur = bp.n ? (bp.strokes - bp.par) / bp.n : null;
@@ -128,14 +128,14 @@ export async function render(root, [idStr]) {
             return html`<tr><td>パー${p}（${bp.n}H）</td><td class="r">${cur != null ? toPar(Math.round(cur * 100) / 100) : '—'}</td>
               <td class="r">${avg != null ? toPar(Math.round(avg * 100) / 100) : '—'}</td>
               <td class="r ${d == null ? '' : d < -0.05 ? 'good' : d > 0.05 ? 'bad' : ''}">${d != null ? signed(d, 2) : '—'}</td></tr>`;
-          })}</tbody></table>
+          })}</tbody></table></div>
       </div>
     </div>
 
     <div class="grid grid-2 section">
       <div class="card">
         <div class="card-header"><div><h2>今回 vs いつもの自分</h2><div class="sub">他の ${others.length} ラウンドの平均と比較</div></div></div>
-        ${others.length ? html`<table class="data"><thead><tr><th></th><th class="r">今回</th><th class="r">平均</th><th class="r">差</th></tr></thead><tbody>
+        ${others.length ? html`<div class="table-wrap"><table class="data"><thead><tr><th></th><th class="r">今回</th><th class="r">平均</th><th class="r">差</th></tr></thead><tbody>
           ${cmpRows.map(([label, cur, avg, better, f]) => {
             const d = cur != null && avg != null ? cur - avg : null;
             const good = d != null && (better === 'lower' ? d < 0 : d > 0);
@@ -143,7 +143,7 @@ export async function render(root, [idStr]) {
             const ds = d == null ? '—' : isPct(label) ? `${d > 0 ? '+' : ''}${Math.round(d * 100)}pt` : signed(d, 1);
             return html`<tr><td>${label}</td><td class="r"><strong>${cur != null ? f(cur) : '—'}</strong></td><td class="r">${avg != null ? f(avg) : '—'}</td>
               <td class="r ${Math.abs(d ?? 0) < 1e-9 ? '' : good ? 'good' : badv ? 'bad' : ''}">${ds}</td></tr>`;
-          })}</tbody></table>` : html`<p class="muted small">比較できる他のラウンドがまだありません。</p>`}
+          })}</tbody></table></div>` : html`<p class="muted small">比較できる他のラウンドがまだありません。</p>`}
       </div>
       <div class="card">
         <h2 style="margin-bottom:12px">振り返りコメント</h2>

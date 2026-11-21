@@ -98,7 +98,7 @@ export async function render(root) {
         <div class="table-wrap"><table class="data">
           <thead><tr><th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パー比</th><th class="r">パット</th></tr></thead>
           <tbody>${sums.slice(0, 6).map((s) => html`<tr class="link" data-id="${s.id}">
-            <td>${fmtDate(s.date)}</td><td>${s.course}</td>
+            <td>${fmtDate(s.date)}</td><td class="wrap">${s.course}</td>
             <td class="r"><strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
             <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td>
             <td class="r">${s.puttHoles ? s.putts : '—'}</td></tr>`)}</tbody>

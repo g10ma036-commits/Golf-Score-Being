@@ -95,9 +95,9 @@ export async function render(root) {
         </div>
         <div class="card">
           <h2 style="margin-bottom:8px">ベストスコア TOP5</h2>
-          ${top5.length ? html`<table class="data"><thead><tr><th>#</th><th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パット</th></tr></thead>
-            <tbody>${top5.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${i + 1}</td><td>${fmtDate(s.date)}</td><td>${s.course}</td>
-              <td class="r"><strong>${s.strokes}</strong></td><td class="r">${s.puttHoles ? s.putts : '—'}</td></tr>`)}</tbody></table>`
+          ${top5.length ? html`<div class="table-wrap"><table class="data"><thead><tr><th>#</th><th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パット</th></tr></thead>
+            <tbody>${top5.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${i + 1}</td><td class="nowrap">${fmtDate(s.date)}</td><td class="wrap">${s.course}</td>
+              <td class="r"><strong>${s.strokes}</strong></td><td class="r">${s.puttHoles ? s.putts : '—'}</td></tr>`)}</tbody></table></div>`
             : html`<p class="muted small">18ホールのラウンドがありません。</p>`}
         </div>
       </div>
