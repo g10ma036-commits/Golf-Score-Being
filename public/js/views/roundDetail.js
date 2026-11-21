@@ -159,7 +159,8 @@ export async function render(root, [idStr]) {
 
     <div class="grid grid-2 section">
       <div class="card">
-        <div class="card-header"><div><h2>今回 vs いつもの自分</h2><div class="sub">他の ${others.length} ラウンドの平均と比較</div></div></div>
+        <div class="card-header"><div><h2>今回 vs いつもの自分</h2><div class="sub">他の ${others.length} ラウンドの平均と比較</div></div>
+          ${others.length ? html`<a class="btn btn-sm" href="#/compare?a=${id}">ほかのラウンドと比べる</a>` : ''}</div>
         ${others.length ? html`<div class="table-wrap"><table class="data"><thead><tr><th></th><th class="r">今回</th><th class="r">平均</th><th class="r">差</th></tr></thead><tbody>
           ${cmpRows.map(([label, cur, avg, better, f]) => {
             const d = cur != null && avg != null ? cur - avg : null;

@@ -28,6 +28,7 @@ const ROUTES = [
   [/^\/stats$/, () => import('./views/stats.js')],
   [/^\/ai$/, () => import('./views/ai.js')],
   [/^\/review$/, () => import('./views/review.js')],
+  [/^\/compare$/, () => import('./views/compare.js')],
   [/^\/courses$/, () => import('./views/courses.js')],
   [/^\/courses\/(\d+)$/, () => import('./views/courseDetail.js')],
   [/^\/clubs$/, () => import('./views/clubs.js')],
