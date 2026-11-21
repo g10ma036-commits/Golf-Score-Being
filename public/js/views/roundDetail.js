@@ -72,6 +72,14 @@ export async function render(root, [idStr]) {
   ];
   const isPct = (label) => label.includes('率');
 
+  // 思い出の写真：写真があるときはページの上のほう、ないときは一番下に追加用の枠を出す
+  const photoCard = html`<div class="card ${photos.length ? 'photos-top' : 'section'}" id="round-photos">
+      <div class="card-header"><div><h2>思い出の写真</h2>${photos.length ? '' : html`<div class="sub">記念撮影やコースの景色などを、このラウンドと一緒に残せます</div>`}</div>
+        ${photos.length ? html`<span class="muted small">${photos.length} 枚</span>` : ''}</div>
+      ${photos.length ? photoGridHtml(photos) : ''}
+      <div style="margin-top:${photos.length ? '12px' : '0'}">${dropzoneHtml('写真をドラッグ＆ドロップ、またはクリックして追加')}</div>
+    </div>`;
+
   mount(root, html`
     <div class="page-header">
       <div>
@@ -80,10 +88,13 @@ export async function render(root, [idStr]) {
         <div class="sub">${[round.nines_label, round.tee && `${round.tee}ティー`, round.weather, round.companions && `同伴：${round.companions}`].filter(Boolean).join('　・　')}</div>
       </div>
       <div class="actions">
+        <button class="btn" id="add-photo">${icon('photo')}写真を追加</button>
         <a class="btn" href="#/rounds/${id}/edit">${icon('edit')}編集</a>
         <button class="btn btn-danger" id="del">${icon('trash')}削除</button>
       </div>
     </div>
+
+    ${photos.length ? photoCard : ''}
 
     <div class="grid grid-3">
       <div class="card">
@@ -152,11 +163,7 @@ export async function render(root, [idStr]) {
       </div>
     </div>
 
-    <div class="card section">
-      <div class="card-header"><h2>このラウンドの写真</h2><span class="muted small">${photos.length} 枚</span></div>
-      ${photos.length ? photoGridHtml(photos) : ''}
-      <div style="margin-top:${photos.length ? '12px' : '0'}">${dropzoneHtml('写真をドラッグ＆ドロップ、またはクリックして追加')}</div>
-    </div>
+    ${photos.length ? '' : photoCard}
   `);
 
   $('#del', root).addEventListener('click', async () => {
@@ -165,6 +172,7 @@ export async function render(root, [idStr]) {
     try { await api.del(`/api/rounds/${id}`); toast('ラウンドを削除しました'); navigate('/rounds'); } catch (e) { errorToast(e); }
   });
   bindDropzone($('.dropzone', root), { roundId: id }, () => render(root, [idStr]));
+  $('#add-photo', root).addEventListener('click', () => $('#round-photos input[type=file]', root).click());
   $$('.photo-grid .ph', root).forEach((b) => b.addEventListener('click', () => openLightbox(photos, Number(b.dataset.idx), { onChanged: () => render(root, [idStr]) })));
 
   const playedHoles = holes.filter(played);

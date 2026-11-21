@@ -1,9 +1,10 @@
 // ラウンドの新規入力・編集（スコアカード形式）
 import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, WEATHERS } from '../util.js';
-import { api } from '../api.js';
+import { api, photoUrl } from '../api.js';
 import { summarize, resultKey, played, courseHoleNo, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
+import { uploadPhotos, isImageFile } from './photoTools.js';
 
 const FW_CYCLE = [null, 'hit', 'left', 'right'];
 const FW_LABEL = { hit: '○', left: '←', right: '→' };
@@ -13,9 +14,10 @@ const FW_TITLE = { hit: 'フェアウェイキープ', left: '左に外した', 
 export async function render(root, params) {
   const editId = params[0] ? Number(params[0]) : null;
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
-  let [courses, round] = await Promise.all([
+  let [courses, round, savedPhotos] = await Promise.all([
     api.get('/api/courses'),
     editId ? api.get(`/api/rounds/${editId}`) : Promise.resolve(null),
+    editId ? api.get(`/api/photos?round_id=${editId}`) : Promise.resolve([]),
   ]);
 
   const meta = {
@@ -127,6 +129,14 @@ export async function render(root, params) {
           <div class="table-wrap" style="margin-top:12px">${half(9)}</div>
         </div>
         <div class="tiles" style="margin-top:16px" id="totals"></div>
+      </div>
+      <div class="card" id="photo-card">
+        <div class="card-header">
+          <div><h2>思い出の写真</h2><div class="sub">記念撮影やコースの景色など。「保存する」でラウンドと一緒に保存されます</div></div>
+          ${savedPhotos.length ? html`<span class="muted small nowrap">保存済み ${savedPhotos.length} 枚</span>` : ''}
+        </div>
+        <div class="photo-grid" id="photo-list" ${savedPhotos.length ? '' : raw('hidden')}>${savedPhotos.map((p) => html`<div class="ph saved"><img src="${photoUrl(p)}" alt="${p.caption || '保存済みの写真'}" loading="lazy"></div>`)}</div>
+        <label class="btn photo-pick"><input type="file" accept="image/*" multiple hidden id="photo-input">${icon('photo')}写真を選ぶ（撮影・写真ライブラリ）</label>
       </div>
       <div class="form-actions">
         <a class="btn" href="${editId ? `#/rounds/${editId}` : '#/rounds'}">キャンセル</a>
@@ -364,6 +374,39 @@ export async function render(root, params) {
     markDirty();
   });
 
+  // 思い出の写真：選んだ写真は、ラウンドを保存したあとにまとめて保存する
+  const pending = []; // { file, url, el }
+  const photoList = $('#photo-list', form);
+  const photoInput = $('#photo-input', form);
+  const syncPhotoList = () => { photoList.hidden = !photoList.childElementCount; };
+  const dropPending = (p) => {
+    URL.revokeObjectURL(p.url);
+    p.el.remove();
+    pending.splice(pending.indexOf(p), 1);
+    syncPhotoList();
+  };
+  photoInput.addEventListener('change', () => {
+    for (const file of photoInput.files) {
+      if (!isImageFile(file)) continue;
+      const p = { file, url: URL.createObjectURL(file), el: document.createElement('div') };
+      p.el.className = 'ph pending';
+      mount(p.el, html`<img src="${p.url}" alt="選んだ写真"><button type="button" class="ph-remove" aria-label="この写真を外す">×</button>`);
+      // HEIC などブラウザで表示できない形式はファイル名で表示
+      $('img', p.el).addEventListener('error', (e) => {
+        const name = document.createElement('span');
+        name.className = 'ph-name';
+        name.textContent = file.name;
+        e.target.replaceWith(name);
+      });
+      $('.ph-remove', p.el).addEventListener('click', () => dropPending(p));
+      photoList.append(p.el);
+      pending.push(p);
+    }
+    photoInput.value = '';
+    syncPhotoList();
+    if (pending.length) markDirty();
+  });
+
   const save = async () => {
     const fd = new FormData(form);
     if (!fd.get('date')) { errorToast('日付を入力してください'); return; }
@@ -391,6 +434,11 @@ export async function render(root, params) {
       const saved = editId ? await api.put(`/api/rounds/${editId}`, body) : await api.post('/api/rounds', body);
       dirty = false;
       toast('ラウンドを保存しました');
+      if (pending.length) {
+        const btns = $$('[data-save]', root);
+        await uploadPhotos(pending.map((p) => p.file), { roundId: saved.id }, (d, n) => btns.forEach((b) => { b.textContent = `写真を保存中… ${d}/${n}`; }));
+        [...pending].forEach(dropPending);
+      }
       navigate(`/rounds/${saved.id}`);
     } catch (e) {
       errorToast(e);
@@ -402,5 +450,8 @@ export async function render(root, params) {
 
   // PC（スコアカード入力）のときだけ最初の欄にフォーカス（スマホでキーボードが勝手に出ないように）
   if (!editId && holeEl.hidden) setTimeout(() => (meta.course_id ? $('[data-h="1"][data-k="strokes"]', form) : courseSel).focus(), 0);
-  return () => setLeaveGuard(null);
+  return () => {
+    setLeaveGuard(null);
+    pending.forEach((p) => URL.revokeObjectURL(p.url));
+  };
 }

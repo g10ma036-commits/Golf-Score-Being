@@ -24,8 +24,10 @@ async function makeThumb(file, max = 480, { quality = 0.82, onlyIfLarger = false
   }
 }
 
+export const isImageFile = (f) => ACCEPT.includes(f.type) || /\.(heic|heif)$/i.test(f.name);
+
 export async function uploadPhotos(fileList, { albumId = null, roundId = null } = {}, onProgress = () => {}) {
-  const files = [...fileList].filter((f) => ACCEPT.includes(f.type) || /\.(heic|heif)$/i.test(f.name));
+  const files = [...fileList].filter(isImageFile);
   const skipped = fileList.length - files.length;
   let done = 0;
   let failed = 0;

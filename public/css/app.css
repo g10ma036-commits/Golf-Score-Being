@@ -361,6 +361,16 @@ table.data tbody tr:last-child td { border-bottom: 0; }
 .photo-grid .ph img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
 .photo-grid .ph:hover img { transform: scale(1.03); }
 .photo-grid .ph .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 6px; font-size: 11px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.6)); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 思い出の写真（スコア入力で選んだ写真・ラウンド詳細の上部） */
+.photos-top { margin-bottom: 16px; }
+.photo-grid .ph.pending, .photo-grid .ph.saved { cursor: default; }
+.photo-grid .ph.pending:hover img, .photo-grid .ph.saved:hover img { transform: none; }
+.photo-grid .ph-remove {
+  position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 50%;
+  border: 0; padding: 0; background: rgba(0, 0, 0, .6); color: #fff; font-size: 18px; line-height: 30px; cursor: pointer;
+}
+.photo-grid .ph-name { display: flex; align-items: center; justify-content: center; height: 100%; padding: 8px; font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; text-align: center; }
+#photo-list:not([hidden]) + .photo-pick { margin-top: 12px; }
 .dropzone {
   display: block; cursor: pointer;
   border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 20px;
