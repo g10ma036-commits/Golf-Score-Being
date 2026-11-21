@@ -13,10 +13,11 @@ const NAV = [
   ['/distances', 'distance', '飛距離'],
   ['/album', 'album', 'アルバム'],
   ['/settings', 'settings', '設定'],
+  ['/help', 'help', '使い方'],
 ];
 // スマホ用タブバー（中央はスコア入力ボタン）と「その他」メニュー
 const TABS = [['/', 'home', 'ホーム'], ['/rounds', 'score', 'スコア'], ['/rounds/new', 'plus', '入力'], ['/stats', 'stats', '分析']];
-const MORE = [['/ai', 'ai', 'AI分析'], ['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定']];
+const MORE = [['/ai', 'ai', 'AI分析'], ['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定'], ['/help', 'help', '使い方']];
 
 const ROUTES = [
   [/^\/$/, () => import('./views/dashboard.js')],
@@ -34,6 +35,7 @@ const ROUTES = [
   [/^\/album$/, () => import('./views/album.js')],
   [/^\/album\/(all|none|\d+)$/, () => import('./views/albumDetail.js')],
   [/^\/settings$/, () => import('./views/settings.js')],
+  [/^\/help$/, () => import('./views/help.js')],
 ];
 
 // 未保存の変更があるときに画面遷移を確認する

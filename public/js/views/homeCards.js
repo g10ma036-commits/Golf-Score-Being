@@ -98,7 +98,7 @@ export async function guideHtml({ rounds, courses, sample }) {
     });
   }
   return html`<div class="card guide-card section" id="guide-card">
-    <div class="card-header"><div><h2>はじめに：${steps.length}つのステップで準備</h2><div class="sub">終わったものには ✓ が付きます</div></div>
+    <div class="card-header"><div><h2>はじめに：${steps.length}つのステップで準備</h2><div class="sub">終わったものには ✓ が付きます。詳しくは <a href="#/help">使い方</a> へ</div></div>
       <button type="button" class="btn btn-ghost btn-sm" data-guide="close">閉じる</button></div>
     <ol class="guide-steps">${steps.map((s, i) => html`<li class="${s.done ? 'done' : ''}">
       <span class="gs-no" aria-hidden="true">${s.done ? '✓' : i + 1}</span>

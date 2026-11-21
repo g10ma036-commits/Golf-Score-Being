@@ -363,3 +363,17 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .he-pace.over { background: #3a1a18; color: #f4a29a; } }
 .he-target strong { font-size: 16px; }
 .he-target .muted { margin-left: 6px; }
+
+/* 使い方 */
+.help { display: flex; flex-direction: column; gap: 10px; }
+.help-item > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.help-item > summary::-webkit-details-marker { display: none; }
+.help-item > summary::after { content: '＋'; color: var(--text-muted); font-size: 18px; }
+.help-item[open] > summary::after { content: '－'; }
+.help-body { margin-top: 10px; }
+.help-body ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.7; }
+.faq dt { font-weight: 700; margin-top: 12px; }
+.faq dt:first-child { margin-top: 0; }
+.faq dd { margin: 4px 0 0; color: var(--text-secondary); line-height: 1.7; }
+.help + p svg { width: 14px; height: 14px; vertical-align: -2px; }
+.help > .card + .card { margin-top: 0; }
