@@ -173,13 +173,24 @@ export function movingAverage(values, w = 5) {
 }
 
 // コースのホール別分析
-export function holeAnalysis(rounds) {
+// ラウンドの n 番ホール（1〜18）が、コースの何番ホール（9 ホールのまとまりをまたいだ通し番号）にあたるか。
+// 27 ホールのゴルフ場で「東 → 南」と回ったら、後半の 1 番（10 番）は南コースの 1 番（19）
+export function courseHoleNo(round, no) {
+  const nine = no <= 9 ? (round.front_nine ?? 1) : (round.back_nine ?? 2);
+  return (nine - 1) * 9 + ((no - 1) % 9) + 1;
+}
+// ホール番号をコースの通し番号に置き換えたラウンド（コース別のホール分析用）
+export function onCourseHoles(round) {
+  return { ...round, holes: (round.holes || []).map((h) => ({ ...h, hole_no: courseHoleNo(round, h.hole_no) })) };
+}
+
+// count: 集計するホール数（コースの通し番号で集計するときは 9 × まとまりの数）
+export function holeAnalysis(rounds, count = 18) {
   const out = [];
-  for (let no = 1; no <= 18; no++) {
+  for (let no = 1; no <= count; no++) {
     const hs = [];
     for (const r of rounds) {
-      const h = (r.holes || []).find((x) => x.hole_no === no);
-      if (h && played(h)) hs.push(h);
+      for (const h of r.holes || []) if (h.hole_no === no && played(h)) hs.push(h);
     }
     if (!hs.length) { out.push({ hole_no: no, n: 0 }); continue; }
     const putts = hs.filter((h) => Number.isFinite(h.putts));

@@ -15,6 +15,8 @@ export const IMAGE_EXT = {
 export const THUMB_MIME = ['image/jpeg', 'image/webp', 'image/png'];
 export const SETTING_KEYS = ['player_name', 'unit', 'theme'];
 export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto' };
+// 1つのゴルフ場に登録できる 9 ホールのまとまり（東・西・南コースなど）の最大数
+export const MAX_NINES = 6;
 
 // 写真ファイル名はアプリが付けた UUID のみ（バックアップ復元時のパストラバーサル対策も兼ねる）
 export const PHOTO_NAME_RE = /^[0-9a-f-]{36}\.(jpg|png|gif|webp|avif|heic|heif)$/;
@@ -26,11 +28,11 @@ export const isThumbName = (s) => typeof s === 'string' && THUMB_NAME_RE.test(s)
 // 「!」は必須、「=値」は既定値
 export const SCHEMA = {
   settings: { key: 'text!', value: 'text' },
-  courses: { id: 'id', name: 'text!', location: 'text', rating: 'real', slope: 'int', memo: 'text', created_at: 'ts' },
+  courses: { id: 'id', name: 'text!', location: 'text', rating: 'real', slope: 'int', memo: 'text', created_at: 'ts', nines: 'text' },
   course_holes: { course_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', hdcp: 'int' },
   rounds: {
     id: 'id', date: 'text!', course_id: 'int', course_name: 'text', tee: 'text', weather: 'text', companions: 'text',
-    memo: 'text', rating: 'real', slope: 'int', created_at: 'ts', updated_at: 'ts',
+    memo: 'text', rating: 'real', slope: 'int', created_at: 'ts', updated_at: 'ts', front_nine: 'int', back_nine: 'int',
   },
   round_holes: {
     round_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', strokes: 'int', putts: 'int',
@@ -118,43 +120,73 @@ export function normalizeSetting(k, value) {
   return v;
 }
 
+// ---------- 9 ホールのまとまり ----------
+// コースのホールは 9 ホールずつのまとまり（nines）に分かれる。普通の 18 ホールは OUT・IN の 2 つ、
+// 27 ホールのゴルフ場なら「東・西・南」の 3 つ。ホール番号は通し番号（2 つ目の 1 番 = 10、3 つ目の 1 番 = 19）
+export function defaultNineName(i, count) {
+  return count <= 2 ? ['OUT', 'IN'][i] : `${'ABCDEF'[i]}コース`;
+}
+// 保存されている値（JSON 文字列・配列・未設定）→ まとまりの名前の配列。未設定は OUT・IN
+export function parseNines(v) {
+  let a = v;
+  if (typeof v === 'string') { try { a = JSON.parse(v); } catch { a = null; } }
+  if (!Array.isArray(a) || !a.length) a = ['OUT', 'IN'];
+  a = a.slice(0, MAX_NINES);
+  return a.map((s, i) => text(typeof s === 'string' ? s : null, 30) ?? defaultNineName(i, a.length));
+}
+// ラウンドの見出し用（例:「東 → 西」）。まとまりが 3 つ以上のゴルフ場だけ
+export function ninesLabel(names, front, back) {
+  if (names.length < 3) return null;
+  return `${names[(front ?? 1) - 1] ?? '?'} → ${names[(back ?? 2) - 1] ?? '?'}`;
+}
+
 export function normalizeCourse(b) {
   const name = text(b.name, 200);
   if (!name) throw new ApiError(400, 'コース名は必須です');
+  if (Array.isArray(b.nines) && b.nines.length > MAX_NINES) throw new ApiError(400, `9ホールのまとまりは ${MAX_NINES} つまでです`);
+  const nines = parseNines(Array.isArray(b.nines) ? b.nines.map((s) => (s == null ? '' : String(s))) : null);
   const row = {
     name,
     location: text(b.location, 200),
     rating: num('コースレート', b.rating, { min: 50, max: 90 }),
     slope: num('スロープ', b.slope, { min: 55, max: 155, integer: true }),
     memo: text(b.memo, 2000),
+    nines: JSON.stringify(nines),
   };
-  return { row, holes: normalizeCourseHoles(b.holes) };
+  return { row, holes: normalizeCourseHoles(b.holes, nines) };
 }
-function normalizeCourseHoles(list) {
+function normalizeCourseHoles(list, nines) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
+  const maxNo = nines.length * 9;
   return list.map((h) => {
-    const no = num('ホール番号', h.hole_no, { min: 1, max: 18, integer: true, required: true });
+    const no = num('ホール番号', h.hole_no, { min: 1, max: maxNo, integer: true, required: true });
     if (seen.has(no)) throw new ApiError(400, `ホール ${no} が重複しています`);
     seen.add(no);
+    const label = nines.length > 2 ? `${nines[Math.floor((no - 1) / 9)]} ${((no - 1) % 9) + 1}番` : `${no}番`;
     return {
       hole_no: no,
-      par: num(`${no}番のパー`, h.par, { min: 3, max: 6, integer: true }) ?? 4,
-      yards: num(`${no}番のヤード`, h.yards, { min: 0, max: 900, integer: true }),
-      hdcp: num(`${no}番のHDCP`, h.hdcp, { min: 1, max: 18, integer: true }),
+      par: num(`${label}のパー`, h.par, { min: 3, max: 6, integer: true }) ?? 4,
+      yards: num(`${label}のヤード`, h.yards, { min: 0, max: 900, integer: true }),
+      hdcp: num(`${label}のHDCP`, h.hdcp, { min: 1, max: maxNo > 18 ? 27 : 18, integer: true }),
     };
   });
 }
 
-// courseName(id) は登録済みコースの名前（なければ undefined）を返す関数
-export function normalizeRound(b, courseName) {
+// courseInfo(id) は登録済みコースの { name, nineCount }（なければ undefined）を返す関数
+export function normalizeRound(b, courseInfo) {
   const d = date('日付', b.date);
   const courseId = num('コース', b.course_id, { min: 1, integer: true });
   let name = text(b.course_name, 200);
+  let front = null;
+  let back = null;
   if (courseId) {
-    const n = courseName(courseId);
-    if (n === undefined) throw new ApiError(400, '選択したコースが存在しません');
-    name = n;
+    const c = courseInfo(courseId);
+    if (c === undefined) throw new ApiError(400, '選択したコースが存在しません');
+    name = c.name;
+    // どのまとまりを前半・後半に回ったか（未指定は 1 つ目 → 2 つ目。9 ホールだけなら 2 周）
+    front = num('前半のコース', b.front_nine, { min: 1, max: c.nineCount, integer: true }) ?? 1;
+    back = num('後半のコース', b.back_nine, { min: 1, max: c.nineCount, integer: true }) ?? Math.min(2, c.nineCount);
   }
   if (!courseId && !name) throw new ApiError(400, 'コースを選択してください');
   const row = {
@@ -162,6 +194,7 @@ export function normalizeRound(b, courseName) {
     tee: text(b.tee, 50), weather: text(b.weather, 50), companions: text(b.companions, 300), memo: text(b.memo, 4000),
     rating: num('コースレート', b.rating, { min: 50, max: 90 }),
     slope: num('スロープ', b.slope, { min: 55, max: 155, integer: true }),
+    front_nine: front, back_nine: back,
   };
   return { row, holes: normalizeRoundHoles(b.holes) };
 }
@@ -291,9 +324,14 @@ export function cleanImport(data, { hasFile = () => true, now = localNow() } = {
   const uniq = (rows, key) => { const s = new Set(); return rows.filter((r) => { const k = key(r); if (s.has(k)) return false; s.add(k); return true; }); };
   const seenKey = new Set();
   out.settings = out.settings.filter((r) => SETTING_KEYS.includes(r.key) && !seenKey.has(r.key) && seenKey.add(r.key));
-  const courses = has('courses');
-  out.course_holes = uniq(out.course_holes.filter((h) => courses.has(h.course_id) && h.hole_no >= 1 && h.hole_no <= 18), (h) => `${h.course_id}:${h.hole_no}`);
-  for (const r of out.rounds) if (r.course_id != null && !courses.has(r.course_id)) r.course_id = null;
+  const nineCount = new Map(out.courses.map((c) => [c.id, parseNines(c.nines).length]));
+  for (const c of out.courses) c.nines = c.nines == null ? null : JSON.stringify(parseNines(c.nines));
+  out.course_holes = uniq(out.course_holes.filter((h) => nineCount.has(h.course_id) && h.hole_no >= 1 && h.hole_no <= nineCount.get(h.course_id) * 9), (h) => `${h.course_id}:${h.hole_no}`);
+  for (const r of out.rounds) {
+    if (r.course_id != null && !nineCount.has(r.course_id)) r.course_id = null;
+    const n = r.course_id != null ? nineCount.get(r.course_id) : 0;
+    for (const k of ['front_nine', 'back_nine']) if (r[k] != null && !(r[k] >= 1 && r[k] <= n)) r[k] = null;
+  }
   const rounds = has('rounds');
   out.round_holes = uniq(out.round_holes.filter((h) => rounds.has(h.round_id) && h.hole_no >= 1 && h.hole_no <= 18), (h) => `${h.round_id}:${h.hole_no}`);
   const clubs = has('clubs');

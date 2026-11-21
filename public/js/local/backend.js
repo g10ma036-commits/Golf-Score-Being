@@ -3,7 +3,7 @@
 import {
   ApiError, SCHEMA, TABLES, ID_TABLES, SETTING_KEYS, SETTING_DEFAULTS, localNow, uuid, num, id,
   normalizeSetting, normalizeCourse, normalizeRound, normalizeClub, normalizeDistance, normalizeAlbum, normalizeCover,
-  photoLinks, imageExt, thumbExt, originalName, takenAt, text, cleanImport, isPhotoName, isThumbName,
+  photoLinks, imageExt, thumbExt, originalName, takenAt, text, cleanImport, isPhotoName, isThumbName, parseNines, ninesLabel,
 } from '../shared/model.js';
 import { generateSample, pickSample } from '../shared/sample.js';
 import { readBackup, backupParts, mimeOf } from '../shared/backup.js';
@@ -85,11 +85,11 @@ export function createLocalBackend(store, {
   function listCourses() {
     return [...D.courses]
       .sort((a, b) => cmp(nocase(a.name), nocase(b.name)) || a.id - b.id)
-      .map((c) => ({ ...c, round_count: D.rounds.filter((r) => r.course_id === c.id).length, holes: holesOf(c.id) }));
+      .map((c) => ({ ...c, nines: parseNines(c.nines), round_count: D.rounds.filter((r) => r.course_id === c.id).length, holes: holesOf(c.id) }));
   }
   function getCourse(cid) {
     const c = mustFind('courses', cid, 'コースが見つかりません');
-    return { ...c, holes: holesOf(cid) };
+    return { ...c, nines: parseNines(c.nines), holes: holesOf(cid) };
   }
   function saveCourse(cid, b) {
     const { row, holes } = normalizeCourse(b);
@@ -116,12 +116,16 @@ export function createLocalBackend(store, {
       const { round_id, ...rest } = h;
       byRound.get(round_id).push(rest);
     }
-    return rounds.map((r) => ({
-      ...r,
-      course_name: (r.course_id != null ? find('courses', r.course_id)?.name : null) ?? r.course_name,
-      photo_count: D.photos.filter((p) => p.round_id === r.id).length,
-      holes: (byRound.get(r.id) || []).sort((a, b) => a.hole_no - b.hole_no),
-    }));
+    return rounds.map((r) => {
+      const c = r.course_id != null ? find('courses', r.course_id) : null;
+      return {
+        ...r,
+        course_name: c?.name ?? r.course_name,
+        photo_count: D.photos.filter((p) => p.round_id === r.id).length,
+        nines_label: r.course_id != null ? ninesLabel(parseNines(c?.nines), r.front_nine, r.back_nine) : null,
+        holes: (byRound.get(r.id) || []).sort((a, b) => a.hole_no - b.hole_no),
+      };
+    });
   }
   function getRound(rid) {
     const [r] = roundRows((x) => x.id === rid);
@@ -129,7 +133,10 @@ export function createLocalBackend(store, {
     return r;
   }
   function saveRound(rid, b) {
-    const { row, holes } = normalizeRound(b, (cid) => find('courses', cid)?.name);
+    const { row, holes } = normalizeRound(b, (cid) => {
+      const c = find('courses', cid);
+      return c ? { name: c.name, nineCount: parseNines(c.nines).length } : undefined;
+    });
     if (rid) Object.assign(mustFind('rounds', rid, 'ラウンドが見つかりません'), row, { updated_at: localNow() });
     else rid = insert('rounds', row);
     remove('round_holes', (h) => h.round_id === rid);

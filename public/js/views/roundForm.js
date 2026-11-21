@@ -1,9 +1,9 @@
 // ラウンドの新規入力・編集（スコアカード形式）
 import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, WEATHERS } from '../util.js';
 import { api } from '../api.js';
-import { summarize, resultKey, played, RESULT_LABELS } from '../stats.js';
+import { summarize, resultKey, played, courseHoleNo, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard } from '../main.js';
-import { openCourseEditor, DEFAULT_PARS } from './courses.js';
+import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 
 const FW_CYCLE = [null, 'hit', 'left', 'right'];
 const FW_LABEL = { hit: '○', left: '←', right: '→' };
@@ -26,6 +26,8 @@ export async function render(root, params) {
     weather: round?.weather || '',
     companions: round?.companions || '',
     memo: round?.memo || '',
+    front_nine: round?.front_nine ?? 1, // 27・36 ホールのゴルフ場で前半・後半に回った 9 ホール
+    back_nine: round?.back_nine ?? 2,
   };
   const holes = Array.from({ length: 18 }, (_, i) => {
     const h = round?.holes?.find((x) => x.hole_no === i + 1);
@@ -40,15 +42,27 @@ export async function render(root, params) {
       bunker: h?.bunker ?? null,
     };
   });
+  const currentCourse = () => courses.find((c) => c.id === meta.course_id) || null;
+  // 前半・後半の 9 ホールがコースの範囲に収まるようにする（9 ホールだけのコースは同じ 9 ホールを 2 周）
+  const fitNines = (c) => {
+    const n = ninesOf(c).length;
+    if (!(meta.front_nine >= 1 && meta.front_nine <= n)) meta.front_nine = 1;
+    if (!(meta.back_nine >= 1 && meta.back_nine <= n)) meta.back_nine = Math.min(2, n);
+  };
   const applyCourse = (c) => {
     if (!c) return;
-    for (const ch of c.holes) {
-      const h = holes[ch.hole_no - 1];
+    fitNines(c);
+    for (const h of holes) {
+      const ch = c.holes.find((x) => x.hole_no === courseHoleNo(meta, h.hole_no));
+      if (!ch) continue;
       h.par = ch.par;
       h.yards = ch.yards;
       if (h.par === 3) h.fairway = null;
     }
   };
+  // まとまりが 3 つ以上のゴルフ場のときの、ホールの説明（例:「南コース 3番」）
+  const multiNames = () => { const c = currentCourse(); return c && ninesOf(c).length > 2 ? ninesOf(c) : null; };
+  const nineOfHole = (no) => { const n = multiNames(); return n ? `${n[(no <= 9 ? meta.front_nine : meta.back_nine) - 1] ?? ''} ${((no - 1) % 9) + 1}番` : ''; };
   if (!round && meta.course_id) applyCourse(courses.find((c) => c.id === meta.course_id));
 
   let dirty = false;
@@ -63,7 +77,7 @@ export async function render(root, params) {
   const half = (from) => {
     const hs = holes.slice(from, from + 9);
     const tag = from ? 'IN' : 'OUT';
-    return html`<table class="scorecard">
+    return html`<p class="small nine-cap" data-cap="${from}" hidden></p><table class="scorecard">
       <thead><tr><th>ホール</th>${hs.map((h) => html`<th>${h.hole_no}</th>`)}<th class="sum">${tag}</th></tr></thead>
       <tbody>
         <tr><td>パー</td>${hs.map((h) => cell(h, 'par', 'min="3" max="6"'))}<td class="sum" data-sum="par-${from}"></td></tr>
@@ -90,6 +104,8 @@ export async function render(root, params) {
           <div class="field" style="grid-column:span 2"><label for="course">コース *</label>
             <div style="display:flex;gap:6px"><select id="course" name="course_id">${courseOptions()}</select>
             <button type="button" class="btn" id="new-course" title="新しいコースを登録">${icon('plus')}新規</button></div></div>
+          <div class="field" id="nine-field" style="grid-column:span 2" hidden><label for="front-nine">回ったコース（前半 → 後半）</label>
+            <div class="nine-pick"><select id="front-nine" aria-label="前半のコース"></select><span aria-hidden="true">→</span><select id="back-nine" aria-label="後半のコース"></select></div></div>
           <label class="field"><span>ティー</span><input name="tee" list="tee-list" value="${meta.tee}" placeholder="例: レギュラー">
             <datalist id="tee-list"><option value="レギュラー"><option value="バック"><option value="フロント"><option value="レディース"><option value="チャンピオン"></datalist></label>
           <label class="field"><span>天気</span><select name="weather"><option value="">—</option>${WEATHERS.map((w) => html`<option ${w === meta.weather ? 'selected' : ''}>${w}</option>`)}</select></label>
@@ -229,7 +245,7 @@ export async function render(root, params) {
         <span class="hs-no">${x.hole_no}</span><span class="hs-sc">${played(x) ? x.strokes : '·'}</span></button>`)}</div>
       <div class="he-head">
         <button type="button" class="btn btn-icon" data-prev ${cur === 1 ? 'disabled' : ''} aria-label="前のホール">‹</button>
-        <div class="he-title"><div class="he-no">${cur}<small> 番ホール</small></div><div class="he-sub">Par ${h.par}${h.yards ? ` ・ ${h.yards} yd` : ''}</div></div>
+        <div class="he-title"><div class="he-no">${cur}<small> 番ホール</small></div><div class="he-sub">${nineOfHole(cur) ? `${nineOfHole(cur)} ・ ` : ''}Par ${h.par}${h.yards ? ` ・ ${h.yards} yd` : ''}</div></div>
         <button type="button" class="btn btn-icon" data-next ${cur === 18 ? 'disabled' : ''} aria-label="次のホール">›</button>
       </div>
       <div class="he-row"><div class="he-label">スコア <span class="he-res">${k ? RESULT_LABELS[k] : ''}</span></div>
@@ -239,7 +255,7 @@ export async function render(root, params) {
         <div class="chips">${[0, 1, 2, 3, 4].map((v) => chip('putts', v, h.putts === v, v))}</div></div>
       <div class="he-row"><div class="he-label">ティーショット</div>
         <div class="chips fw">${h.par === 3 ? html`<span class="muted small">パー3は対象外</span>`
-          : [['left', '← 左'], ['hit', '○ FWキープ'], ['right', '右 →']].map(([v, l]) => chip('fairway', v, h.fairway === v, l))}</div></div>
+          : [['left', '← 左'], ['hit', raw('○ FW<wbr>キープ')], ['right', '右 →']].map(([v, l]) => chip('fairway', v, h.fairway === v, l))}</div></div>
       <div class="he-row he-two">
         <div><div class="he-label">OB・ペナルティ</div>${stepper('penalties', h.penalties ?? 0, 'OB・ペナルティ')}</div>
         <div><div class="he-label">バンカー</div>${stepper('bunker', h.bunker ?? 0, 'バンカー')}</div>
@@ -294,22 +310,54 @@ export async function render(root, params) {
   setMode(savedMode || (window.matchMedia('(max-width: 760px)').matches ? 'hole' : 'card'));
 
   const courseSel = $('#course', form);
+  const frontSel = $('#front-nine', form);
+  const backSel = $('#back-nine', form);
+  // 27・36 ホールのゴルフ場なら「前半 → 後半」の選択を出す
+  const drawNinePick = () => {
+    const names = multiNames();
+    $('#nine-field', form).hidden = !names;
+    if (names) {
+      fitNines(currentCourse());
+      const opts = (sel) => html`${names.map((n, i) => html`<option value="${i + 1}" ${sel === i + 1 ? 'selected' : ''}>${n}</option>`)}`;
+      mount(frontSel, opts(meta.front_nine));
+      mount(backSel, opts(meta.back_nine));
+    }
+    for (const from of [0, 9]) {
+      const cap = $(`[data-cap="${from}"]`, form);
+      cap.hidden = !names;
+      cap.textContent = names ? `${from ? '後半' : '前半'}：${names[(from ? meta.back_nine : meta.front_nine) - 1] ?? ''}` : '';
+    }
+  };
   const syncCourseInputs = () => {
     for (const h of holes) syncInputs(h.hole_no);
     updateTotals();
+    drawNinePick();
     if (!holeEl.hidden) drawHole();
   };
+  drawNinePick();
   courseSel.addEventListener('change', () => {
     meta.course_id = courseSel.value ? Number(courseSel.value) : null;
-    const c = courses.find((x) => x.id === meta.course_id);
-    if (c) { meta.course_name = c.name; applyCourse(c); syncCourseInputs(); }
+    meta.front_nine = 1;
+    meta.back_nine = 2;
+    const c = currentCourse();
+    if (c) { meta.course_name = c.name; applyCourse(c); }
+    syncCourseInputs();
   });
+  for (const [sel, key] of [[frontSel, 'front_nine'], [backSel, 'back_nine']]) {
+    sel.addEventListener('change', () => {
+      meta[key] = Number(sel.value);
+      applyCourse(currentCourse());
+      syncCourseInputs();
+    });
+  }
   $('#new-course', form).addEventListener('click', async () => {
     const c = await openCourseEditor(null, { holes: holes.map((h) => ({ hole_no: h.hole_no, par: h.par, yards: h.yards })) });
     if (!c) return;
     courses = await api.get('/api/courses');
     meta.course_id = c.id;
     meta.course_name = c.name;
+    meta.front_nine = 1;
+    meta.back_nine = 2;
     mount(courseSel, courseOptions());
     applyCourse(c);
     syncCourseInputs();
@@ -334,6 +382,8 @@ export async function render(root, params) {
       memo: fd.get('memo'),
       rating: c ? c.rating : round?.rating ?? null,
       slope: c ? c.slope : round?.slope ?? null,
+      front_nine: c ? meta.front_nine : null,
+      back_nine: c ? meta.back_nine : null,
       holes,
     };
     $$('[data-save]', root).forEach((b) => { b.disabled = true; });

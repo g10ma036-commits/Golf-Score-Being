@@ -60,7 +60,7 @@ export async function render(root) {
       const s = sums.get(r.id);
       return html`<tr class="link" data-id="${r.id}" tabindex="0">
         <td>${fmtDate(r.date)}</td>
-        <td>${r.course_name}${r.tee ? html` <span class="muted small">${r.tee}</span>` : ''}</td>
+        <td>${r.course_name}${r.nines_label ? html` <span class="muted small">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small">${r.tee}</span>` : ''}</td>
         <td class="r"><strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
         <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td>
         <td class="r hide-sm">${s.front.holes ? s.front.strokes : '—'}</td>

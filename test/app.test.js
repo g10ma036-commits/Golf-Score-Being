@@ -246,3 +246,39 @@ test('QR コード：サイズとファインダーパターン', async () => {
   for (let i = 1; i < 6; i++) assert.equal(m[1][i], false);
   assert.throws(() => qrMatrix('x'.repeat(300)));
 });
+
+test('古い版のデータベース（18 ホールまで）を開くと、27 ホールのゴルフ場を登録できる形に移行される', () => {
+  const { DatabaseSync } = require('node:sqlite');
+  const { openDb } = require('../server/db');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'golf-migrate-'));
+  const file = path.join(dir, 'golf.db');
+  const old = new DatabaseSync(file);
+  old.exec(`
+    CREATE TABLE courses (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, location TEXT, rating REAL, slope INTEGER, memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
+    CREATE TABLE course_holes (course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      hole_no INTEGER NOT NULL CHECK (hole_no BETWEEN 1 AND 18), par INTEGER NOT NULL DEFAULT 4, yards INTEGER, hdcp INTEGER,
+      PRIMARY KEY (course_id, hole_no));
+    CREATE TABLE rounds (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+      course_name TEXT, tee TEXT, weather TEXT, companions TEXT, memo TEXT, rating REAL, slope INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
+    INSERT INTO courses(name) VALUES ('旧コース');
+    INSERT INTO course_holes(course_id, hole_no, par, yards) VALUES (1, 1, 5, 500), (1, 18, 3, 150);
+    INSERT INTO rounds(date, course_id, course_name) VALUES ('2025-05-05', 1, '旧コース');`);
+  old.close();
+  try {
+    const db = openDb(file);
+    assert.deepEqual(db.all('SELECT hole_no, par, yards FROM course_holes ORDER BY hole_no').map((r) => ({ ...r })), [{ hole_no: 1, par: 5, yards: 500 }, { hole_no: 18, par: 3, yards: 150 }]);
+    db.run('INSERT INTO course_holes(course_id, hole_no, par) VALUES (1, 27, 4)');
+    assert.throws(() => db.run('INSERT INTO course_holes(course_id, hole_no, par) VALUES (1, 55, 4)'));
+    db.run("UPDATE courses SET nines = '[\"東\",\"西\",\"南\"]' WHERE id = 1");
+    db.run('UPDATE rounds SET front_nine = 3, back_nine = 1 WHERE id = 1');
+    assert.equal(db.get('SELECT front_nine FROM rounds WHERE id = 1').front_nine, 3);
+    db.run('DELETE FROM courses WHERE id = 1'); // 外部キー（ON DELETE CASCADE）も引き続き効く
+    assert.equal(db.get('SELECT COUNT(*) AS n FROM course_holes').n, 0);
+    db.close();
+    openDb(file).close(); // 2 回目は何もしない
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

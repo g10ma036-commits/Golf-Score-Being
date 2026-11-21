@@ -37,6 +37,7 @@ button, .btn, a, .chip, .hs { touch-action: manipulation; -webkit-tap-highlight-
     border-top: 1px solid var(--border);
     padding: 6px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
   }
+  .tabbar.kb-open { display: none; }
   .tabbar > a, .tabbar > button {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     min-height: 50px; border: 0; background: none; font: inherit; font-size: 10.5px; font-weight: 600;
@@ -123,14 +124,19 @@ details.help ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direc
 .he-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
 .he-res { color: var(--accent); margin-left: 6px; }
 .he-line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.he-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.he-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.he-two .stepper { display: flex; max-width: 100%; }
+.he-two .stepper .st-val { min-width: 24px; flex: 1; }
+@media (max-width: 360px) { .he-two .stepper .btn-icon { width: 40px; } }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip {
   min-width: 48px; height: 48px; padding: 0 12px; border-radius: 12px;
   border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-primary);
   font: inherit; font-size: 18px; font-weight: 650; cursor: pointer;
 }
-.chips.fw .chip { font-size: 15px; flex: 1; }
+/* ティーショットの 3 つのボタン：幅が足りず 2 行になっても文字が欠けないように */
+.chips.fw { flex-wrap: nowrap; }
+.chips.fw .chip { font-size: 15px; flex: 1 1 0; min-width: 0; height: auto; min-height: 48px; padding: 4px 6px; line-height: 1.2; word-break: keep-all; }
 .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .stepper { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-strong); border-radius: 12px; padding: 2px; }
 .stepper .btn-icon { width: 44px; height: 44px; border: 0; font-size: 22px; border-radius: 10px; }
@@ -194,7 +200,17 @@ details.help ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direc
 .paste-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 8px; }
 .scorecard.paste-preview td, .scorecard.paste-preview th { font-size: 12px; padding: 3px 4px; text-align: center; }
 .scorecard input.filled { background: var(--accent-soft); transition: background .3s; }
+.paste-block { margin-top: 10px; }
+.paste-block .field { max-width: 360px; margin-bottom: 6px; }
 @media (max-width: 760px), (pointer: coarse) { .paste-body textarea { font-size: 16px; } }
+
+/* 27・36 ホールのゴルフ場：9 ホールのまとまり（東・西・南コースなど） */
+.nine-block + .nine-block { margin-top: 10px; }
+.nine-block .nine-name { max-width: 260px; margin-bottom: 6px; }
+.nine-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.nine-pick { display: flex; gap: 6px; align-items: center; }
+.nine-pick select { flex: 1; min-width: 0; }
+.nine-cap { margin: 0 0 4px; font-weight: 600; }
 
 /* サンプルデータ表示中のお知らせ（バックアップのお知らせと色を分ける） */
 .notice.sample-notice { background: #fdf0d5; border-color: #f3dca8; }

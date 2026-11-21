@@ -2,7 +2,7 @@
 import { html, mount, $, $$, fmt, pct, toPar, signed, fmtDate, icon, confirmDialog, toast, errorToast } from '../util.js';
 import { api } from '../api.js';
 import {
-  summarize, aggregate, roundInsights, holeAnalysis, resultKey, played, isGir,
+  summarize, aggregate, roundInsights, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { barChart, segmentedBar, chartCard, setupChart } from '../charts.js';
@@ -26,7 +26,8 @@ export async function render(root, [idStr]) {
   const isBest = sum.complete && otherComplete.length > 0 && otherComplete.every((s) => s.strokes > sum.strokes);
   const insights = roundInsights(sum, base, { isBest });
   const sameCourse = round.course_id ? others.filter((r) => r.course_id === round.course_id) : [];
-  const courseAvg = sameCourse.length ? holeAnalysis(sameCourse) : null;
+  // 同じホールどうしで比べる（27 ホールのゴルフ場では、回った 9 ホールの組み合わせが違っても同じホールを集計）
+  const courseAvg = sameCourse.length ? holeAnalysis(sameCourse.map(onCourseHoles), 54) : null;
   const holes = Array.from({ length: 18 }, (_, i) => round.holes.find((h) => h.hole_no === i + 1) || { hole_no: i + 1, par: null });
 
   const half = (from) => {
@@ -49,7 +50,7 @@ export async function render(root, [idStr]) {
         <tr><td>OB・ペナ</td>${hs.map((h) => html`<td class="${h.penalties ? 'bad' : ''}">${h.penalties || ''}</td>`)}<td class="sum">${total('penalties') || ''}</td></tr>
         <tr><td>バンカー</td>${hs.map((h) => html`<td>${h.bunker || ''}</td>`)}<td class="sum">${total('bunker') || ''}</td></tr>
         ${courseAvg ? html`<tr><td title="このコースでの他のラウンドの平均">コース平均</td>${hs.map((h) => {
-          const a = courseAvg[h.hole_no - 1];
+          const a = courseAvg[courseHoleNo(round, h.hole_no) - 1];
           return html`<td class="muted small">${a.n ? a.avg.toFixed(1) : ''}</td>`;
         })}<td class="sum small"></td></tr>` : ''}
       </tbody>
@@ -76,7 +77,7 @@ export async function render(root, [idStr]) {
       <div>
         <a class="small" href="#/rounds">← ラウンド一覧</a>
         <h1>${fmtDate(round.date)}　${round.course_id ? html`<a href="#/courses/${round.course_id}" style="color:inherit">${round.course_name}</a>` : round.course_name}</h1>
-        <div class="sub">${[round.tee && `${round.tee}ティー`, round.weather, round.companions && `同伴：${round.companions}`].filter(Boolean).join('　・　')}</div>
+        <div class="sub">${[round.nines_label, round.tee && `${round.tee}ティー`, round.weather, round.companions && `同伴：${round.companions}`].filter(Boolean).join('　・　')}</div>
       </div>
       <div class="actions">
         <a class="btn" href="#/rounds/${id}/edit">${icon('edit')}編集</a>

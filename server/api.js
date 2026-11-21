@@ -7,7 +7,7 @@ const { generateSample } = require('./sample');
 const {
   ApiError: HttpError, TABLES, SETTING_KEYS, SETTING_DEFAULTS, uuid, num, id, text, takenAt,
   normalizeSetting, normalizeCourse, normalizeRound, normalizeClub, normalizeDistance, normalizeAlbum, normalizeCover,
-  photoLinks, imageExt, thumbExt, originalName, cleanImport,
+  photoLinks, imageExt, thumbExt, originalName, cleanImport, parseNines, ninesLabel,
 } = require('../public/js/shared/model.js');
 const { readBackup, backupParts, backupFileName } = require('../public/js/shared/backup.js');
 const { pickSample } = require('../public/js/shared/sample.js');
@@ -78,22 +78,22 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
       if (!byCourse.has(h.course_id)) byCourse.set(h.course_id, []);
       byCourse.get(h.course_id).push({ hole_no: h.hole_no, par: h.par, yards: h.yards, hdcp: h.hdcp });
     }
-    return courses.map((c) => ({ ...c, holes: byCourse.get(c.id) || [] }));
+    return courses.map((c) => ({ ...c, nines: parseNines(c.nines), holes: byCourse.get(c.id) || [] }));
   }
   function getCourse(courseId) {
     const c = db.get('SELECT * FROM courses WHERE id = ?', courseId);
     if (!c) throw new HttpError(404, 'コースが見つかりません');
-    return { ...c, holes: courseHoles(courseId) };
+    return { ...c, nines: parseNines(c.nines), holes: courseHoles(courseId) };
   }
   function saveCourse(courseId, b) {
     const { row, holes } = normalizeCourse(b);
-    const fields = [row.name, row.location, row.rating, row.slope, row.memo];
+    const fields = [row.name, row.location, row.rating, row.slope, row.memo, row.nines];
     return db.tx(() => {
       if (courseId) {
         getCourse(courseId);
-        db.run('UPDATE courses SET name=?, location=?, rating=?, slope=?, memo=? WHERE id=?', ...fields, courseId);
+        db.run('UPDATE courses SET name=?, location=?, rating=?, slope=?, memo=?, nines=? WHERE id=?', ...fields, courseId);
       } else {
-        courseId = Number(db.run('INSERT INTO courses(name, location, rating, slope, memo) VALUES (?,?,?,?,?)', ...fields).lastInsertRowid);
+        courseId = Number(db.run('INSERT INTO courses(name, location, rating, slope, memo, nines) VALUES (?,?,?,?,?,?)', ...fields).lastInsertRowid);
       }
       db.run('DELETE FROM course_holes WHERE course_id = ?', courseId);
       for (const h of holes) {
@@ -106,7 +106,7 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
   // ---------- ラウンド ----------
   function roundRows(where = '', ...params) {
     const rounds = db.all(`
-      SELECT r.*, COALESCE(c.name, r.course_name) AS course_name,
+      SELECT r.*, COALESCE(c.name, r.course_name) AS course_name, c.nines AS course_nines,
              (SELECT COUNT(*) FROM photos p WHERE p.round_id = r.id) AS photo_count
       FROM rounds r LEFT JOIN courses c ON c.id = r.course_id
       ${where}
@@ -120,7 +120,11 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
       if (!byRound.has(round_id)) byRound.set(round_id, []);
       byRound.get(round_id).push(rest);
     }
-    return rounds.map((r) => ({ ...r, holes: byRound.get(r.id) || [] }));
+    return rounds.map(({ course_nines, ...r }) => ({
+      ...r,
+      nines_label: r.course_id != null ? ninesLabel(parseNines(course_nines), r.front_nine, r.back_nine) : null,
+      holes: byRound.get(r.id) || [],
+    }));
   }
   function getRound(roundId) {
     const [r] = roundRows('WHERE r.id = ?', roundId);
@@ -128,16 +132,19 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
     return r;
   }
   function saveRound(roundId, b) {
-    const { row, holes } = normalizeRound(b, (cid) => db.get('SELECT name FROM courses WHERE id = ?', cid)?.name);
-    const fields = [row.date, row.course_id, row.course_name, row.tee, row.weather, row.companions, row.memo, row.rating, row.slope];
+    const { row, holes } = normalizeRound(b, (cid) => {
+      const c = db.get('SELECT name, nines FROM courses WHERE id = ?', cid);
+      return c ? { name: c.name, nineCount: parseNines(c.nines).length } : undefined;
+    });
+    const fields = [row.date, row.course_id, row.course_name, row.tee, row.weather, row.companions, row.memo, row.rating, row.slope, row.front_nine, row.back_nine];
     return db.tx(() => {
       if (roundId) {
         getRound(roundId);
-        db.run(`UPDATE rounds SET date=?, course_id=?, course_name=?, tee=?, weather=?, companions=?, memo=?, rating=?, slope=?,
+        db.run(`UPDATE rounds SET date=?, course_id=?, course_name=?, tee=?, weather=?, companions=?, memo=?, rating=?, slope=?, front_nine=?, back_nine=?,
                 updated_at=datetime('now','localtime') WHERE id=?`, ...fields, roundId);
       } else {
-        roundId = Number(db.run(`INSERT INTO rounds(date, course_id, course_name, tee, weather, companions, memo, rating, slope)
-                VALUES (?,?,?,?,?,?,?,?,?)`, ...fields).lastInsertRowid);
+        roundId = Number(db.run(`INSERT INTO rounds(date, course_id, course_name, tee, weather, companions, memo, rating, slope, front_nine, back_nine)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)`, ...fields).lastInsertRowid);
       }
       db.run('DELETE FROM round_holes WHERE round_id = ?', roundId);
       for (const h of holes) {

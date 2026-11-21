@@ -15,12 +15,13 @@ CREATE TABLE IF NOT EXISTS courses (
   rating     REAL,
   slope      INTEGER,
   memo       TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  nines      TEXT    -- 9 ホールのまとまりの名前（JSON 配列。例: ["東","西","南"]）。NULL は OUT・IN
 );
 
 CREATE TABLE IF NOT EXISTS course_holes (
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  hole_no   INTEGER NOT NULL CHECK (hole_no BETWEEN 1 AND 18),
+  hole_no   INTEGER NOT NULL CHECK (hole_no BETWEEN 1 AND 54),  -- まとまりをまたいだ通し番号
   par       INTEGER NOT NULL DEFAULT 4,
   yards     INTEGER,
   hdcp      INTEGER,
@@ -39,7 +40,9 @@ CREATE TABLE IF NOT EXISTS rounds (
   rating      REAL,
   slope       INTEGER,
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  front_nine  INTEGER,  -- 前半・後半に回ったまとまり（1 から。NULL は 1・2）
+  back_nine   INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_rounds_date ON rounds(date);
 
@@ -118,11 +121,38 @@ function bindable(v) {
   return v;
 }
 
+// 古い版で作ったデータベースを今の形にそろえる
+function migrate(raw) {
+  const cols = (t) => raw.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
+  if (!cols('courses').includes('nines')) raw.exec('ALTER TABLE courses ADD COLUMN nines TEXT');
+  const rc = cols('rounds');
+  if (!rc.includes('front_nine')) raw.exec('ALTER TABLE rounds ADD COLUMN front_nine INTEGER');
+  if (!rc.includes('back_nine')) raw.exec('ALTER TABLE rounds ADD COLUMN back_nine INTEGER');
+  // ホール番号の上限（18 → 54）を広げる。SQLite は CHECK を変更できないので表を作り直す
+  const sql = raw.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'course_holes'").get()?.sql || '';
+  if (sql.includes('BETWEEN 1 AND 18')) {
+    raw.exec(`BEGIN;
+      CREATE TABLE course_holes_new (
+        course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+        hole_no   INTEGER NOT NULL CHECK (hole_no BETWEEN 1 AND 54),
+        par       INTEGER NOT NULL DEFAULT 4,
+        yards     INTEGER,
+        hdcp      INTEGER,
+        PRIMARY KEY (course_id, hole_no)
+      );
+      INSERT INTO course_holes_new(course_id, hole_no, par, yards, hdcp) SELECT course_id, hole_no, par, yards, hdcp FROM course_holes;
+      DROP TABLE course_holes;
+      ALTER TABLE course_holes_new RENAME TO course_holes;
+      COMMIT;`);
+  }
+}
+
 function openDb(file) {
   const raw = new DatabaseSync(file);
   raw.exec('PRAGMA journal_mode = WAL;');
   raw.exec('PRAGMA foreign_keys = ON;');
   raw.exec(SCHEMA);
+  migrate(raw);
 
   const cache = new Map();
   const prep = (sql) => {

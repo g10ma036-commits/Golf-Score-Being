@@ -140,6 +140,31 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('GET', '/api/rounds');
   await S('GET', '/api/rounds/2');
 
+  // 27 ホールのゴルフ場（9 ホールのまとまりが 3 つ）と、9 ホールだけのコース
+  const h27 = Array.from({ length: 27 }, (_, i) => ({ hole_no: i + 1, par: PARS[i % 18], yards: 320 + i, hdcp: i + 1 }));
+  const c27 = await S('POST', '/api/courses', { name: 'C 27ホール', nines: ['東コース', '西コース', ' '], holes: h27 });
+  assert.deepEqual(c27.nines, ['東コース', '西コース', 'Cコース']);
+  assert.equal(c27.holes.length, 27);
+  await S('POST', '/api/courses', { name: 'x', nines: ['東', '西'], holes: h27 }); // 2 つなら 19 番以降は範囲外
+  await S('POST', '/api/courses', { name: 'x', nines: Array(7).fill('a') });
+  const c9 = await S('POST', '/api/courses', { name: 'D 9ホール', nines: ['9H'], holes: holes.slice(0, 9) });
+  const r27 = await S('POST', '/api/rounds', { date: '2026-10-03', course_id: c27.id, front_nine: 3, back_nine: 1, holes: rh });
+  assert.equal(r27.nines_label, 'Cコース → 東コース');
+  assert.deepEqual([r27.front_nine, r27.back_nine], [3, 1]);
+  const rDef = await S('POST', '/api/rounds', { date: '2026-10-04', course_id: c27.id, holes: rh.slice(0, 9) });
+  assert.deepEqual([rDef.front_nine, rDef.back_nine, rDef.nines_label], [1, 2, '東コース → 西コース']);
+  await S('POST', '/api/rounds', { date: '2026-10-05', course_id: c27.id, front_nine: 4 });
+  const r9 = await S('POST', '/api/rounds', { date: '2026-10-05', course_id: c9.id, holes: rh });
+  assert.deepEqual([r9.front_nine, r9.back_nine, r9.nines_label], [1, 1, null]); // 9 ホールを 2 周
+  await S('POST', '/api/rounds', { date: '2026-10-05', course_id: c9.id, back_nine: 2 });
+  const rFree = await S('POST', '/api/rounds', { date: '2026-10-06', course_name: '旅先', front_nine: 3 }); // 未登録のコースでは使わない
+  assert.deepEqual([rFree.front_nine, rFree.nines_label], [null, null]);
+  const r1 = await S('GET', '/api/rounds/1');
+  assert.deepEqual([r1.front_nine, r1.back_nine, r1.nines_label], [1, 2, null]);
+  await S('PUT', '/api/courses/' + c27.id, { name: 'C 27ホール', nines: ['東コース', '西コース'], holes: h27.slice(0, 18) }); // まとまりを減らす
+  await S('GET', '/api/courses/' + c27.id);
+  await S('GET', '/api/rounds');
+
   // クラブ・飛距離
   await S('POST', '/api/clubs', { category: 'iron', name: '7I', loft: 31, target_carry: 150 });
   await S('POST', '/api/clubs', { category: 'driver', name: '1W', loft: 10.5, length: 45.5, flex: 'S' });
@@ -211,6 +236,9 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
     exp.courses.push({ id: 50, name: null });
     exp.rounds.push({ id: 60, date: '2026-01-02', course_id: 12345, course_name: '消えたコース', created_at: null });
     exp.settings.push({ key: 'lan_key', value: 'evil' });
+    exp.courses.push({ id: 51, name: '取り込み 27H', nines: '["北","南","中"]' });
+    exp.course_holes.push({ course_id: 51, hole_no: 27, par: 5 }, { course_id: 51, hole_no: 28, par: 4 }); // 28 番は範囲外
+    exp.rounds.push({ id: 61, date: '2026-01-03', course_id: 51, course_name: 'x', front_nine: 3, back_nine: 9 }); // 9 は範囲外
     return exp;
   };
   const [se, le] = [tamper((await p.server('GET', '/api/export')).data), tamper((await p.local('GET', '/api/export')).data)];
@@ -218,6 +246,10 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   assert.deepEqual(li, si, 'POST /api/import');
   assert.equal(si.data.counts.photos, 2);
   for (const u of ['/api/settings', '/api/courses', '/api/rounds', '/api/clubs', '/api/distances', '/api/albums', '/api/photos']) await S('GET', u);
+  const imported = (await p.server('GET', '/api/courses/51')).data;
+  assert.deepEqual([imported.nines, imported.holes.map((h) => h.hole_no)], [['北', '南', '中'], [27]]);
+  const r61 = (await p.server('GET', '/api/rounds/61')).data;
+  assert.deepEqual([r61.front_nine, r61.back_nine, r61.nines_label], [3, null, '中 → 南']);
   await S('POST', '/api/import', { app: 'other' });
   await S('POST', '/api/courses', { name: '復元後に追加' }); // ID の続き番号も同じ
 
