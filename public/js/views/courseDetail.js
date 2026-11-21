@@ -5,6 +5,7 @@ import { summarize, holeAnalysis, onCourseHoles, goalPlan, planLabel } from '../
 import { lineChart, barChart, chartCard, setupChart } from '../charts.js';
 import { openCourseEditor, ninesOf, holeName, nineTotals } from './courses.js';
 import { navigate } from '../main.js';
+import { mapUrl } from '../share.js';
 
 export async function render(root, [idStr]) {
   const id = Number(idStr);
@@ -36,7 +37,7 @@ export async function render(root, [idStr]) {
 
   mount(root, html`
     <div class="page-header">
-      <div><a class="small" href="#/courses">← コース一覧</a><h1>${course.name}</h1><div class="sub">${course.location || ''}</div></div>
+      <div><a class="small" href="#/courses">← コース一覧</a><h1>${course.name}</h1><div class="sub">${course.location || ''}　<a class="small" href="${mapUrl(course.name, course.location)}" target="_blank" rel="noopener noreferrer">📍 地図で開く</a></div></div>
       <div class="actions act-grid">
         <a class="btn" href="#/rounds/new?course=${id}">${icon('plus')}スコア入力</a>
         <a class="btn" href="#/ai?purpose=course&amp;course=${id}">${icon('ai')}AIに作戦を聞く</a>

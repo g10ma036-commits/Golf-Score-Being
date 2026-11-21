@@ -2,6 +2,7 @@
 import { html, $, $$, fmt, fmtDate, shortDate, openModal, toast, errorToast, today } from '../util.js';
 import { saveSettings, STANDALONE, localMeta } from '../api.js';
 import { parseNextRound } from '../shared/model.js';
+import { mapUrl, weatherUrl } from '../share.js';
 import { GOAL_CHOICES, suggestGoal, goalProgress } from '../stats.js';
 
 const recentAvg = (sums) => {
@@ -79,7 +80,9 @@ export function nextRoundHtml(settings, courses) {
     </div>
     <div class="nr-actions">
       ${days === 0 ? html`<a class="btn btn-sm btn-primary" href="#/rounds/new${c ? `?course=${c.id}` : ''}">スコアを入力</a>` : ''}
-      ${c ? html`<a class="btn btn-sm" href="#/ai?purpose=course&amp;course=${c.id}">AIにコース攻略を聞く</a><a class="btn btn-sm" href="#/courses/${c.id}">コースの情報</a>` : ''}
+      ${c ? html`<a class="btn btn-sm" href="#/ai?purpose=course&amp;course=${c.id}">AIにコース攻略を聞く</a><a class="btn btn-sm" href="#/courses/${c.id}">コースの情報</a>
+        ${days <= 10 ? html`<a class="btn btn-sm" href="${weatherUrl(c.name, c.location)}" target="_blank" rel="noopener noreferrer">☀️ 天気予報</a>` : ''}
+        <a class="btn btn-sm" href="${mapUrl(c.name, c.location)}" target="_blank" rel="noopener noreferrer">📍 地図</a>` : ''}
     </div>
   </div>`;
 }

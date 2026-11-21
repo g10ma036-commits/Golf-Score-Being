@@ -35,3 +35,7 @@ export function downloadFile(file) {
 export function ymd(d = new Date()) {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// 地図・天気予報を開くリンク（押したときだけ、そのサービスでゴルフ場名を検索する）
+export const mapUrl = (name, location = '') => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([name, location].filter(Boolean).join(' '))}`;
+export const weatherUrl = (name, location = '') => `https://tenki.jp/search/?keyword=${encodeURIComponent(location || name)}`;
