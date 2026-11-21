@@ -59,7 +59,7 @@ export async function render(root) {
 
   const body = $('#body', root);
   let records = [];
-  let limit = 50;
+  let limit = window.matchMedia('(max-width: 760px)').matches ? 20 : 50; // スマホは画面が長くなりすぎないように
 
   const load = async () => {
     records = await api.get('/api/distances');
