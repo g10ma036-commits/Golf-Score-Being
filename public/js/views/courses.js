@@ -1,6 +1,7 @@
 // コース一覧・コース編集モーダル
-import { html, mount, $, $$, fmt, icon, openModal, toast, errorToast, numOrNull } from '../util.js';
+import { html, mount, $, $$, fmt, icon, openModal, toast, errorToast, numOrNull, debounce } from '../util.js';
 import { api } from '../api.js';
+import { parseCourseText } from '../shared/courseParse.js';
 import { summarize } from '../stats.js';
 import { navigate } from '../main.js';
 
@@ -78,6 +79,14 @@ export function openCourseEditor(course, template = null) {
         </div>
         <div class="card-header" style="margin:16px 0 8px"><h3>ホール情報</h3>
           <div class="actions"><button type="button" class="btn btn-sm" data-preset="72">パー72（標準）</button><button type="button" class="btn btn-sm" data-preset="4">全ホール パー4</button></div></div>
+        <details class="paste-import">
+          <summary>📋 コースガイドの表を貼り付けて自動入力</summary>
+          <div class="paste-body">
+            <p class="small secondary">ゴルフ場の公式サイトや予約サイト（楽天GORA・じゃらん・GDO など）の「コースガイド」「コースレイアウト」で、<strong>ホール・パー・ヤードの表</strong>を選んでコピーし、下に貼り付けてください。</p>
+            <textarea rows="4" data-paste-text placeholder="ここに貼り付け（スマホは長押し →「ペースト」）" aria-label="コースガイドの表を貼り付け"></textarea>
+            <div data-paste-result aria-live="polite"></div>
+          </div>
+        </details>
         <div class="table-wrap">${half(0)}</div>
         <div class="table-wrap" style="margin-top:8px">${half(9)}</div>
         <p class="small muted" style="margin-top:8px">合計パー <strong id="total-par"></strong>　コースレート・スロープは推定ハンディキャップの計算に使います（未入力ならパーと113で計算）。</p>
@@ -106,6 +115,7 @@ export function openCourseEditor(course, template = null) {
       updateSums();
     }));
     updateSums();
+    bindPasteImport(form, updateSums);
     $('[data-cancel]', m.el).addEventListener('click', () => m.close());
     const save = async () => {
       if (!form.reportValidity()) return;
@@ -127,5 +137,83 @@ export function openCourseEditor(course, template = null) {
     };
     $('[data-save]', m.el).addEventListener('click', save);
     form.addEventListener('submit', (e) => { e.preventDefault(); save(); });
+  });
+}
+
+// ---------- コースガイドの表の貼り付け取り込み ----------
+function bindPasteImport(form, updateSums) {
+  const box = $('.paste-import', form);
+  const ta = $('[data-paste-text]', box);
+  const out = $('[data-paste-result]', box);
+  let res = null;
+  let pick = { out: '', in: '', tee: '' };
+  const field = (no, k) => $(`[data-h="${no}"][data-k="${k}"]`, form);
+  const label = (b, i) => b.name || (res.blocks.length <= 2 ? `${b.start}〜${b.start + b.holes.length - 1}番` : `${i + 1}つ目の${b.holes.length}ホール`);
+  const parOf = (b) => b.holes.reduce((s, h) => s + h.par, 0);
+  // 選んだ内容を反映した後の 18 ホール（変更しないホールは null）
+  const planned = () => Array.from({ length: 18 }, (_, i) => {
+    const sel = i < 9 ? pick.out : pick.in;
+    return sel === '' ? null : res.blocks[Number(sel)]?.holes[i % 9] ?? null;
+  });
+
+  function draw() {
+    if (!res) {
+      mount(out, ta.value.trim() ? html`<p class="small bad" style="margin-top:8px">表を読み取れませんでした。「ホール」「パー」「ヤード（ティー名）」の行や列が入るように選び直してコピーしてください。</p>` : '');
+      return;
+    }
+    const opts = (sel) => html`<option value="" ${sel === '' ? 'selected' : ''}>変更しない</option>${res.blocks.map((b, i) => html`<option value="${i}" ${sel === String(i) ? 'selected' : ''}>${label(b, i)}（パー${parOf(b)}）</option>`)}`;
+    const plan = planned();
+    const half = (from) => html`<table class="scorecard paste-preview">
+      <thead><tr><th>ホール</th>${plan.slice(from, from + 9).map((_, i) => html`<th>${from + i + 1}</th>`)}</tr></thead>
+      <tbody>
+        <tr><td>パー</td>${plan.slice(from, from + 9).map((h) => html`<td>${h ? h.par : '·'}</td>`)}</tr>
+        ${pick.tee ? html`<tr><td>ヤード</td>${plan.slice(from, from + 9).map((h) => html`<td>${h?.yards[pick.tee] ?? '·'}</td>`)}</tr>` : ''}
+        <tr><td>HDCP</td>${plan.slice(from, from + 9).map((h) => html`<td>${h?.hdcp ?? '·'}</td>`)}</tr>
+      </tbody></table>`;
+    const hasHdcp = res.holes.some((h) => h.hdcp != null);
+    mount(out, html`
+      <p class="small good" style="margin:8px 0">✓ ${res.holes.length}ホール分を読み取りました${res.blocks.length > 2 ? `（9ホールのまとまりが${res.blocks.length}つ）` : ''}${hasHdcp ? '' : '。HDCP は表に含まれていません'}</p>
+      <div class="paste-opts">
+        <label class="field"><span>OUT（1〜9番）に入れる</span><select data-pick="out">${opts(pick.out)}</select></label>
+        <label class="field"><span>IN（10〜18番）に入れる</span><select data-pick="in">${opts(pick.in)}</select></label>
+        ${res.tees.length ? html`<label class="field"><span>ヤードはどのティー？</span><select data-pick="tee">
+          ${res.tees.map((t) => html`<option value="${t}" ${pick.tee === t ? 'selected' : ''}>${t}</option>`)}<option value="" ${pick.tee === '' ? 'selected' : ''}>ヤードは入れない</option></select></label>` : ''}
+      </div>
+      <div class="table-wrap">${half(0)}</div>
+      <div class="table-wrap" style="margin-top:6px">${half(9)}</div>
+      ${res.rating || res.slope ? html`<p class="small muted" style="margin-top:6px">コースレート ${res.rating ?? '—'} / スロープ ${res.slope ?? '—'} も見つかりました（未入力の欄に入れます）。</p>` : ''}
+      <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-primary btn-sm" data-apply ${pick.out === '' && pick.in === '' ? 'disabled' : ''}>この内容で入力する</button></div>`);
+  }
+
+  const parse = () => {
+    res = parseCourseText(ta.value);
+    if (res) pick = { out: '0', in: res.blocks.length > 1 ? '1' : '', tee: res.tee ?? '' };
+    draw();
+  };
+  ta.addEventListener('input', debounce(parse, 250));
+  out.addEventListener('change', (e) => {
+    const k = e.target.dataset?.pick;
+    if (!k) return;
+    pick[k] = e.target.value;
+    draw();
+  });
+  out.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-apply]')) return;
+    const changed = [];
+    planned().forEach((h, i) => {
+      if (!h) return;
+      const set = (k, v) => { if (v == null) return; const el = field(i + 1, k); el.value = v; changed.push(el); };
+      set('par', h.par);
+      if (pick.tee) set('yards', h.yards[pick.tee]);
+      set('hdcp', h.hdcp);
+    });
+    if (res.rating && !form.rating.value) form.rating.value = res.rating;
+    if (res.slope && !form.slope.value) form.slope.value = res.slope;
+    updateSums();
+    changed.forEach((el) => el.classList.add('filled'));
+    setTimeout(() => changed.forEach((el) => el.classList.remove('filled')), 2500);
+    box.open = false;
+    box.nextElementSibling?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    toast('ホール情報を入力しました。内容を確認して保存してください');
   });
 }

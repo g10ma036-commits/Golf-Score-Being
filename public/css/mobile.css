@@ -184,3 +184,14 @@ details.help ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direc
 .warn-text { color: #8a5a00; }
 :root[data-theme="dark"] .warn-text { color: #fab219; }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .warn-text { color: #fab219; } }
+
+/* コースガイドの表の貼り付け取り込み（コース編集） */
+.paste-import { margin: 0 0 10px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--surface-1); }
+.paste-import > summary { cursor: pointer; padding: 10px 12px; font-weight: 600; color: var(--accent); list-style-position: inside; }
+.paste-import[open] > summary { border-bottom: 1px solid var(--border); }
+.paste-body { padding: 10px 12px 12px; }
+.paste-body textarea { width: 100%; margin-top: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.paste-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.scorecard.paste-preview td, .scorecard.paste-preview th { font-size: 12px; padding: 3px 4px; text-align: center; }
+.scorecard input.filled { background: var(--accent-soft); transition: background .3s; }
+@media (max-width: 760px), (pointer: coarse) { .paste-body textarea { font-size: 16px; } }
