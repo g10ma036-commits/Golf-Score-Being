@@ -178,3 +178,17 @@ test('年間のまとめ：ラウンド数・ベスト・月別・節目・前�
   assert.deepEqual(stats.reviewYears(rounds), [2026, 2025]);
   assert.equal(stats.yearReview(rounds, 2024).rounds, 0);
 });
+
+test('スコアの CSV：1行 = 1ラウンド、カンマや改行を含む文字は囲む、BOM 付き', async () => {
+  const { roundsCsv } = await load('public/js/csv.js');
+  const r = { ...round(1, '2026-05-01', [1]), course_name: 'A,B カントリー', memo: '1行目\n"2行目"', companions: '田中さん' };
+  const csv = roundsCsv([r, { id: 2, date: '2026-04-01', course_name: '9H', holes: PARS.slice(0, 9).map((par, i) => ({ hole_no: i + 1, par, strokes: par })) }]);
+  assert.equal(csv.charCodeAt(0), 0xfeff);
+  const rows = csv.slice(1).trim().split('\r\n');
+  assert.equal(rows.length, 3); // 見出し + 2 ラウンド（行の区切りは CRLF、メモの中の改行は囲まれた LF）
+  assert.match(rows[0], /^日付,コース,回ったコース/);
+  assert.match(rows[1], /^2026-04-01,9H,,,,,9,36,36,0,36,,/); // 日付の古い順
+  assert.match(csv, /"A,B カントリー"/);
+  assert.match(csv, /"1行目\n""2行目"""/);
+  assert.match(csv, /2026-05-01,"A,B カントリー",,,,田中さん,18,90,72,18,45,45,36,/);
+});

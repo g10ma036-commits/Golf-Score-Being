@@ -93,6 +93,7 @@ export async function render(root) {
   setupChart(root, 'months', (el) => barChart(el, {
     bars: r.months.map((m) => ({ label: String(m.month), value: m.rounds, color: 'var(--series-1)', title: `${m.month}月`, tip: [{ value: `${m.rounds} ラウンド` }] })),
     ariaLabel: '月別のラウンド数', valueLabels: (b) => b.value > 0, height: 200,
+    yDomain: [0, Math.max(4, ...r.months.map((m) => m.rounds))], yFormat: (v) => (Number.isInteger(v) ? String(v) : ''),
   }), { columns: [{ label: '月' }, { label: 'ラウンド', align: 'r' }], rows: r.months.map((m, i) => [labels[i], String(m.rounds)]) });
   setupChart(root, 'monthAvg', (el) => lineChart(el, {
     labels, series: [{ name: '平均スコア', color: 'var(--series-1)', values: r.months.map((m) => m.avg) }],

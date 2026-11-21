@@ -1,5 +1,5 @@
 // 設定・データ管理
-import { html, mount, $, openModal, confirmDialog, toast, errorToast, fmtDate, localDateTime } from '../util.js';
+import { html, mount, $, openModal, confirmDialog, toast, errorToast, fmtDate, localDateTime, icon } from '../util.js';
 import { api, getSettings, saveSettings, STANDALONE, inspectBackup, restoreBackup, localMeta } from '../api.js';
 import { applyTheme } from '../main.js';
 import { PHONE_APP_URL } from '../config.js';
@@ -53,6 +53,10 @@ export async function render(root) {
             <label class="btn">バックアップから復元<input type="file" id="import" accept=".zip,.json,application/zip,application/json" hidden></label>
           </div>
           <p class="small muted" style="margin-top:8px">ZIP はスマホ単独版との間でデータを移すのにも使えます。JSON には写真ファイル本体は含まれません。復元すると現在のデータはすべて置き換わります。</p>`}
+        <div class="csv-export">
+          <button class="btn btn-sm" id="export-csv" ${rounds.length ? '' : 'disabled'}>${icon('download')}スコアを CSV で書き出す</button>
+          <span class="small muted">Excel・Google スプレッドシートで開けます（1行 = 1ラウンド、ホールごとのスコア・パット付き）。復元には使えません。</span>
+        </div>
       </div>
 
       <div class="card">
@@ -120,6 +124,13 @@ export async function render(root) {
   });
   form.theme.addEventListener('change', () => applyTheme(form.theme.value));
 
+  $('#export-csv', root)?.addEventListener('click', async () => {
+    const [{ roundsCsv }, { canShareFile, shareFile, downloadFile, ymd }] = await Promise.all([import('../csv.js'), import('../share.js')]);
+    const file = new File([roundsCsv(await api.get('/api/rounds'))], `golf-scores-${ymd()}.csv`, { type: 'text/csv' });
+    // スマホは共有シート（「ファイルに保存」など）、PC はダウンロード
+    if (STANDALONE && canShareFile(file)) await shareFile(file, 'スコアの CSV');
+    else downloadFile(file);
+  });
   $('#make-backup', root)?.addEventListener('click', async () => {
     const m = await import('../standalone.js');
     m.runBackupFlow(() => renderDevice(root));

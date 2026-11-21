@@ -69,7 +69,7 @@ export async function render(root) {
   mount(root, html`
     <div class="page-header">
       <div><h1>クラブセッティング</h1><div class="sub">バッグの中身と番手ごとの飛距離の階段を管理します</div></div>
-      <div class="actions"><button class="btn btn-primary" id="add">${icon('plus')}クラブを追加</button></div>
+      <div class="actions"><a class="btn" href="#/ai?purpose=clubs">${icon('ai')}AIに相談</a><button class="btn btn-primary" id="add">${icon('plus')}クラブを追加</button></div>
     </div>
     <div class="tiles">
       <div class="tile"><div class="label">バッグ内の本数</div><div class="value">${bag.length}<small>/ 14 本</small></div>
