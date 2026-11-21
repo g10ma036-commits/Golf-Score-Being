@@ -38,4 +38,4 @@ export function ymd(d = new Date()) {
 
 // 地図・天気予報を開くリンク（押したときだけ、そのサービスでゴルフ場名を検索する）
 export const mapUrl = (name, location = '') => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([name, location].filter(Boolean).join(' '))}`;
-export const weatherUrl = (name, location = '') => `https://tenki.jp/search/?keyword=${encodeURIComponent(location || name)}`;
+export const weatherUrl = (name, location = '') => `https://www.google.com/search?q=${encodeURIComponent(`${location || name} 天気`)}`;
