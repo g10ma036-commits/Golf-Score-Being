@@ -195,3 +195,8 @@ details.help ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direc
 .scorecard.paste-preview td, .scorecard.paste-preview th { font-size: 12px; padding: 3px 4px; text-align: center; }
 .scorecard input.filled { background: var(--accent-soft); transition: background .3s; }
 @media (max-width: 760px), (pointer: coarse) { .paste-body textarea { font-size: 16px; } }
+
+/* サンプルデータ表示中のお知らせ（バックアップのお知らせと色を分ける） */
+.notice.sample-notice { background: #fdf0d5; border-color: #f3dca8; }
+:root[data-theme="dark"] .notice.sample-notice { background: #3b2e10; border-color: #5a4718; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .notice.sample-notice { background: #3b2e10; border-color: #5a4718; } }

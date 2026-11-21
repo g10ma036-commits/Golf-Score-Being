@@ -227,6 +227,26 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('POST', '/api/sample');
   for (const u of ['/api/courses', '/api/rounds', '/api/clubs', '/api/distances', '/api/albums', '/api/photos']) await S('GET', u);
   await S('POST', '/api/sample');
+
+  // サンプルだけを削除（自分で登録したデータは残る）
+  const info = await S('GET', '/api/sample');
+  assert.deepEqual(info, { present: true, counts: { courses: 2, rounds: 24, clubs: 15, distances: 156 } });
+  const sampleCourse = (await p.server('GET', '/api/courses')).data.find((c) => c.name.startsWith('サンプル'));
+  const mine = await S('POST', '/api/courses', { name: '自分のホームコース', holes });
+  await S('POST', '/api/rounds', { date: '2026-11-01', course_id: mine.id, holes: rh });
+  await S('POST', '/api/rounds', { date: '2026-11-02', course_id: sampleCourse.id, holes: rh.slice(0, 9) }); // サンプルのコースでの記録はサンプル扱い
+  await S('POST', '/api/clubs', { category: 'driver', name: '1W', brand: 'マイブランド' });
+  await S('POST', '/api/distances', { club_id: (await p.server('GET', '/api/clubs')).data.find((c) => c.brand === 'マイブランド').id, date: '2026-11-03', carry: 230 });
+  const del = await S('DELETE', '/api/sample');
+  assert.deepEqual(del.deleted, { courses: 2, rounds: 25, clubs: 15, distances: 156 });
+  for (const u of ['/api/courses', '/api/rounds', '/api/clubs', '/api/distances']) await S('GET', u);
+  const left = (await p.server('GET', '/api/rounds')).data;
+  assert.equal(left.length, 1);
+  assert.equal(left[0].course_name, '自分のホームコース');
+  assert.equal((await p.server('GET', '/api/clubs')).data.length, 1);
+  assert.equal((await p.server('GET', '/api/distances')).data.length, 1);
+  assert.deepEqual(await S('GET', '/api/sample'), { present: false, counts: { courses: 0, rounds: 0, clubs: 0, distances: 0 } });
+  await S('DELETE', '/api/sample'); // サンプルがなくてもエラーにはならない
 });
 
 test('スマホ単独版：写真込みバックアップ（ZIP）を書き出して別の端末で復元できる', async () => {

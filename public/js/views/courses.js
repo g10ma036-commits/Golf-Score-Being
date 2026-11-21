@@ -82,7 +82,7 @@ export function openCourseEditor(course, template = null) {
         <details class="paste-import">
           <summary>📋 コースガイドの表を貼り付けて自動入力</summary>
           <div class="paste-body">
-            <p class="small secondary">ゴルフ場の公式サイトや予約サイト（楽天GORA・じゃらん・GDO など）の「コースガイド」「コースレイアウト」で、<strong>ホール・パー・ヤードの表</strong>を選んでコピーし、下に貼り付けてください。</p>
+            <p class="small secondary">ゴルフ場の公式サイトや予約サイト（楽天GORA・じゃらん・GDO など）の「コースガイド」「コースレイアウト」で、<strong>ホール・パー・ヤードの表</strong>を選んでコピーし、下に貼り付けてください。表が 9 ホールずつに分かれているときは、OUT → IN の順に 1 つずつ貼り付けます。</p>
             <textarea rows="4" data-paste-text placeholder="ここに貼り付け（スマホは長押し →「ペースト」）" aria-label="コースガイドの表を貼り付け"></textarea>
             <div data-paste-result aria-live="polite"></div>
           </div>
@@ -148,7 +148,11 @@ function bindPasteImport(form, updateSums) {
   let res = null;
   let pick = { out: '', in: '', tee: '' };
   const field = (no, k) => $(`[data-h="${no}"][data-k="${k}"]`, form);
-  const label = (b, i) => b.name || (res.blocks.length <= 2 ? `${b.start}〜${b.start + b.holes.length - 1}番` : `${i + 1}つ目の${b.holes.length}ホール`);
+  const label = (b, i) => {
+    if (b.name) return b.name;
+    const from = b.firstNo ?? (res.blocks.length <= 2 ? b.start : null); // 表に書かれたホール番号を優先
+    return from ? `${from}〜${from + b.holes.length - 1}番` : `${i + 1}つ目の${b.holes.length}ホール`;
+  };
   const parOf = (b) => b.holes.reduce((s, h) => s + h.par, 0);
   // 選んだ内容を反映した後の 18 ホール（変更しないホールは null）
   const planned = () => Array.from({ length: 18 }, (_, i) => {
@@ -185,9 +189,20 @@ function bindPasteImport(form, updateSums) {
       <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-primary btn-sm" data-apply ${pick.out === '' && pick.in === '' ? 'disabled' : ''}>この内容で入力する</button></div>`);
   }
 
+  const applied = { out: false, in: false };
   const parse = () => {
     res = parseCourseText(ta.value);
-    if (res) pick = { out: '0', in: res.blocks.length > 1 ? '1' : '', tee: res.tee ?? '' };
+    if (res) {
+      // 前に選んだティーがあれば引き継ぐ
+      const tee = res.tees.includes(pick.tee) ? pick.tee : res.tee ?? '';
+      if (res.blocks.length === 1) {
+        // 9 ホールだけの表：10番からの表、または OUT を入力済みなら IN に入れる
+        const toIn = (res.blocks[0].firstNo ?? 0) >= 10 || (applied.out && !applied.in);
+        pick = { out: toIn ? '' : '0', in: toIn ? '0' : '', tee };
+      } else {
+        pick = { out: '0', in: '1', tee };
+      }
+    }
     draw();
   };
   ta.addEventListener('input', debounce(parse, 250));
@@ -212,8 +227,21 @@ function bindPasteImport(form, updateSums) {
     updateSums();
     changed.forEach((el) => el.classList.add('filled'));
     setTimeout(() => changed.forEach((el) => el.classList.remove('filled')), 2500);
-    box.open = false;
-    box.nextElementSibling?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    toast('ホール情報を入力しました。内容を確認して保存してください');
+    if (pick.out !== '') applied.out = true;
+    if (pick.in !== '') applied.in = true;
+    ta.value = '';
+    res = null;
+    if (applied.out && applied.in) {
+      mount(out, '');
+      box.open = false;
+      box.nextElementSibling?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      toast('ホール情報を入力しました。内容を確認して保存してください');
+    } else {
+      // 9 ホールずつの表：続けてもう半分を貼り付けてもらう
+      const done = applied.out ? 'OUT（1〜9番）' : 'IN（10〜18番）';
+      const next = applied.out ? 'IN（10〜18番）' : 'OUT（1〜9番）';
+      mount(out, html`<p class="small good" style="margin-top:8px">✓ ${done}に入力しました。続けて ${next} の表を貼り付けてください（9ホールだけのコースならこのまま保存できます）。</p>`);
+      toast(`${done}に入力しました`);
+    }
   });
 }

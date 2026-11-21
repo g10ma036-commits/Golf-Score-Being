@@ -16,6 +16,16 @@ function numOf(cell) {
   const m = NUM_RE.exec(cell.trim());
   return m ? Number(m[1].replace(',', '')) : null;
 }
+// 数字のあとに注記が付いたセル（「3 ニアピン推奨ホール」「4ドラコン」など）。後ろに数字があるもの（8:30 など）は対象外
+const LOOSE_RE = /^(\d{1,2},\d{3}|\d{1,4})\s*[^\d]*$/;
+function valOf(cell) {
+  const n = numOf(cell);
+  if (n !== null) return n;
+  const m = LOOSE_RE.exec(cell.trim());
+  return m ? Number(m[1].replace(',', '')) : null;
+}
+// ドラコン・ニアピンなどの丸囲み文字や記号（Ⓝ Ⓓ ※ ★ など）は取り除く
+const stripMarks = (s) => s.replace(/[Ⓐ-ⓩ※★☆◎○●◆◇▲△▼▽■□]/g, '');
 
 const HOLE_LABEL = /^(ホール|hole|holes|no\.?|番号|#|h)$/i;
 const MARKER = /^(out|in|total|tot|計|合計|小計|前半|後半|アウト|イン)$/i;
@@ -43,14 +53,21 @@ const sectionName = (l) => l.replace(/[(（][^)）]*[)）]/g, '').replace(/単�
 function toRows(text) {
   const rows = [];
   let pending = null;
-  for (const raw of text.split(/\r?\n/)) {
+  for (const line of text.split(/\r?\n/)) {
+    const raw = stripMarks(line);
     if (!raw.trim()) continue;
-    const cells = raw.includes('\t') ? raw.split('\t').map((c) => c.trim()) : raw.trim().split(/\s+/);
+    const tsv = raw.includes('\t');
+    const cells = tsv ? raw.split('\t').map((c) => c.trim()) : raw.trim().split(/\s+/);
     while (cells.length && cells[cells.length - 1] === '') cells.pop();
+    // 1 セルずつ改行された表で、数字に注記が付いた行（「3 ニアピン推奨ホール」）は数字だけを使う
+    if (!tsv && pending && numOf(cells[0]) !== null && valOf(raw) !== null) {
+      pending.values.push(valOf(raw));
+      continue;
+    }
     let i = 0;
     const words = [];
     while (i < cells.length && cells[i] !== '' && numOf(cells[i]) === null) words.push(cells[i++]);
-    const values = cells.slice(i).map((c) => (c === '' ? null : numOf(c)));
+    const values = cells.slice(i).map((c) => (c === '' ? null : valOf(c)));
     const hasNums = values.some((v) => v !== null);
     if (words.length && !hasNums) {
       pending = { label: words.join(' '), words, values: [] };
@@ -72,6 +89,7 @@ function parseHorizontal(rows) {
   const seqs = new Map(); // `${kind}:${key}` → { kind, key, values: [], sections: [] }
   let section = null;
   let parRows = 0;
+  const holeNos = [];
   const push = (kind, key, vals) => {
     const id = `${kind}:${key}`;
     if (!seqs.has(id)) seqs.set(id, { kind, key, values: [], sections: [] });
@@ -85,7 +103,8 @@ function parseHorizontal(rows) {
       if (r.label && isSectionLabel(r.label)) section = sectionName(r.label);
       continue;
     }
-    if (kind === 'hole' || kind === 'marker') continue;
+    if (kind === 'hole') { holeNos.push(...nums.filter((v) => inRange(v, 1, 27))); continue; }
+    if (kind === 'marker') continue;
     if (kind === 'par') {
       const vals = nums.filter((v) => inRange(v, 3, 6));
       if (vals.length >= 3) { push('par', r.label, vals); parRows++; }
@@ -105,7 +124,9 @@ function parseHorizontal(rows) {
   const hdcp = first('hdcp');
   const tees = [...seqs.values()].filter((s) => s.kind === 'yards');
   if (par.values.length < 3) return null;
+  const nos = holeNos.length === par.values.length ? holeNos : null;
   return par.values.map((p, i) => ({
+    no: nos ? nos[i] : null,
     par: p,
     hdcp: hdcp?.values[i] ?? null,
     yards: Object.fromEntries(tees.filter((t) => t.values[i] != null).map((t) => [t.key, t.values[i]])),
@@ -142,7 +163,7 @@ function inferColumns(table) {
   }
   return cols;
 }
-function holesFromTable(table, cols, sections) {
+function holesFromTable(table, cols, sections, nos = []) {
   const parCol = cols.findIndex((c) => c.kind === 'par');
   if (parCol < 0) return null;
   const hdcpCol = cols.findIndex((c) => c.kind === 'hdcp');
@@ -152,7 +173,7 @@ function holesFromTable(table, cols, sections) {
     if (!inRange(par, 3, 6)) return;
     const yards = {};
     cols.forEach((c, j) => { if (c.kind === 'yards' && inRange(vals[j], 50, 800)) yards[c.key] = vals[j]; });
-    holes.push({ par, hdcp: hdcpCol >= 0 && inRange(vals[hdcpCol], 1, 27) ? vals[hdcpCol] : null, yards, section: sections[i] ?? null });
+    holes.push({ no: nos[i] ?? null, par, hdcp: hdcpCol >= 0 && inRange(vals[hdcpCol], 1, 27) ? vals[hdcpCol] : null, yards, section: sections[i] ?? null });
   });
   return holes.length >= 3 ? holes : null;
 }
@@ -174,7 +195,7 @@ function parseVertical(rows) {
     const table = holeRows.map((h) => h.vals);
     let cols = header ? columnsFromHeader(header) : null;
     if (!cols || !cols.some((c) => c.kind === 'par')) cols = inferColumns(table);
-    const holes = holesFromTable(table, cols, sections);
+    const holes = holesFromTable(table, cols, sections, holeRows.map((h) => h.no));
     if (holes) return holes;
   }
   // b) スマホでコピーした縦向きの表：見出しが 1 語ずつ並び、最後の見出しのあとに全部の数字が続く
@@ -187,8 +208,9 @@ function parseVertical(rows) {
       const vals = rows[j].values;
       if (vals.length >= k * 3 && kindOf(heads[0]) === 'hole') {
         const table = [];
-        for (let p = 0; p + k <= vals.length; p += k) table.push(vals.slice(p + 1, p + k));
-        const holes = holesFromTable(table, columnsFromHeader(heads), []);
+        const nos = [];
+        for (let p = 0; p + k <= vals.length; p += k) { table.push(vals.slice(p + 1, p + k)); nos.push(vals[p]); }
+        const holes = holesFromTable(table, columnsFromHeader(heads), [], nos);
         if (holes) return holes;
       }
     }
@@ -227,7 +249,7 @@ function parseCards(text) {
       const key = name ? teeName(name) : (n ? `ヤード${n + 1}` : 'ヤード');
       if (!(key in yards)) { yards[key] = v; n++; }
     }
-    holes.push({ par: Number(par[1]), hdcp: hd && inRange(Number(hd[1]), 1, 27) ? Number(hd[1]) : null, yards, section: null });
+    holes.push({ no: mk.no, par: Number(par[1]), hdcp: hd && inRange(Number(hd[1]), 1, 27) ? Number(hd[1]) : null, yards, section: null });
   });
   return holes.length >= 3 ? holes : null;
 }
@@ -249,7 +271,7 @@ function pickTee(tees) {
 /**
  * @returns null（読み取れない）または
  *   { holes: [{ par, hdcp, yards: { ティー名: ヤード }, section }], tees: [ティー名], tee: 初期選択のティー,
- *     blocks: [{ name, start, holes }]（9 ホールごと）, rating, slope }
+ *     blocks: [{ name, start, firstNo, holes }]（9 ホールごと。firstNo は表に書かれた最初のホール番号）, rating, slope }
  */
 export function parseCourseText(input) {
   if (typeof input !== 'string' || !input.trim()) return null;
@@ -262,7 +284,7 @@ export function parseCourseText(input) {
   const blocks = [];
   for (let i = 0; i < holes.length; i += 9) {
     const part = holes.slice(i, i + 9);
-    blocks.push({ name: part[0].section || null, start: i + 1, holes: part });
+    blocks.push({ name: part[0].section || null, start: i + 1, firstNo: part[0].no ?? null, holes: part });
   }
   return { holes, tees, tee: pickTee(tees), blocks, ...ratingSlope(text) };
 }

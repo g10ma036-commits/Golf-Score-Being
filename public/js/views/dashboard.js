@@ -1,19 +1,22 @@
 // ホーム（ダッシュボード）
-import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon, errorToast, toast } from '../util.js';
+import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon, errorToast } from '../util.js';
 import { api, getSettings, photoUrl, STANDALONE } from '../api.js';
 import { summarize, aggregate, movingAverage, trendInsights } from '../stats.js';
 import { lineChart, chartCard, setupChart } from '../charts.js';
 import { navigate } from '../main.js';
+import { sampleNoticeHtml, loadSample, deleteSampleFlow } from './sampleTools.js';
 
 export async function render(root) {
-  const [rounds, clubs, photos, settings] = await Promise.all([
+  const [rounds, clubs, photos, settings, sample] = await Promise.all([
     api.get('/api/rounds'),
     api.get('/api/clubs'),
     api.get('/api/photos?limit=8'),
     getSettings(),
+    api.get('/api/sample').catch(() => null),
   ]);
-  // スマホ単独版：バックアップのお知らせ
-  const reminder = STANDALONE ? await import('../standalone.js').then((m) => m.backupReminder()).catch(() => null) : null;
+  // スマホ単独版：バックアップのお知らせ（サンプルデータしかないときは出さない）
+  const onlySample = sample?.present && sample.counts.rounds >= rounds.length && !photos.length;
+  const reminder = STANDALONE && !onlySample ? await import('../standalone.js').then((m) => m.backupReminder()).catch(() => null) : null;
   const name = settings.player_name;
 
   if (!rounds.length) {
@@ -21,6 +24,7 @@ export async function render(root) {
     mount(root, html`
       <div class="page-header"><div><h1>${name ? `${name} さん、ようこそ` : 'ようこそ'} ⛳</h1>
         <div class="sub">スコア・統計・アルバム・クラブ・飛距離をまとめて管理できます</div></div></div>
+      ${sampleNoticeHtml(sample)}
       <div class="card empty">
         ${icon('score')}
         <h2>まだラウンドが記録されていません</h2>
@@ -32,8 +36,9 @@ export async function render(root) {
         </div>
       </div>`);
     $('#sample', root)?.addEventListener('click', async () => {
-      try { await api.post('/api/sample'); toast('サンプルデータを読み込みました'); render(root); } catch (e) { errorToast(e); }
+      try { await loadSample(); render(root); } catch (e) { errorToast(e); }
     });
+    $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
     return;
   }
 
@@ -55,6 +60,7 @@ export async function render(root) {
         <a class="btn btn-primary" href="#/rounds/new">${icon('plus')}スコアを入力</a>
       </div>
     </div>
+    ${sampleNoticeHtml(sample)}
     ${reminder ? html`<div class="notice" id="backup-notice">
       <span>💾 ${reminder.days == null ? 'まだバックアップがありません' : `最後のバックアップから ${reminder.days} 日たっています`}。故障や機種変更に備えて、写真込みのバックアップを作っておきましょう。</span>
       <button class="btn btn-sm btn-primary" id="do-backup">バックアップする</button></div>` : ''}
@@ -114,6 +120,7 @@ export async function render(root) {
   `);
 
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
+  $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
   $('#do-backup', root)?.addEventListener('click', async () => {
     (await import('../standalone.js')).runBackupFlow(() => $('#backup-notice', root)?.remove());
   });

@@ -5,7 +5,7 @@ import {
   normalizeSetting, normalizeCourse, normalizeRound, normalizeClub, normalizeDistance, normalizeAlbum, normalizeCover,
   photoLinks, imageExt, thumbExt, originalName, takenAt, text, cleanImport, isPhotoName, isThumbName,
 } from '../shared/model.js';
-import { generateSample } from '../shared/sample.js';
+import { generateSample, pickSample } from '../shared/sample.js';
 import { readBackup, backupParts, mimeOf } from '../shared/backup.js';
 
 export function emptyData() {
@@ -358,6 +358,22 @@ export function createLocalBackend(store, {
     generateSample(insert);
     return { ok: true };
   }
+  // サンプルデータの有無と件数・サンプルだけの削除（server/api.js と同じ）
+  const sampleIds = () => pickSample({ courses: D.courses, clubs: D.clubs, rounds: D.rounds });
+  function sampleInfo() {
+    const s = sampleIds();
+    const clubs = new Set(s.clubIds);
+    const counts = { courses: s.courseIds.length, rounds: s.roundIds.length, clubs: s.clubIds.length, distances: D.distances.filter((d) => clubs.has(d.club_id)).length };
+    return { present: counts.courses + counts.rounds + counts.clubs > 0, counts };
+  }
+  function deleteSample() {
+    const info = sampleInfo();
+    const s = sampleIds();
+    s.roundIds.forEach(deleteRound);
+    s.clubIds.forEach(deleteClub);
+    s.courseIds.forEach(deleteCourse);
+    return { ok: true, deleted: info.counts };
+  }
   async function deleteAll() {
     await commit(() => { for (const t of Object.keys(SCHEMA)) if (t !== 'settings') D[t] = []; });
     for (const u of urls.values()) revokeUrl(u);
@@ -471,7 +487,9 @@ export function createLocalBackend(store, {
       const existing = new Set(await store.listFiles());
       try { return await commit(() => importAll(c.body, (n) => existing.has(n))); } finally { await collectGarbage(); }
     }],
+    ['GET', /^\/api\/sample$/, () => sampleInfo()],
     ['POST', /^\/api\/sample$/, () => loadSample(), W],
+    ['DELETE', /^\/api\/sample$/, () => deleteSample(), W],
     ['POST', /^\/api\/delete-all$/, (c) => {
       if (!c.body || c.body.confirm !== 'DELETE') throw new ApiError(400, '確認文字列が一致しません');
       return deleteAll();

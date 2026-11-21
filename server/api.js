@@ -10,6 +10,7 @@ const {
   photoLinks, imageExt, thumbExt, originalName, cleanImport,
 } = require('../public/js/shared/model.js');
 const { readBackup, backupParts, backupFileName } = require('../public/js/shared/backup.js');
+const { pickSample } = require('../public/js/shared/sample.js');
 
 const JSON_LIMIT = 50 * 1024 * 1024;   // インポート用に大きめ
 const UPLOAD_LIMIT = 60 * 1024 * 1024; // 写真1枚あたり
@@ -365,6 +366,32 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
     db.tx(() => generateSample(db));
     return { ok: true };
   }
+  // サンプルデータの有無と件数（自分で登録したデータは含まない）
+  function sampleIds() {
+    return pickSample({
+      courses: db.all('SELECT id, name, memo FROM courses'),
+      clubs: db.all('SELECT id, brand FROM clubs'),
+      rounds: db.all('SELECT id, course_id, course_name FROM rounds'),
+    });
+  }
+  const inList = (ids) => ids.map(() => '?').join(',') || 'NULL';
+  function sampleInfo() {
+    const s = sampleIds();
+    const distances = db.get(`SELECT COUNT(*) AS n FROM distances WHERE club_id IN (${inList(s.clubIds)})`, ...s.clubIds).n;
+    const counts = { courses: s.courseIds.length, rounds: s.roundIds.length, clubs: s.clubIds.length, distances };
+    return { present: counts.courses + counts.rounds + counts.clubs > 0, counts };
+  }
+  // サンプルだけを削除（飛距離はクラブと一緒に消える）
+  function deleteSample() {
+    const info = sampleInfo();
+    const s = sampleIds();
+    db.tx(() => {
+      db.run(`DELETE FROM rounds WHERE id IN (${inList(s.roundIds)})`, ...s.roundIds);
+      db.run(`DELETE FROM clubs WHERE id IN (${inList(s.clubIds)})`, ...s.clubIds);
+      db.run(`DELETE FROM courses WHERE id IN (${inList(s.courseIds)})`, ...s.courseIds);
+    });
+    return { ok: true, deleted: info.counts };
+  }
   function deleteAll() {
     const photos = db.all('SELECT filename, thumb FROM photos');
     db.tx(() => {
@@ -444,7 +471,9 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
     ['GET', /^\/api\/export$/, (c) => (c.q.get('format') === 'zip' ? exportZip() : exportAll()), { download: true }],
     ['POST', /^\/api\/import$/, (c) => importAll(c.body)],
     ['POST', /^\/api\/import\/zip$/, (c) => importZip(c.body), { raw: true, limit: ZIP_LIMIT }],
+    ['GET', /^\/api\/sample$/, () => sampleInfo()],
     ['POST', /^\/api\/sample$/, () => loadSample()],
+    ['DELETE', /^\/api\/sample$/, () => deleteSample()],
     ['POST', /^\/api\/delete-all$/, (c) => {
       if (!c.body || c.body.confirm !== 'DELETE') throw new HttpError(400, '確認文字列が一致しません');
       return deleteAll();

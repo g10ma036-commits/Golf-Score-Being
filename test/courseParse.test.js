@@ -123,3 +123,40 @@ test('関係のない文章は読み取らない', () => {
   assert.equal(parse('本日は晴天なり。スタート時間は 8:30 です。お問い合わせは 03-1234-5678 まで。'), null);
   assert.equal(parse('料金 平日 8,900円 土日 15,800円\n昼食付き\n2サム保証'), null);
 });
+
+// 実際に iPhone の楽天GORA でコピーされた文字（潮来カントリー倶楽部 OUT）。ドラコン・ニアピンの注記付き
+const GORA_IPHONE_OUT = ['HOLE', 1, 2, 3, 4, 5, 6, 7, 8, 9, '計', 'PAR', 5, 4, 4, 3, 4, 4, '3 ニアピン推奨ホール', '4 ドラコン推奨ホール', 5, 36,
+  'Black', 560, 454, 408, 198, 434, 371, 174, 427, 519, '3,545', 'Blue', 524, 426, 395, 170, 409, 351, 149, 412, 500, '3,336',
+  'White', 499, 410, 364, 159, 382, 334, 133, 394, 472, '3,147', 'Red', 480, 291, 272, 143, 353, 228, 117, 302, 447, '2,633',
+  'HDCP', 4, 2, 7, 8, 1, 6, 9, 3, 5, '-'].join('\n');
+
+test('iPhone の楽天GORA でコピーした表（注記「3 ニアピン推奨ホール」付き）', () => {
+  const res = parse(GORA_IPHONE_OUT);
+  assert.equal(res.holes.length, 9);
+  assert.deepEqual(res.holes.map((h) => h.par), [5, 4, 4, 3, 4, 4, 3, 4, 5]);
+  assert.deepEqual(res.holes.map((h) => h.hdcp), [4, 2, 7, 8, 1, 6, 9, 3, 5]);
+  assert.deepEqual(res.tees, ['Black', 'Blue', 'White', 'Red']);
+  assert.equal(res.tee, 'White');
+  assert.deepEqual(res.holes.map((h) => h.yards.White), [499, 410, 364, 159, 382, 334, 133, 394, 472]);
+  assert.deepEqual(res.holes.map((h) => h.yards.Red), [480, 291, 272, 143, 353, 228, 117, 302, 447]);
+  assert.equal(res.blocks[0].firstNo, 1);
+});
+
+test('IN（10〜18番）の表は最初のホール番号が 10 になる', () => {
+  const text = GORA_IPHONE_OUT.replace(/^HOLE\n1\n2\n3\n4\n5\n6\n7\n8\n9\n/, 'HOLE\n10\n11\n12\n13\n14\n15\n16\n17\n18\n');
+  const res = parse(text);
+  assert.equal(res.blocks.length, 1);
+  assert.equal(res.blocks[0].firstNo, 10);
+  assert.deepEqual(res.holes.map((h) => h.no), [10, 11, 12, 13, 14, 15, 16, 17, 18]);
+});
+
+test('丸囲み文字（3Ⓝ・4Ⓓ）や、PC でコピーした表の中の注記も数字として読む', () => {
+  const circled = GORA_IPHONE_OUT.replace('3 ニアピン推奨ホール', '3Ⓝ').replace('4 ドラコン推奨ホール', '4Ⓓ');
+  assert.deepEqual(parse(circled).holes.map((h) => h.par), [5, 4, 4, 3, 4, 4, 3, 4, 5]);
+  const tsv = [T(['HOLE', 1, 2, 3, 4, 5, 6, 7, 8, 9, '計']), T(['PAR', 5, 4, 4, 3, 4, 4, '3 ニアピン推奨ホール', '4 ドラコン推奨ホール', 5, 36]),
+    T(['White', 499, 410, 364, 159, 382, 334, 133, 394, 472, '3,147']), T(['HDCP', 4, 2, 7, 8, 1, 6, 9, 3, 5, '-'])].join('\n');
+  const res = parse(tsv);
+  assert.deepEqual(res.holes.map((h) => h.par), [5, 4, 4, 3, 4, 4, 3, 4, 5]);
+  assert.deepEqual(res.holes.map((h) => h.yards.White), [499, 410, 364, 159, 382, 334, 133, 394, 472]);
+  assert.deepEqual(res.holes.map((h) => h.hdcp), [4, 2, 7, 8, 1, 6, 9, 3, 5]);
+});

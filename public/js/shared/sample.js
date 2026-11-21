@@ -13,6 +13,23 @@ function rng(seed) {
   };
 }
 
+// サンプルデータの目印（「サンプルデータを削除」でこれに当てはまるものだけを消す）
+export const SAMPLE_COURSE_NAMES = ['サンプル高原カントリー倶楽部', 'サンプルリバーサイドGC'];
+export const SAMPLE_COURSE_MEMO = 'サンプルデータ（架空のコース）';
+export const SAMPLE_CLUB_BRANDS = ['サンプルゴルフ', 'サンプルパター工房'];
+
+// courses: [{ id, name, memo }], clubs: [{ id, brand }], rounds: [{ id, course_id, course_name }]
+// → サンプルに当たる ID（ラウンドはサンプルのコースで記録されたもの）
+export function pickSample({ courses, clubs, rounds }) {
+  const courseIds = courses.filter((c) => SAMPLE_COURSE_NAMES.includes(c.name) && c.memo === SAMPLE_COURSE_MEMO).map((c) => c.id);
+  const sampleCourse = new Set(courseIds);
+  const roundIds = rounds
+    .filter((r) => (r.course_id != null ? sampleCourse.has(r.course_id) : SAMPLE_COURSE_NAMES.includes(r.course_name)))
+    .map((r) => r.id);
+  const clubIds = clubs.filter((c) => SAMPLE_CLUB_BRANDS.includes(c.brand)).map((c) => c.id);
+  return { courseIds, roundIds, clubIds };
+}
+
 function localDate(d) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -30,19 +47,19 @@ export function generateSample(insert, now = new Date()) {
   // ---- コース ----
   const courses = [
     {
-      name: 'サンプル高原カントリー倶楽部', location: '架空県 みどり市', rating: 70.8, slope: 128,
+      name: SAMPLE_COURSE_NAMES[0], location: '架空県 みどり市', rating: 70.8, slope: 128,
       pars: [4, 5, 4, 3, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 4, 5],
       hdcp: [7, 3, 11, 15, 1, 9, 17, 5, 13, 8, 2, 16, 4, 12, 6, 18, 10, 14],
     },
     {
-      name: 'サンプルリバーサイドGC', location: '架空県 かわべ町', rating: 69.4, slope: 121,
+      name: SAMPLE_COURSE_NAMES[1], location: '架空県 かわべ町', rating: 69.4, slope: 121,
       pars: [4, 4, 3, 5, 4, 4, 5, 3, 4, 5, 4, 4, 3, 4, 4, 5, 3, 4],
       hdcp: [5, 9, 17, 1, 13, 7, 3, 15, 11, 2, 10, 6, 18, 14, 8, 4, 16, 12],
     },
   ];
   const yardsFor = (par) => (par === 3 ? 140 + Math.round(rand() * 50) : par === 4 ? 320 + Math.round(rand() * 100) : 470 + Math.round(rand() * 70));
   for (const c of courses) {
-    c.id = insert('courses', { name: c.name, location: c.location, rating: c.rating, slope: c.slope, memo: 'サンプルデータ（架空のコース）' });
+    c.id = insert('courses', { name: c.name, location: c.location, rating: c.rating, slope: c.slope, memo: SAMPLE_COURSE_MEMO });
     c.yards = c.pars.map(yardsFor);
     c.pars.forEach((par, i) => insert('course_holes', { course_id: c.id, hole_no: i + 1, par, yards: c.yards[i], hdcp: c.hdcp[i] }));
   }
@@ -108,7 +125,7 @@ export function generateSample(insert, now = new Date()) {
   ];
   const roll = { driver: 22, wood: 14, hybrid: 10, iron: 7, wedge: 3 };
   clubs.forEach(([category, name, loft, length, flex, target], i) => {
-    const brand = category === 'putter' ? 'サンプルパター工房' : 'サンプルゴルフ';
+    const brand = category === 'putter' ? SAMPLE_CLUB_BRANDS[1] : SAMPLE_CLUB_BRANDS[0];
     const model = category === 'putter' ? 'SP-01 マレット' : category === 'iron' ? 'SG-IRON 7' : `SG-${category.toUpperCase()}`;
     const shaft = category === 'putter' ? null : category === 'iron' || category === 'wedge' ? 'スチール 105g' : 'カーボン 60g';
     const cid = insert('clubs', { category, name, brand, model, loft, shaft, flex, length, target_carry: target, in_bag: 1, sort_order: i, memo: null });
@@ -124,7 +141,7 @@ export function generateSample(insert, now = new Date()) {
   });
   // 予備（バッグに入っていない）クラブ
   insert('clubs', {
-    category: 'hybrid', name: '3U', brand: 'サンプルゴルフ', model: 'SG-HYBRID', loft: 19, shaft: 'カーボン 70g', flex: 'S',
+    category: 'hybrid', name: '3U', brand: SAMPLE_CLUB_BRANDS[0], model: 'SG-HYBRID', loft: 19, shaft: 'カーボン 70g', flex: 'S',
     length: 40.5, target_carry: 190, in_bag: 0, sort_order: 99, memo: '夏場の長いコース用',
   });
 }

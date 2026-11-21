@@ -3,10 +3,23 @@ import { html, mount, $, openModal, confirmDialog, toast, errorToast, fmtDate, l
 import { api, getSettings, saveSettings, STANDALONE, inspectBackup, restoreBackup, localMeta } from '../api.js';
 import { applyTheme } from '../main.js';
 import { PHONE_APP_URL } from '../config.js';
+import { sampleCountText, loadSample, deleteSampleFlow } from './sampleTools.js';
 
 export async function render(root) {
-  const [s, rounds, clubs, courses] = await Promise.all([getSettings(true), api.get('/api/rounds'), api.get('/api/clubs'), api.get('/api/courses')]);
+  const [s, rounds, clubs, courses, sample] = await Promise.all([getSettings(true), api.get('/api/rounds'), api.get('/api/clubs'), api.get('/api/courses'), api.get('/api/sample').catch(() => null)]);
   const isEmpty = !rounds.length && !clubs.length && !courses.length;
+  // サンプルが入っているときは削除ボタンを、空のときは読み込みボタンを出す（サンプルがあるときは先頭に表示）
+  const sampleCard = html`<div class="card" id="sample-card">
+    <h2 style="margin-bottom:12px">サンプルデータ</h2>
+    ${sample?.present ? html`
+      <p class="secondary">いまサンプルデータ（${sampleCountText(sample.counts)}）が入っています。</p>
+      <button class="btn btn-danger" id="delete-sample" style="margin-top:10px">サンプルデータを削除</button>
+      <p class="small muted" style="margin-top:8px">サンプルだけを削除します。自分で登録したデータは残ります。</p>`
+    : html`
+      <p class="secondary">架空のコース2つ・24ラウンド・クラブ15本・飛距離記録を読み込んで、各機能を試せます。不要になったらサンプルだけを削除できます。</p>
+      ${isEmpty ? html`<button class="btn" id="sample" style="margin-top:10px">サンプルデータを読み込む</button>`
+        : html`<p class="small muted" style="margin-top:8px">サンプルデータは、データが空のときに読み込めます。</p>`}`}
+  </div>`;
 
   mount(root, html`
     <div class="page-header"><div><h1>設定</h1></div></div>
@@ -20,6 +33,7 @@ export async function render(root) {
         <div id="mobile-body"><div class="loading">読み込み中…</div></div>
       </div>`}
     <div class="grid grid-2">
+      ${sample?.present ? sampleCard : ''}
       <div class="card" id="backup">
         <h2 style="margin-bottom:12px">${STANDALONE ? 'バックアップ・データの引っ越し' : 'データのバックアップ'}</h2>
         ${STANDALONE ? html`
@@ -54,12 +68,7 @@ export async function render(root) {
         <div class="form-actions"><button class="btn btn-primary" type="submit">保存</button></div></form>
       </div>
 
-      <div class="card">
-        <h2 style="margin-bottom:12px">サンプルデータ</h2>
-        <p class="secondary">架空のコース2つ・24ラウンド・クラブ15本・飛距離記録を読み込んで、各機能を試せます。</p>
-        ${isEmpty ? html`<button class="btn" id="sample">サンプルデータを読み込む</button>`
-          : html`<p class="small muted">データが空のときだけ読み込めます。</p>`}
-      </div>
+      ${sample?.present ? '' : sampleCard}
 
       <div class="card">
         <h2 style="margin-bottom:12px">すべてのデータを削除</h2>
@@ -134,8 +143,9 @@ export async function render(root) {
   });
 
   $('#sample', root)?.addEventListener('click', async () => {
-    try { await api.post('/api/sample'); toast('サンプルデータを読み込みました'); location.hash = '#/'; } catch (e) { errorToast(e); }
+    try { await loadSample(); location.hash = '#/'; } catch (e) { errorToast(e); }
   });
+  $('#delete-sample', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
 
   $('#delete-all', root).addEventListener('click', () => {
     const m = openModal({
