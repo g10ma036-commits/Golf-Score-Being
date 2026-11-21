@@ -7,6 +7,7 @@ const NAV = [
   ['/', 'home', 'ホーム'],
   ['/rounds', 'score', 'スコア・ラウンド'],
   ['/stats', 'stats', '統計分析'],
+  ['/ai', 'ai', 'AIに分析してもらう'],
   ['/courses', 'course', 'コース'],
   ['/clubs', 'club', 'クラブセッティング'],
   ['/distances', 'distance', '飛距離'],
@@ -15,7 +16,7 @@ const NAV = [
 ];
 // スマホ用タブバー（中央はスコア入力ボタン）と「その他」メニュー
 const TABS = [['/', 'home', 'ホーム'], ['/rounds', 'score', 'スコア'], ['/rounds/new', 'plus', '入力'], ['/stats', 'stats', '分析']];
-const MORE = [['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定']];
+const MORE = [['/ai', 'ai', 'AI分析'], ['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定']];
 
 const ROUTES = [
   [/^\/$/, () => import('./views/dashboard.js')],
@@ -24,6 +25,7 @@ const ROUTES = [
   [/^\/rounds\/(\d+)\/edit$/, () => import('./views/roundForm.js')],
   [/^\/rounds\/(\d+)$/, () => import('./views/roundDetail.js')],
   [/^\/stats$/, () => import('./views/stats.js')],
+  [/^\/ai$/, () => import('./views/ai.js')],
   [/^\/courses$/, () => import('./views/courses.js')],
   [/^\/courses\/(\d+)$/, () => import('./views/courseDetail.js')],
   [/^\/clubs$/, () => import('./views/clubs.js')],

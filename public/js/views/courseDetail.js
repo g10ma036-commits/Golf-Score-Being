@@ -29,10 +29,10 @@ export async function render(root, [idStr]) {
   mount(root, html`
     <div class="page-header">
       <div><a class="small" href="#/courses">← コース一覧</a><h1>${course.name}</h1><div class="sub">${course.location || ''}</div></div>
-      <div class="actions">
-        <a class="btn" href="#/rounds/new?course=${id}">${icon('plus')}このコースでスコア入力</a>
+      <div class="actions act-grid">
+        <a class="btn" href="#/rounds/new?course=${id}">${icon('plus')}スコア入力</a>
+        <a class="btn" href="#/ai?purpose=course&amp;course=${id}">${icon('ai')}AIに作戦を聞く</a>
         <button class="btn" id="edit">${icon('edit')}編集</button>
-        <button class="btn btn-danger" id="del">${icon('trash')}削除</button>
       </div>
     </div>
     <div class="tiles">
@@ -75,6 +75,8 @@ export async function render(root, [idStr]) {
       <tbody>${sums.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${fmtDate(s.date)}</td>${multi ? html`<td>${rounds[i].nines_label || ''}</td>` : ''}<td class="r"><strong>${s.holes ? s.strokes : '—'}</strong></td>
         <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td><td class="r">${s.puttHoles ? s.putts : '—'}</td><td>${rounds[i].tee || ''}</td><td>${rounds[i].companions || ''}</td></tr>`)}</tbody>
     </table></div></div>` : ''}
+
+    <div class="danger-zone"><button class="btn btn-sm btn-danger" id="del">${icon('trash')}このコースを削除</button></div>
   `);
 
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));

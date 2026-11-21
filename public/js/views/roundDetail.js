@@ -87,11 +87,11 @@ export async function render(root, [idStr]) {
         <h1>${fmtDate(round.date)}　${round.course_id ? html`<a href="#/courses/${round.course_id}" style="color:inherit">${round.course_name}</a>` : round.course_name}</h1>
         <div class="sub">${[round.nines_label, round.tee && `${round.tee}ティー`, round.weather, round.companions && `同伴：${round.companions}`].filter(Boolean).join('　・　')}</div>
       </div>
-      <div class="actions">
+      <div class="actions act-grid">
         <button class="btn" id="share-card">${icon('share')}画像で共有</button>
+        <a class="btn" href="#/ai?purpose=round&amp;round=${id}">${icon('ai')}AIで振り返り</a>
         <button class="btn" id="add-photo">${icon('photo')}写真を追加</button>
         <a class="btn" href="#/rounds/${id}/edit">${icon('edit')}編集</a>
-        <button class="btn btn-danger" id="del">${icon('trash')}削除</button>
       </div>
     </div>
 
@@ -165,6 +165,8 @@ export async function render(root, [idStr]) {
     </div>
 
     ${photos.length ? '' : photoCard}
+
+    <div class="danger-zone"><button class="btn btn-sm btn-danger" id="del">${icon('trash')}このラウンドを削除</button></div>
   `);
 
   $('#del', root).addEventListener('click', async () => {

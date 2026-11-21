@@ -16,7 +16,8 @@ export async function render(root) {
     .sort((a, b) => a[1].localeCompare(b[1], 'ja'));
 
   mount(root, html`
-    <div class="page-header"><div><h1>統計分析</h1><div class="sub">期間とコースで絞り込むと、下のすべての数値・グラフが連動します</div></div></div>
+    <div class="page-header"><div><h1>統計分析</h1><div class="sub">期間とコースで絞り込むと、下のすべての数値・グラフが連動します</div></div>
+      <div class="actions"><a class="btn" href="#/ai">${icon('ai')}AIに分析してもらう</a></div></div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="期間">${PERIODS.map(([k, l]) => html`<button data-period="${k}" class="${state.period === k ? 'on' : ''}">${l}</button>`)}</div>
       <select id="f-course" aria-label="コース"><option value="">すべてのコース</option>

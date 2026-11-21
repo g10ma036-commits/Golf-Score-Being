@@ -273,3 +273,33 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 .pick-row.disabled { cursor: default; opacity: .7; }
 .pick-row input { width: 18px; height: 18px; flex: none; }
 .pick-name { flex: 1 1 160px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+/* 詳細画面の操作ボタン（スマホでは 2 列にそろえる）・削除は画面の一番下 */
+@media (max-width: 760px) {
+  .page-header .act-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .page-header .act-grid .btn { justify-content: center; padding: 0 8px; }
+}
+.danger-zone { display: flex; justify-content: center; margin: 28px 0 8px; }
+
+/* AI に分析してもらう */
+.ai-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+@media (max-width: 960px) { .ai-layout { grid-template-columns: minmax(0, 1fr); } }
+.ai-purposes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.ai-purpose { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 10px 38px; border: 1px solid var(--border-strong); border-radius: 10px; cursor: pointer; background: var(--surface-1); }
+.ai-purpose input { position: absolute; left: 12px; top: 13px; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.ai-purpose.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+.ai-p-title { font-weight: 650; }
+.ai-p-desc { font-size: 12px; color: var(--text-secondary); }
+.ai-checks { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ai-checks .check { font-size: 14px; }
+.ai-output textarea { width: 100%; min-height: 260px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; line-height: 1.5; background: var(--surface-2); resize: vertical; }
+@media (max-width: 760px) { .ai-output textarea { font-size: 16px; min-height: 200px; } }
+.ai-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+@media (min-width: 961px) { .ai-output { position: sticky; top: 16px; } }
+@media (max-width: 760px) {
+  .ai-purposes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .ai-purpose { padding: 8px 8px 8px 30px; }
+  .ai-purpose input { left: 9px; top: 11px; }
+  .ai-p-desc { font-size: 11px; line-height: 1.4; }
+}
+.ai-links .btn svg { width: 14px; height: 14px; }

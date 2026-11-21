@@ -111,3 +111,40 @@ test('コース共有ファイル：別のファイルや壊れたコースは�
   const ok = courseFile.parseCourseFile('﻿  ' + JSON.stringify({ kind: courseFile.COURSE_FILE_KIND, courses: [{ name: 'A', holes: [] }] }) + '\n');
   assert.equal(ok[0].course.name, 'A');
 });
+
+test('AI に貼り付ける質問文：目的ごとに必要なデータが入り、名前・同伴者は入らない', async () => {
+  const ai = await load('public/js/aiPrompt.js');
+  const course = { id: 7, name: 'テストカントリー', location: '千葉県', rating: 70.5, slope: 125, nines: ['OUT', 'IN'],
+    holes: PARS.map((par, i) => ({ hole_no: i + 1, par, yards: 300 + i * 10, hdcp: i + 1 })) };
+  const rounds = [
+    { ...round(1, '2026-09-01', [1, 2]), course_id: 7, course_name: 'テストカントリー', companions: '山田太郎さん', memo: '秘密のメモ', tee: 'レギュラー' },
+    { ...round(2, '2026-10-01', [1]), course_id: 7, course_name: 'テストカントリー', companions: '佐藤花子さん' },
+    { ...round(3, '2026-11-01', [0, 1]), course_id: null, course_name: '別のGC' },
+  ];
+  const clubs = [{ id: 1, name: '7I', category: 'iron', loft: 31, in_bag: 1, avg_carry: 145.4, avg_total: 152, max_carry: 155, min_carry: 130, shot_count: 12 }];
+  const data = { rounds, courses: [course], clubs, settings: { player_name: '本名テスト', goal: '100', unit: 'yd' } };
+  for (const p of ai.AI_PURPOSES) {
+    const text = ai.buildAiPrompt(data, { purpose: p.key, period: p.period, roundId: 1, courseId: 7, holes: true, clubs: true, memo: false });
+    assert.match(text, new RegExp(`お願い（${p.label}）`));
+    for (const secret of ['本名テスト', '山田太郎', '佐藤花子', '秘密のメモ']) assert.equal(text.includes(secret), false, `${p.key} に ${secret} が入っている`);
+    assert.match(text, /100切り/);
+    assert.match(text, /7I,アイアン,31°/);
+  }
+  const overall = ai.buildAiPrompt(data, { purpose: 'overall', period: 'all', holes: true, clubs: false, memo: true });
+  assert.match(overall, /ラウンド一覧/);
+  assert.match(overall, /2026\/11\/1,別のGC,18,/);
+  assert.match(overall, /スコア: /);
+  assert.match(overall, /秘密のメモ/); // メモはチェックしたときだけ
+  assert.equal(overall.includes('クラブと飛距離'), false);
+  const rd = ai.buildAiPrompt(data, { purpose: 'round', roundId: 1, holes: true });
+  assert.match(rd, /対象のラウンド/);
+  assert.match(rd, /2026\/9\/1（火） ・ テストカントリー/);
+  assert.match(rd, /いつもの私/);
+  const cs = ai.buildAiPrompt(data, { purpose: 'course', courseId: 7, holes: true, clubs: true });
+  assert.match(cs, /テストカントリー」を次に回るとき/);
+  assert.match(cs, /ホール,パー,ヤード,HDCP/);
+  assert.match(cs, /^1,4,300,1,2,/m); // 1番：パー4・300ヤード・HDCP1・私の回数2
+  // データがなくても作れる
+  const empty = ai.buildAiPrompt({ rounds: [], courses: [], clubs: [], settings: {} }, { purpose: 'overall' });
+  assert.match(empty, /まだラウンドの記録がありません/);
+});
