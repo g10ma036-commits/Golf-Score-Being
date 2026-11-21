@@ -55,7 +55,10 @@ export async function render(root) {
         return sa.strokes - sb.strokes;
       });
     }
-    $('#count', root).textContent = `${list.length} 件`;
+    // 絞り込んだラウンドの平均・ベスト（18 ホールのみ）
+    const full = list.map((r) => sums.get(r.id)).filter((s) => s.complete);
+    const avg = full.length ? full.reduce((a, s) => a + s.strokes, 0) / full.length : null;
+    $('#count', root).textContent = `${list.length} 件${full.length ? `・平均 ${avg.toFixed(1)}・ベスト ${Math.min(...full.map((s) => s.strokes))}` : ''}`;
     mount($('#rows', root), list.map((r) => {
       const s = sums.get(r.id);
       return html`<tr class="link" data-id="${r.id}" tabindex="0">

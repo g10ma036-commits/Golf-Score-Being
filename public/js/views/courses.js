@@ -42,7 +42,8 @@ export async function render(root) {
         <button class="btn btn-primary" id="add">${icon('plus')}コースを追加</button>
       </div>
     </div>
-    ${courses.length ? html`<div class="album-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+    ${courses.length > 6 ? html`<div class="toolbar"><input id="course-q" type="search" placeholder="コース名・所在地で検索" aria-label="コースを検索"><span class="small muted" id="course-count"></span></div>` : ''}
+    ${courses.length ? html`<div class="album-grid" id="course-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
       ${courses.map((c) => {
         const sums = (byCourse.get(c.id) || []).filter((s) => s.complete);
         const best = sums.length ? Math.min(...sums.map((s) => s.strokes)) : null;
@@ -50,7 +51,7 @@ export async function render(root) {
         const nines = nineTotals(c);
         const par = nines.reduce((a, n) => a + n.par, 0);
         const yards = nines.reduce((a, n) => a + n.yards, 0);
-        return html`<a class="card album-card" href="#/courses/${c.id}" style="padding:16px">
+        return html`<a class="card album-card" href="#/courses/${c.id}" style="padding:16px" data-search="${`${c.name} ${c.location || ''}`.toLowerCase()}">
           <h3>${c.name}</h3>
           <div class="small muted">${c.location || '　'}</div>
           <dl class="kv" style="margin-top:10px">
@@ -69,6 +70,12 @@ export async function render(root) {
   $('#add', root).addEventListener('click', async () => {
     const c = await openCourseEditor(null);
     if (c) navigate(`/courses/${c.id}`);
+  });
+  $('#course-q', root)?.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    let n = 0;
+    $$('#course-grid [data-search]', root).forEach((a) => { const hit = !q || a.dataset.search.includes(q); a.hidden = !hit; n += hit; });
+    $('#course-count', root).textContent = q ? `${n} 件` : '';
   });
   $('#export', root)?.addEventListener('click', async () => (await import('./courseShare.js')).openCourseExport(courses));
   $('#import', root).addEventListener('click', async () => (await import('./courseShare.js')).openCourseImport(courses, () => render(root)));
