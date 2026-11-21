@@ -1,6 +1,7 @@
 // ホーム画面のカード：目標スコアの達成状況・はじめての人向けの案内
-import { html, $, $$, fmt, fmtDate, shortDate, openModal, toast, errorToast } from '../util.js';
+import { html, $, $$, fmt, fmtDate, shortDate, openModal, toast, errorToast, today } from '../util.js';
 import { saveSettings, STANDALONE, localMeta } from '../api.js';
+import { parseNextRound } from '../shared/model.js';
 import { GOAL_CHOICES, suggestGoal, goalProgress } from '../stats.js';
 
 const recentAvg = (sums) => {
@@ -59,6 +60,52 @@ function openGoalPicker(current, sums, onSaved) {
   $$('[data-pick]', m.el).forEach((b) => b.addEventListener('click', () => { m.close(); setGoal(Number(b.dataset.pick) || null, onSaved); }));
 }
 
+// ---------- 次のラウンドの予定 ----------
+const dayDiff = (from, to) => {
+  const p = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
+  return Math.round((p(to) - p(from)) / 86400000);
+};
+export function nextRoundHtml(settings, courses) {
+  const nr = parseNextRound(settings.next_round);
+  if (!nr || nr.date < today()) return '';
+  const c = courses.find((x) => x.id === nr.course_id) || null;
+  const days = dayDiff(today(), nr.date);
+  return html`<div class="card next-round ${days === 0 ? 'is-today' : ''}" id="next-round">
+    <div class="nr-main">
+      <div class="nr-days">${days === 0 ? html`<strong>今日</strong>` : html`あと<strong>${days}</strong>日`}</div>
+      <div class="nr-info"><div class="nr-title">${days === 0 ? '今日はラウンドの日！' : '次のラウンド'}</div>
+        <div class="small secondary">${fmtDate(nr.date)}${c ? `・${c.name}` : ''}</div></div>
+      <div class="nr-edit"><button type="button" class="btn btn-sm btn-ghost" data-nr-edit>変更</button></div>
+    </div>
+    <div class="nr-actions">
+      ${days === 0 ? html`<a class="btn btn-sm btn-primary" href="#/rounds/new${c ? `?course=${c.id}` : ''}">スコアを入力</a>` : ''}
+      ${c ? html`<a class="btn btn-sm" href="#/ai?purpose=course&amp;course=${c.id}">AIにコース攻略を聞く</a><a class="btn btn-sm" href="#/courses/${c.id}">コースの情報</a>` : ''}
+    </div>
+  </div>`;
+}
+function openNextRound(settings, courses, onSaved) {
+  const nr = parseNextRound(settings.next_round);
+  const m = openModal({
+    title: '次のラウンドの予定',
+    body: html`<div class="form-grid">
+      <label class="field"><span>日付</span><input type="date" data-nr-date value="${nr?.date || ''}" min="${today()}"></label>
+      <label class="field" style="grid-column:span 2"><span>コース</span><select data-nr-course><option value="">（未定・未登録）</option>
+        ${courses.map((c) => html`<option value="${c.id}" ${c.id === nr?.course_id ? 'selected' : ''}>${c.name}</option>`)}</select></label></div>
+      <p class="small muted" style="margin-top:8px">ホームに「あと何日」と、コース攻略を AI に聞くボタンが表示されます。当日は「スコアを入力」からすぐ記録できます。</p>`,
+    footer: html`${nr ? html`<button class="btn btn-ghost" data-nr-clear>予定を消す</button>` : ''}<button class="btn" data-nr-cancel>キャンセル</button><button class="btn btn-primary" data-nr-save>保存</button>`,
+  });
+  const save = async (value) => {
+    try { await saveSettings({ next_round: value }); m.close(); onSaved(); } catch (e) { errorToast(e); }
+  };
+  $('[data-nr-cancel]', m.el).addEventListener('click', () => m.close());
+  $('[data-nr-clear]', m.el)?.addEventListener('click', () => save(''));
+  $('[data-nr-save]', m.el).addEventListener('click', () => {
+    const date = $('[data-nr-date]', m.el).value;
+    if (!date) { errorToast('日付を選んでください'); return; }
+    save({ date, course_id: Number($('[data-nr-course]', m.el).value) || null });
+  });
+}
+
 // ---------- はじめての人向けの案内 ----------
 const GUIDE_KEY = 'golf-guide-closed';
 const guideClosed = () => { try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch { return false; } };
@@ -108,7 +155,8 @@ export async function guideHtml({ rounds, courses, sample }) {
 }
 
 // カードのボタンの動作。rerender はホーム画面を作り直す関数
-export function bindHomeCards(root, { sums, settings, rerender }) {
+export function bindHomeCards(root, { sums, settings, rerender, courses = [] }) {
+  $$('[data-nr-edit]', root).forEach((b) => b.addEventListener('click', () => openNextRound(settings, courses, rerender)));
   $$('[data-goal]', root).forEach((b) => b.addEventListener('click', () => setGoal(Number(b.dataset.goal), rerender)));
   $('[data-goal-edit]', root)?.addEventListener('click', () => openGoalPicker(Number(settings.goal) || null, sums, rerender));
   $('[data-guide=close]', root)?.addEventListener('click', () => {

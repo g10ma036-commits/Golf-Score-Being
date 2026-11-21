@@ -6,7 +6,7 @@ import { lineChart, chartCard, setupChart } from '../charts.js';
 import { navigate } from '../main.js';
 import { sampleNoticeHtml, loadSample, deleteSampleFlow } from './sampleTools.js';
 import { loadDraft, clearDraft, draftText, draftHref } from '../draft.js';
-import { goalCardHtml, guideHtml, bindHomeCards } from './homeCards.js';
+import { goalCardHtml, guideHtml, nextRoundHtml, bindHomeCards } from './homeCards.js';
 
 export async function render(root) {
   const [rounds, clubs, photos, settings, sample, courses] = await Promise.all([
@@ -79,6 +79,7 @@ export async function render(root) {
     ${reminder ? html`<div class="notice" id="backup-notice">
       <span>💾 ${reminder.days == null ? 'まだバックアップがありません' : `最後のバックアップから ${reminder.days} 日たっています`}。故障や機種変更に備えて、写真込みのバックアップを作っておきましょう。</span>
       <button class="btn btn-sm btn-primary" id="do-backup">バックアップする</button></div>` : ''}
+    ${nextRoundHtml(settings, courses)}
 
     <div class="grid grid-3">
       <div class="card">
@@ -103,6 +104,7 @@ export async function render(root) {
     <div class="quick-links section">
       <a class="quick-link" href="#/review"><span class="ql-ico">🗓</span><span><strong>${new Date().getFullYear()}年のまとめ</strong><span class="small muted">ラウンド数・ベスト・前年比・記録</span></span></a>
       <a class="quick-link" href="#/ai"><span class="ql-ico">✨</span><span><strong>AIに分析してもらう</strong><span class="small muted">練習メニュー・コース攻略などを相談</span></span></a>
+      ${nextRoundHtml(settings, courses) ? '' : html`<button type="button" class="quick-link" data-nr-edit><span class="ql-ico">📅</span><span><strong>次のラウンドの予定</strong><span class="small muted">日付とコースを入れると、あと何日・攻略のヒント</span></span></button>`}
     </div>
 
     <div class="grid grid-3 section">
@@ -143,7 +145,7 @@ export async function render(root) {
 
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
   $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
-  bindHomeCards(root, { sums, settings, rerender: () => render(root) });
+  bindHomeCards(root, { sums, settings, courses, rerender: () => render(root) });
   $('#do-backup', root)?.addEventListener('click', async () => {
     (await import('../standalone.js')).runBackupFlow(() => $('#backup-notice', root)?.remove());
   });

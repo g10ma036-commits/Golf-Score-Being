@@ -51,7 +51,7 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
   // ---------- 設定 ----------
   function getSettings() {
     const out = { ...SETTING_DEFAULTS };
-    for (const r of db.all('SELECT key, value FROM settings')) if (SETTING_KEYS.includes(r.key)) out[r.key] = r.value;
+    for (const r of db.all('SELECT key, value FROM settings')) if (SETTING_KEYS.includes(r.key)) out[r.key] = r.value ?? ''; // 復元で空になった値もスマホ単独版と同じく '' に
     return out;
   }
   function putSettings(b) {

@@ -257,3 +257,13 @@ test('パー3 の番手の目安：距離にいちばん近い番手', () => {
   assert.equal(stats.suggestClub(clubs, null), null);
   assert.equal(stats.suggestClub(clubs, 150, 'm').name, '8I');
 });
+
+test('次のラウンドの予定（設定）：日付が正しいときだけ保存する', () => {
+  assert.equal(model.normalizeSetting('next_round', { date: '2026-12-01', course_id: 3 }), '{"date":"2026-12-01","course_id":3}');
+  assert.equal(model.normalizeSetting('next_round', '{"date":"2026-12-01"}'), '{"date":"2026-12-01","course_id":null}');
+  assert.equal(model.normalizeSetting('next_round', { date: '2026-02-30' }), '');
+  assert.equal(model.normalizeSetting('next_round', 'x'), '');
+  assert.equal(model.normalizeSetting('next_round', ''), '');
+  assert.deepEqual(model.parseNextRound('{"date":"2026-12-01","course_id":"7"}'), { date: '2026-12-01', course_id: 7 });
+  assert.equal(model.parseNextRound(null), null);
+});

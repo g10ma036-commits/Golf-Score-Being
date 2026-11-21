@@ -421,3 +421,17 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 .pr-total { flex: none; font-size: 20px; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
 .party-score tr.me td:first-child { color: var(--accent); }
 .party-score .par-row td { color: var(--text-secondary); font-size: 12px; }
+
+/* 次のラウンドの予定 */
+.next-round { margin-bottom: 16px; }
+.next-round.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, var(--shadow); }
+.nr-main { display: flex; align-items: center; gap: 14px; }
+.nr-days { flex: none; min-width: 72px; height: 64px; padding: 0 10px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: baseline; justify-content: center; gap: 2px; font-size: 13px; font-weight: 700; padding-top: 10px; }
+.nr-days strong { font-size: 30px; line-height: 1; }
+.nr-info { flex: 1; min-width: 0; }
+.nr-title { font-weight: 700; font-size: 16px; }
+.nr-edit { flex: none; }
+.nr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.nr-actions:empty { display: none; }
+button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100%; }
+.quick-links { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }

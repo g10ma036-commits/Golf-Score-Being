@@ -13,8 +13,8 @@ export const IMAGE_EXT = {
   'image/avif': '.avif', 'image/heic': '.heic', 'image/heif': '.heif',
 };
 export const THUMB_MIME = ['image/jpeg', 'image/webp', 'image/png'];
-export const SETTING_KEYS = ['player_name', 'unit', 'theme', 'goal'];
-export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto', goal: '' };
+export const SETTING_KEYS = ['player_name', 'unit', 'theme', 'goal', 'next_round'];
+export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto', goal: '', next_round: '' };
 // 1つのゴルフ場に登録できる 9 ホールのまとまり（東・西・南コースなど）の最大数
 export const MAX_NINES = 6;
 
@@ -114,6 +114,7 @@ export function takenAt(v) {
 
 // ---------- 各リソースの正規化（検証済みの値を返す。不正なら ApiError） ----------
 export function normalizeSetting(k, value) {
+  if (k === 'next_round') return normalizeNextRound(value);
   let v = text(value, 100) ?? '';
   if (k === 'unit') v = oneOf('unit', v, ['yd', 'm']) ?? 'yd';
   if (k === 'theme') v = oneOf('theme', v, ['auto', 'light', 'dark']) ?? 'auto';
@@ -123,6 +124,22 @@ export function normalizeSetting(k, value) {
     v = v !== '' && Number.isInteger(n) && n >= 60 && n <= 150 ? String(n) : '';
   }
   return v;
+}
+
+// 次のラウンドの予定: {"date":"2026-12-01","course_id":3}（JSON 文字列）。不正な値は「予定なし」
+export function parseNextRound(v) {
+  let o = v;
+  if (typeof v === 'string') { try { o = v ? JSON.parse(v) : null; } catch { o = null; } }
+  if (!o || typeof o !== 'object' || typeof o.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(o.date)) return null;
+  const [y, m, d] = o.date.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  const cid = Number(o.course_id);
+  return { date: o.date, course_id: Number.isInteger(cid) && cid > 0 ? cid : null };
+}
+function normalizeNextRound(v) {
+  const o = parseNextRound(v);
+  return o ? JSON.stringify(o) : '';
 }
 
 // ---------- 9 ホールのまとまり ----------

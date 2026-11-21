@@ -6,7 +6,7 @@ import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
 import { loadDraft, saveDraft, clearDraft, draftText, draftTime, draftHref } from '../draft.js';
-import { parseParty, MAX_PARTY } from '../shared/model.js';
+import { parseParty, parseNextRound, MAX_PARTY } from '../shared/model.js';
 
 const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker'];
 const META_TEXT = ['date', 'course_name', 'tee', 'weather', 'companions', 'memo'];
@@ -97,6 +97,12 @@ export async function render(root, params) {
   // まとまりが 3 つ以上のゴルフ場のときの、ホールの説明（例:「南コース 3番」）
   const multiNames = () => { const c = currentCourse(); return c && ninesOf(c).length > 2 ? ninesOf(c) : null; };
   const nineOfHole = (no) => { const n = multiNames(); return n ? `${n[(no <= 9 ? meta.front_nine : meta.back_nine) - 1] ?? ''} ${((no - 1) % 9) + 1}番` : ''; };
+  // 今日が「次のラウンドの予定」の日なら、そのコースを最初から選んでおく
+  const plannedToday = parseNextRound(settings.next_round);
+  if (!round && !resumed && !meta.course_id && plannedToday?.date === today() && courses.some((c) => c.id === plannedToday.course_id)) {
+    meta.course_id = plannedToday.course_id;
+    meta.course_name = courses.find((c) => c.id === plannedToday.course_id).name;
+  }
   if (!round && !resumed && meta.course_id) applyCourse(courses.find((c) => c.id === meta.course_id));
 
   // 変更があったら少し待って下書きに保存。保存できていれば、画面を離れても確認は出さない（続きから再開できる）
