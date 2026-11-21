@@ -284,3 +284,36 @@ test('古い版のデータベース（18 ホールまで）を開くと、27 �
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('以前の版で作ったバックアップ（攻略メモ・目標スコアの項目なし）も復元でき、そのまま使える', async () => {
+  const before = (await call('GET', '/api/export')).data;
+  const old = {
+    app: 'golf-enjoy-manager', version: 1, exported_at: '2026-10-01T00:00:00.000Z',
+    settings: [{ key: 'player_name', value: '旧データ' }, { key: 'unit', value: 'yd' }],
+    courses: [{ id: 1, name: '旧コース', location: null, rating: 70.1, slope: 120, memo: null, created_at: '2026-01-01 00:00:00' }],
+    course_holes: Array.from({ length: 18 }, (_, i) => ({ course_id: 1, hole_no: i + 1, par: 4, yards: 350, hdcp: i + 1 })),
+    rounds: [{ id: 1, date: '2026-09-01', course_id: 1, course_name: '旧コース', created_at: '2026-09-01 10:00:00', updated_at: '2026-09-01 10:00:00' }],
+    round_holes: Array.from({ length: 18 }, (_, i) => ({ round_id: 1, hole_no: i + 1, par: 4, strokes: 5, putts: 2 })),
+    clubs: [], distances: [], albums: [], photos: [],
+  };
+  try {
+    assert.equal((await call('POST', '/api/import', old)).status, 201);
+    const courses = (await call('GET', '/api/courses')).data;
+    assert.equal(courses.length, 1);
+    assert.equal(courses[0].holes.length, 18);
+    assert.equal(courses[0].holes[0].memo, null);
+    assert.deepEqual(courses[0].nines, ['OUT', 'IN']);
+    const rounds = (await call('GET', '/api/rounds')).data;
+    assert.equal(rounds[0].holes.length, 18);
+    const s = (await call('GET', '/api/settings')).data;
+    assert.equal(s.player_name, '旧データ');
+    assert.equal(s.goal, '');
+    // 復元したコースに攻略メモを追加・目標を設定できる
+    const upd = await call('PUT', '/api/courses/1', { ...courses[0], holes: courses[0].holes.map((h) => (h.hole_no === 1 ? { ...h, memo: '左OB' } : h)) });
+    assert.equal(upd.status, 200);
+    assert.equal(upd.data.holes[0].memo, '左OB');
+    assert.equal((await call('PUT', '/api/settings', { goal: '100' })).data.goal, '100');
+  } finally {
+    await call('POST', '/api/import', before);
+  }
+});
