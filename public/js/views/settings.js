@@ -90,7 +90,8 @@ export async function render(root) {
     <div class="card section">
       <h2 style="margin-bottom:8px">このアプリについて</h2>
       <dl class="kv">
-        <dt>アプリ</dt><dd>Golf Enjoy Manager 1.1${STANDALONE ? '（スマホ単独版）' : ''}</dd>
+        <dt>アプリ</dt><dd>Golf Enjoy Manager 1.2${STANDALONE ? '（スマホ単独版）' : ''}</dd>
+        <dt>使い方</dt><dd><a href="#/help">使い方・よくある質問を見る</a></dd>
         <dt>保存件数</dt><dd>ラウンド ${rounds.length} ・ コース ${courses.length} ・ クラブ ${clubs.length}</dd>
         ${STANDALONE
           ? html`<dt>データの保存先</dt><dd>この端末のブラウザ内（外部には送信されません）。PC版とは別のデータなので、行き来するときはバックアップ ZIP を使います。</dd>`
