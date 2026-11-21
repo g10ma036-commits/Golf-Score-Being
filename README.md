@@ -157,11 +157,15 @@ server/api.js      REST API（SQLite）
 server/sample.js   サンプルデータを SQLite に書き込む
 public/            画面（素の JavaScript の SPA。グラフは自作 SVG）
   css/mobile.css   スマホ向けスタイル
-  js/shared/       PC版とスマホ単独版で共用：入力チェック（model.js）・サンプル生成・ZIP・バックアップ形式
+  js/shared/       PC版とスマホ単独版で共用：入力チェック（model.js）・サンプル生成・ZIP・バックアップ形式・コース共有ファイル（courseFile.js）
   js/local/        スマホ単独版のブラウザ内 API（backend.js は server/api.js と同じ結果を返す）と IndexedDB 保存
   js/standalone.js スマホ単独版のオフライン対応・更新のお知らせ・ホーム画面追加・バックアップ共有
   js/qr.js         QR コード生成（外部ライブラリなし）
-  js/stats.js      スコア統計の計算
+  js/stats.js      スコア統計の計算（目標の配分・年間のまとめ・達成・番手の目安なども）
+  js/aiPrompt.js   AI に貼り付ける質問文（プロンプト）の作成（送信はしない）
+  js/draft.js      スコア入力の下書き（端末に自動保存）
+  js/share.js      ファイルの共有・ダウンロード
+  js/csv.js        スコアの CSV 書き出し
   js/charts.js     グラフ部品（折れ線・棒・横棒・レンジ・構成比バー）
   js/views/        各画面
 scripts/           スマホ単独版のビルド（build-phone.js）・Service Worker のひな形・プレビュー用サーバー
