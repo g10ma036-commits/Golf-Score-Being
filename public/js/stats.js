@@ -477,3 +477,32 @@ export function suggestClub(clubs, yards, unit = 'yd') {
   if (Math.abs(best.carry - target) > target * 0.25) return null; // 合う番手がない
   return { name: best.club.name, carry: Math.round(best.carry), measured: Boolean(best.club.shot_count) };
 }
+
+// ---------- 実績（初めての100切り・初バーディ・ラウンド数など） ----------
+// 古い順に見て、それぞれの条件を最初に満たしたラウンドを記録する
+export function achievements(rounds) {
+  const sums = rounds.map(summarize).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const list = [];
+  const add = (key, icon, title, desc, test) => {
+    const hit = test ? sums.find(test) : null;
+    list.push({ key, icon, title, desc, achieved: Boolean(hit), round: hit || null });
+  };
+  const nth = (n) => (sums.length >= n ? sums[n - 1] : null);
+  list.push({ key: 'first', icon: '⛳', title: 'はじめてのラウンド', desc: 'ラウンドを1つ記録する', achieved: sums.length > 0, round: sums[0] || null });
+  for (const n of [10, 25, 50, 100]) list.push({ key: `r${n}`, icon: '📅', title: `${n}ラウンド`, desc: `ラウンドを${n}回記録する`, achieved: Boolean(nth(n)), round: nth(n) });
+  for (const g of [120, 110, 100, 90, 80]) add(`u${g}`, g <= 90 ? '🏅' : '🎯', `${g}切り`, `18ホールで ${g - 1} 以下`, (s) => s.complete && s.strokes < g);
+  add('even', '👑', 'パープレー', '18ホールをパー以下で回る', (s) => s.complete && s.toPar <= 0);
+  for (const h of [50, 45, 40]) add(`h${h}`, '✌️', `ハーフ${h}切り`, `9ホールで ${h - 1} 以下（前半か後半）`, (s) => (s.front.holes === 9 && s.front.strokes < h) || (s.back.holes === 9 && s.back.strokes < h));
+  add('birdie', '🐦', 'はじめてのバーディ', 'バーディを取る', (s) => s.results.birdie + s.results.eagle > 0);
+  add('birdie2', '🐦', '1ラウンド2バーディ', '1ラウンドでバーディ以上を2つ', (s) => s.results.birdie + s.results.eagle >= 2);
+  add('eagle', '🦅', 'イーグル', 'イーグル以上を取る', (s) => s.results.eagle > 0);
+  for (const n of [3, 5, 9]) add(`run${n}`, '🔥', `パー以内${n}連続`, `パー以内を${n}ホール続ける`, (s) => s.bestRun >= n);
+  add('putt30', '🎳', '30パット以下', '18ホールすべてパットを記録して 30 以下', (s) => s.puttHoles === 18 && s.putts <= 30);
+  add('no3putt', '🧘', '3パットなし', '18ホールすべてパットを記録して 3パット 0 回', (s) => s.puttHoles === 18 && s.threePutts === 0);
+  add('fw70', '🎯', 'FWキープ率 70%', 'パー4・5 のティーショットを10回以上記録して 70% 以上', (s) => s.fwTotal >= 10 && s.fwHit / s.fwTotal >= 0.7);
+  const courseFirst = new Map();
+  for (const s of sums) { const k = s.courseId ? `c${s.courseId}` : `n${s.course}`; if (!courseFirst.has(k)) courseFirst.set(k, s); }
+  const firsts = [...courseFirst.values()];
+  for (const n of [5, 10]) list.push({ key: `c${n}`, icon: '🗾', title: `${n}つのコース`, desc: `${n}か所のゴルフ場で記録する`, achieved: firsts.length >= n, round: firsts[n - 1] || null });
+  return list;
+}

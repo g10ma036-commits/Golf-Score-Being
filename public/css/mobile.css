@@ -435,3 +435,18 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 .nr-actions:empty { display: none; }
 button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100%; }
 .quick-links { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* 実績 */
+.ach-progress { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin-bottom: 16px; }
+.ach-progress > div { height: 100%; background: var(--accent); border-radius: 4px; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.ach { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius); border: 1px dashed var(--border-strong); background: var(--surface-1); color: var(--text-secondary); }
+.ach:hover { text-decoration: none; }
+.ach .ach-ico { flex: none; width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; background: var(--surface-2); filter: grayscale(1); opacity: .55; }
+.ach-body { display: flex; flex-direction: column; min-width: 0; }
+.ach-body strong { color: var(--text-secondary); }
+.ach.on { border-style: solid; border-color: var(--border); box-shadow: var(--shadow); color: var(--text-primary); }
+.ach.on .ach-ico { filter: none; opacity: 1; background: var(--accent-soft); }
+.ach.on .ach-body strong { color: var(--text-primary); }
+.ach.on .small { color: var(--text-secondary); }
+.ach-check { position: absolute; top: 8px; right: 10px; color: var(--accent); font-weight: 800; }

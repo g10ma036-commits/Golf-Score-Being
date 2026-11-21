@@ -267,3 +267,22 @@ test('次のラウンドの予定（設定）：日付が正しいときだけ�
   assert.deepEqual(model.parseNextRound('{"date":"2026-12-01","course_id":"7"}'), { date: '2026-12-01', course_id: 7 });
   assert.equal(model.parseNextRound(null), null);
 });
+
+test('実績：条件を最初に満たしたラウンドを記録し、未達成も一覧に入る', () => {
+  const rounds = [
+    round(1, '2026-01-01', [2, 1]), // 99 → 100切り・110切り・120切り
+    round(2, '2026-02-01', [1]), // 90
+    { ...round(3, '2026-03-01', [0, 1, 1]), holes: round(3, '2026-03-01', [0, 1, 1]).holes.map((h, i) => (i === 0 ? { ...h, strokes: h.par - 1 } : h)) }, // 83 + バーディ
+  ];
+  const a = stats.achievements(rounds);
+  const get = (k) => a.find((x) => x.key === k);
+  assert.equal(get('first').round.id, 1);
+  assert.equal(get('u100').round.id, 1);
+  assert.equal(get('u90').round.id, 3);
+  assert.equal(get('u80').achieved, false);
+  assert.equal(get('birdie').round.id, 3);
+  assert.equal(get('r10').achieved, false);
+  assert.equal(get('h45').round.id, 3); // 2 ラウンド目は 45・45（45切りではない）、3 ラウンド目の前半 41
+  assert.equal(get('even').achieved, false);
+  assert.ok(a.length > 20);
+});

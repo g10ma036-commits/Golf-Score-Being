@@ -104,6 +104,7 @@ export async function render(root) {
     <div class="quick-links section">
       <a class="quick-link" href="#/review"><span class="ql-ico">🗓</span><span><strong>${new Date().getFullYear()}年のまとめ</strong><span class="small muted">ラウンド数・ベスト・前年比・記録</span></span></a>
       <a class="quick-link" href="#/ai"><span class="ql-ico">✨</span><span><strong>AIに分析してもらう</strong><span class="small muted">練習メニュー・コース攻略などを相談</span></span></a>
+      <a class="quick-link" href="#/achievements"><span class="ql-ico">🏅</span><span><strong>実績</strong><span class="small muted">初めての100切り・初バーディなど</span></span></a>
       ${nextRoundHtml(settings, courses) ? '' : html`<button type="button" class="quick-link" data-nr-edit><span class="ql-ico">📅</span><span><strong>次のラウンドの予定</strong><span class="small muted">日付とコースを入れると、あと何日・攻略のヒント</span></span></button>`}
     </div>
 
