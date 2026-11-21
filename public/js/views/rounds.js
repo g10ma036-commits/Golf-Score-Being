@@ -28,7 +28,7 @@ export async function render(root) {
       <div class="card" style="padding:0"><div class="table-wrap"><table class="data">
         <thead><tr>
           <th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パー比</th><th class="r hide-sm">OUT</th><th class="r hide-sm">IN</th>
-          <th class="r">パット</th><th class="r hide-sm">FWキープ</th><th class="r hide-sm">パーオン</th><th class="r hide-sm">ペナ</th><th class="hide-sm">天気</th><th class="c">写真</th>
+          <th class="r">パット</th><th class="r hide-sm">FWキープ</th><th class="r hide-sm">パーオン</th><th class="r hide-sm">ペナ</th><th class="hide-sm">天気</th><th class="c hide-sm">写真</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table></div></div>`
@@ -60,7 +60,7 @@ export async function render(root) {
       const s = sums.get(r.id);
       return html`<tr class="link" data-id="${r.id}" tabindex="0">
         <td>${fmtDate(r.date)}</td>
-        <td>${r.course_name}${r.nines_label ? html` <span class="muted small">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small">${r.tee}</span>` : ''}</td>
+        <td class="wrap">${r.course_name}${r.nines_label ? html` <span class="muted small nowrap">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small nowrap">${r.tee}</span>` : ''}${r.photo_count ? html` <span class="only-sm" aria-label="写真 ${r.photo_count} 枚">📷</span>` : ''}</td>
         <td class="r"><strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
         <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td>
         <td class="r hide-sm">${s.front.holes ? s.front.strokes : '—'}</td>
@@ -70,7 +70,7 @@ export async function render(root) {
         <td class="r hide-sm">${s.girKnown ? pct(s.gir / s.girKnown) : '—'}</td>
         <td class="r hide-sm">${s.holes ? s.penalties : '—'}</td>
         <td class="hide-sm">${r.weather || ''}</td>
-        <td class="c">${r.photo_count ? html`<span class="badge">📷 ${r.photo_count}</span>` : ''}</td>
+        <td class="c hide-sm">${r.photo_count ? html`<span class="badge">📷 ${r.photo_count}</span>` : ''}</td>
       </tr>`;
     }));
     $$('#rows tr', root).forEach((tr) => {

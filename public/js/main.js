@@ -122,38 +122,30 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 
-// スマホの下部タブバーを、実際に見えている画面の下端に合わせる。
-// iPhone・iPad の Safari では、キーボードを閉じた後や画面の大きさが変わった後に、
-// 「画面の下に固定」の基準が見えている範囲とずれて、タブバーが画面の途中に浮くことがある。
-// キーボードが出ている間は、入力の邪魔にならないようタブバーを隠す
-function keepTabbarAtBottom() {
-  const vv = window.visualViewport;
+// スマホで文字を入力している間（キーボードが出ている間）は、下部タブバーを隠す。
+// 画面の高さから推測すると機種によって誤判定して消えたままになるので、入力欄にフォーカスがあるかだけで決める
+const NO_KEYBOARD = /^(checkbox|radio|file|button|submit|reset|range|color|date|time|month|week|datetime-local|hidden|image)$/;
+function isTyping() {
+  const el = document.activeElement;
+  if (!el || !el.isConnected) return false;
+  if (el.tagName === 'TEXTAREA' || el.isContentEditable) return true;
+  return el.tagName === 'INPUT' && !NO_KEYBOARD.test(el.type);
+}
+function hideTabbarWhileTyping() {
   const bar = document.getElementById('tabbar');
-  if (!vv || !bar) return;
-  const probe = document.createElement('div'); // 「画面の下に固定」したときの位置を測る目印
-  probe.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;visibility:hidden;pointer-events:none';
-  document.body.append(probe);
-  let frame = 0;
-  const update = () => {
-    frame = 0;
-    if (getComputedStyle(bar).display === 'none' && !bar.classList.contains('kb-open')) return;
-    const zoomed = vv.scale > 1.01; // ピンチで拡大中は、ブラウザの標準の動きに任せる
-    const fixedBottom = probe.getBoundingClientRect().bottom;
-    const delta = Math.round(vv.offsetTop + vv.height - fixedBottom);
-    const keyboard = !zoomed && fixedBottom - vv.height > 150; // 見えている高さが大きく減った＝キーボード
-    bar.classList.toggle('kb-open', keyboard);
-    bar.style.transform = !zoomed && !keyboard && Math.abs(delta) > 4 ? `translateY(${delta}px)` : '';
-  };
-  const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
-  vv.addEventListener('resize', schedule);
-  vv.addEventListener('scroll', schedule);
-  window.addEventListener('scroll', schedule, { passive: true });
-  window.addEventListener('resize', schedule);
-  window.addEventListener('orientationchange', () => setTimeout(schedule, 300));
-  // キーボードを閉じた直後は値が落ち着くまで少しかかる
-  document.addEventListener('focusout', () => { schedule(); setTimeout(schedule, 350); setTimeout(schedule, 800); });
-  document.addEventListener('focusin', schedule);
-  schedule();
+  if (!bar) return;
+  const touch = window.matchMedia('(pointer: coarse)');
+  const update = () => bar.classList.toggle('kb-open', touch.matches && isTyping());
+  document.addEventListener('focusin', update);
+  document.addEventListener('focusout', () => setTimeout(update, 50));
+  // 入力中に画面を移動したら入力は終わり（入力欄が消えても隠れたままにならないように）
+  window.addEventListener('hashchange', () => {
+    if (isTyping()) document.activeElement.blur();
+    setTimeout(update, 0);
+    setTimeout(update, 600);
+  });
+  window.addEventListener('pageshow', update);
+  update();
 }
 
 (async function boot() {
@@ -164,7 +156,7 @@ function keepTabbarAtBottom() {
     errorToast(e);
   }
   route();
-  keepTabbarAtBottom();
+  hideTabbarWhileTyping();
   if (STANDALONE) {
     // スマホ単独版：オフライン対応・ホーム画面への追加・データ保護
     document.documentElement.classList.add('standalone');
