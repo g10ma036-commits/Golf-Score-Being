@@ -13,10 +13,12 @@ export const IMAGE_EXT = {
   'image/avif': '.avif', 'image/heic': '.heic', 'image/heif': '.heif',
 };
 export const THUMB_MIME = ['image/jpeg', 'image/webp', 'image/png'];
-export const SETTING_KEYS = ['player_name', 'unit', 'theme', 'goal', 'next_round', 'accent', 'text_size'];
+export const SETTING_KEYS = ['player_name', 'unit', 'theme', 'goal', 'next_round', 'accent', 'text_size', 'home_layout'];
 export const ACCENTS = ['green', 'blue', 'navy', 'red', 'orange', 'purple'];
 export const TEXT_SIZES = ['normal', 'large', 'xlarge']; // 文字の大きさ（標準・大きめ・大きい）
-export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto', goal: '', next_round: '', accent: 'green', text_size: 'normal' };
+// ホームのカード（並び替え・表示の切り替えができるもの）。標準の並び順
+export const HOME_BLOCKS = ['next', 'summary', 'goal', 'links', 'trend', 'recent', 'memory', 'photos'];
+export const SETTING_DEFAULTS = { player_name: '', unit: 'yd', theme: 'auto', goal: '', next_round: '', accent: 'green', text_size: 'normal', home_layout: '' };
 // 1つのゴルフ場に登録できる 9 ホールのまとまり（東・西・南コースなど）の最大数
 export const MAX_NINES = 6;
 
@@ -122,12 +124,29 @@ export function normalizeSetting(k, value) {
   if (k === 'theme') v = oneOf('theme', v, ['auto', 'light', 'dark']) ?? 'auto';
   if (k === 'accent') v = ACCENTS.includes(v) ? v : 'green'; // テーマカラー（不明な値は標準の緑）
   if (k === 'text_size') v = TEXT_SIZES.includes(v) ? v : 'normal';
+  if (k === 'home_layout') return normalizeHomeLayout(value);
   if (k === 'goal') {
     // 目標スコア（例: 100 →「100切り」）。範囲外や数字以外は「目標なし」
     const n = Number(v);
     v = v !== '' && Number.isInteger(n) && n >= 60 && n <= 150 ? String(n) : '';
   }
   return v;
+}
+
+// ホームのカードの並びと非表示: {"order":["goal","next",...],"hidden":["photos"]}（JSON 文字列）。
+// 知らないカードは捨て、並びに無いカードは標準の位置の順で後ろに足す（将来カードが増えても表示される）
+export function parseHomeLayout(v) {
+  let o = v;
+  if (typeof v === 'string') { try { o = v ? JSON.parse(v) : null; } catch { o = null; } }
+  const list = (x) => (Array.isArray(x) ? [...new Set(x.filter((k) => HOME_BLOCKS.includes(k)))] : []);
+  const order = list(o?.order);
+  return { order: [...order, ...HOME_BLOCKS.filter((k) => !order.includes(k))], hidden: list(o?.hidden) };
+}
+// 保存する値。標準と同じなら ''（標準）
+function normalizeHomeLayout(v) {
+  const { order, hidden } = parseHomeLayout(v);
+  if (!hidden.length && order.every((k, i) => k === HOME_BLOCKS[i])) return '';
+  return JSON.stringify({ order, hidden });
 }
 
 // 次のラウンドの予定: {"date":"2026-12-01","course_id":3}（JSON 文字列）。不正な値は「予定なし」

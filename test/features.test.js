@@ -280,6 +280,18 @@ test('次のラウンドの予定（設定）：日付が正しいときだけ�
   assert.equal(model.parseNextRound(null), null);
 });
 
+test('ホームのカードの並び：知らないカードは捨て、足りないカードは標準の順で後ろに。標準と同じなら空', () => {
+  const B = model.HOME_BLOCKS;
+  assert.deepEqual(model.parseHomeLayout(''), { order: B, hidden: [] });
+  assert.deepEqual(model.parseHomeLayout('{壊れた'), { order: B, hidden: [] });
+  const l = model.parseHomeLayout(JSON.stringify({ order: ['goal', 'evil', 'next', 'goal'], hidden: ['photos', 'x'] }));
+  assert.deepEqual(l.order, ['goal', 'next', ...B.filter((k) => k !== 'goal' && k !== 'next')]);
+  assert.deepEqual(l.hidden, ['photos']);
+  assert.equal(model.normalizeSetting('home_layout', { order: B, hidden: [] }), '');
+  assert.equal(model.normalizeSetting('home_layout', 'abc'), '');
+  assert.deepEqual(JSON.parse(model.normalizeSetting('home_layout', { order: ['photos'], hidden: ['goal'] })), { order: ['photos', ...B.filter((k) => k !== 'photos')], hidden: ['goal'] });
+});
+
 test('実績：条件を最初に満たしたラウンドを記録し、未達成も一覧に入る', () => {
   const rounds = [
     round(1, '2026-01-01', [2, 1]), // 99 → 100切り・110切り・120切り

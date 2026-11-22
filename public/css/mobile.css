@@ -601,3 +601,13 @@ table.data tr.par-first td { border-top: 2px solid var(--border-strong); }
 .flow-rows { margin-top: 12px; }
 .flow-rows .fr { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--border); }
 .flow-rows .fr strong { font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* ホームを編集 */
+.home-edit { display: flex; justify-content: center; margin: 20px 0 8px; }
+.home-edit-list { display: grid; gap: 6px; }
+.he-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
+.he-row.off { opacity: .55; }
+.he-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.he-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent); }
+.he-check > span { display: flex; flex-direction: column; min-width: 0; }
+.he-move { display: flex; gap: 4px; flex: none; }
+.he-move .btn-icon { width: 40px; height: 40px; font-size: 18px; padding: 0; }

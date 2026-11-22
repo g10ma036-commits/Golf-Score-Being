@@ -1,6 +1,7 @@
 // ホーム（ダッシュボード）
-import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon, errorToast } from '../util.js';
-import { api, getSettings, photoUrl, STANDALONE } from '../api.js';
+import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon, errorToast, openModal, toast } from '../util.js';
+import { api, getSettings, saveSettings, photoUrl, STANDALONE } from '../api.js';
+import { parseHomeLayout, HOME_BLOCKS } from '../shared/model.js';
 import { summarize, aggregate, movingAverage, trendInsights } from '../stats.js';
 import { lineChart, chartCard, setupChart } from '../charts.js';
 import { navigate } from '../main.js';
@@ -73,25 +74,12 @@ export async function render(root) {
   const trend = complete.slice(-20);
   const insights = trendInsights(sums);
   const heroDelta = recent5.avgScore != null && all.avgScore != null ? recent5.avgScore - all.avgScore : null;
+  const nextRound = nextRoundHtml(settings, courses);
 
-  mount(root, html`
-    <div class="page-header">
-      <div><h1>${name ? `${name} さんのホーム` : 'ホーム'}</h1><div class="sub">最新ラウンド：${fmtDate(rounds[0].date)} ${rounds[0].course_name}</div></div>
-      <div class="actions">
-        <a class="btn" href="#/distances">${icon('distance')}飛距離を記録</a>
-        <a class="btn btn-primary" href="#/rounds/new">${icon('plus')}スコアを入力</a>
-      </div>
-    </div>
-    ${draftNotice}
-    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：文字の大きさ・条件別のスコア・距離別の成績・よく一緒に回る人など</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
-    ${sampleNoticeHtml(sample)}
-    ${guide}
-    ${reminder ? html`<div class="notice" id="backup-notice">
-      <span>💾 ${reminder.days == null ? 'まだバックアップがありません' : `最後のバックアップから ${reminder.days} 日たっています`}。故障や機種変更に備えて、写真込みのバックアップを作っておきましょう。</span>
-      <button class="btn btn-sm btn-primary" id="do-backup">バックアップする</button></div>` : ''}
-    ${nextRoundHtml(settings, courses)}
-
-    <div class="grid grid-3">
+  // ホームのカード（設定の「ホームを編集」で表示・並び順を変えられる）
+  const blocks = {
+    next: () => nextRound,
+    summary: () => html`<div class="grid grid-3 section">
       <div class="card">
         <div class="hero-label">直近5ラウンドの平均スコア</div>
         <div class="hero"><div class="hero-value">${fmt(recent5.avgScore, 1)}</div></div>
@@ -107,27 +95,23 @@ export async function render(root) {
         ${tile('パーオン率', pct(all.girRate), '規定打数-2 でオン')}
         ${tile('今年のラウンド', thisYear, `通算 ${rounds.length} ラウンド`)}
       </div>
-    </div>
-
-    <div class="section">${goalCardHtml(sums, settings.goal)}</div>
-
-    <div class="quick-links section">
+    </div>`,
+    goal: () => html`<div class="section">${goalCardHtml(sums, settings.goal)}</div>`,
+    links: () => html`<div class="quick-links section">
       <a class="quick-link" href="#/review"><span class="ql-ico">🗓</span><span><strong>${new Date().getFullYear()}年のまとめ</strong><span class="small muted">ラウンド数・ベスト・前年比・記録</span></span></a>
       <a class="quick-link" href="#/ai"><span class="ql-ico">✨</span><span><strong>AIに分析してもらう</strong><span class="small muted">練習メニュー・コース攻略などを相談</span></span></a>
       <a class="quick-link" href="#/achievements"><span class="ql-ico">🏅</span><span><strong>実績</strong><span class="small muted">初めての100切り・初バーディなど</span></span></a>
-      ${nextRoundHtml(settings, courses) ? '' : html`<button type="button" class="quick-link" data-nr-edit><span class="ql-ico">📅</span><span><strong>次のラウンドの予定</strong><span class="small muted">日付とコースを入れると、あと何日・攻略のヒント</span></span></button>`}
-    </div>
-
-    <div class="grid grid-3 section">
+      ${nextRound ? '' : html`<button type="button" class="quick-link" data-nr-edit><span class="ql-ico">📅</span><span><strong>次のラウンドの予定</strong><span class="small muted">日付とコースを入れると、あと何日・攻略のヒント</span></span></button>`}
+    </div>`,
+    trend: () => html`<div class="grid grid-3 section">
       ${chartCard('trend', 'スコアの推移', `直近 ${trend.length} ラウンド（18ホール）・点をクリックで詳細`, 'span-2')}
       <div class="card">
         <div class="card-header"><h2>直近の傾向</h2><a class="small" href="#/stats">統計分析へ →</a></div>
         ${insights.length ? html`<ul class="insights">${insights.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '↑' : '↓'}</span><span>${i.text}</span></li>`)}</ul>`
           : html`<p class="muted small">18ホールのラウンドが6つ以上になると、直近5ラウンドと以前の比較が表示されます。</p>`}
       </div>
-    </div>
-
-    <div class="grid grid-3 section">
+    </div>`,
+    recent: () => html`<div class="grid grid-3 section">
       <div class="card span-2">
         <div class="card-header"><h2>最近のラウンド</h2><a class="small" href="#/rounds">すべて見る →</a></div>
         <div class="table-wrap"><table class="data">
@@ -145,20 +129,39 @@ export async function render(root) {
         ${inBag > 14 ? html`<p><span class="badge warn">⚠ 15本以上（競技では14本まで）</span></p>` : ''}
         <p class="small secondary">${clubs.filter((c) => c.in_bag).map((c) => c.name).join('・') || 'クラブが未登録です'}</p>
       </div>
-    </div>
-
-    ${memoryHtml(memory)}
-
-    <div class="card section">
+    </div>`,
+    memory: () => memoryHtml(memory),
+    photos: () => html`<div class="card section">
       <div class="card-header"><h2>最近の写真</h2><a class="small" href="#/album">アルバムへ →</a></div>
       ${photos.length ? html`<div class="photo-grid">${photos.map((p) => html`<a class="ph" href="#/album/${p.album_id || 'all'}"><img src="${photoUrl(p)}" alt="${p.caption || '写真'}" loading="lazy"></a>`)}</div>`
         : html`<p class="muted small">写真はまだありません。アルバムやラウンド詳細から追加できます。</p>`}
+    </div>`,
+  };
+  const layout = parseHomeLayout(settings.home_layout);
+
+  mount(root, html`
+    <div class="page-header">
+      <div><h1>${name ? `${name} さんのホーム` : 'ホーム'}</h1><div class="sub">最新ラウンド：${fmtDate(rounds[0].date)} ${rounds[0].course_name}</div></div>
+      <div class="actions">
+        <a class="btn" href="#/distances">${icon('distance')}飛距離を記録</a>
+        <a class="btn btn-primary" href="#/rounds/new">${icon('plus')}スコアを入力</a>
+      </div>
     </div>
+    ${draftNotice}
+    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：文字の大きさ・条件別のスコア・距離別の成績・よく一緒に回る人など</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
+    ${sampleNoticeHtml(sample)}
+    ${guide}
+    ${reminder ? html`<div class="notice" id="backup-notice">
+      <span>💾 ${reminder.days == null ? 'まだバックアップがありません' : `最後のバックアップから ${reminder.days} 日たっています`}。故障や機種変更に備えて、写真込みのバックアップを作っておきましょう。</span>
+      <button class="btn btn-sm btn-primary" id="do-backup">バックアップする</button></div>` : ''}
+    ${layout.order.filter((k) => !layout.hidden.includes(k)).map((k) => blocks[k]())}
+    <div class="home-edit"><button type="button" class="btn btn-sm btn-ghost" id="home-edit">⚙️ ホームを編集（カードの表示・並び順）</button></div>
   `);
 
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
   $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
   bindHomeCards(root, { sums, settings, courses, rerender: () => render(root) });
+  $('#home-edit', root).addEventListener('click', () => openHomeEditor(layout, () => render(root)));
   const markSeen = () => { try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch { /* ignore */ } };
   $('[data-news-ok]', root)?.addEventListener('click', markSeen);
   $('[data-news-close]', root)?.addEventListener('click', () => { markSeen(); $('#news-notice', root)?.remove(); });
@@ -210,4 +213,59 @@ function memoryHtml(m) {
 
 function tile(label, value, sub = '') {
   return html`<div class="tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+}
+
+// ---- ホームを編集：カードごとに表示・非表示と並び順（↑↓）。下書き・バックアップなどのお知らせは常に表示 ----
+const BLOCK_LABELS = {
+  next: ['📅 次のラウンドの予定', '予定を入れているときだけ表示'],
+  summary: ['📊 直近の成績', '直近5ラウンドの平均・ベスト・ハンディキャップなど'],
+  goal: ['🎯 目標スコア', '達成回数・縮めるポイント'],
+  links: ['🔗 ショートカット', '年間のまとめ・AI分析・実績'],
+  trend: ['📈 スコアの推移と直近の傾向', ''],
+  recent: ['⛳ 最近のラウンドとクラブ', ''],
+  memory: ['📸 思い出の1枚', 'ラウンドの写真があるとき'],
+  photos: ['🌄 最近の写真', ''],
+};
+function openHomeEditor(current, onSaved) {
+  let order = [...current.order];
+  const hidden = new Set(current.hidden);
+  const m = openModal({
+    title: 'ホームを編集',
+    body: html`<p class="small muted" style="margin-bottom:10px">表示するカードを選び、↑↓ で並び順を変えられます。</p><div class="home-edit-list"></div>`,
+    footer: html`<button class="btn btn-ghost" data-he-reset>標準に戻す</button><button class="btn" data-he-cancel>キャンセル</button><button class="btn btn-primary" data-he-save>保存</button>`,
+  });
+  const list = $('.home-edit-list', m.el);
+  const draw = (focusKey, focusDir) => {
+    mount(list, html`${order.map((k, i) => html`<div class="he-row ${hidden.has(k) ? 'off' : ''}" data-k="${k}">
+      <label class="check he-check"><input type="checkbox" ${hidden.has(k) ? '' : 'checked'} aria-label="${BLOCK_LABELS[k][0]}を表示"><span><strong>${BLOCK_LABELS[k][0]}</strong>${BLOCK_LABELS[k][1] ? html`<span class="small muted">${BLOCK_LABELS[k][1]}</span>` : ''}</span></label>
+      <div class="he-move"><button type="button" class="btn btn-icon btn-sm" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="${BLOCK_LABELS[k][0]}を上へ">↑</button><button type="button" class="btn btn-icon btn-sm" data-move="1" ${i === order.length - 1 ? 'disabled' : ''} aria-label="${BLOCK_LABELS[k][0]}を下へ">↓</button></div>
+    </div>`)}`);
+    $$('.he-row', list).forEach((row) => {
+      const k = row.dataset.k;
+      $('input', row).addEventListener('change', (e) => { if (e.target.checked) hidden.delete(k); else hidden.add(k); row.classList.toggle('off', !e.target.checked); });
+      $$('[data-move]', row).forEach((b) => b.addEventListener('click', () => {
+        const i = order.indexOf(k);
+        const j = i + Number(b.dataset.move);
+        [order[i], order[j]] = [order[j], order[i]];
+        draw(k, b.dataset.move);
+      }));
+    });
+    // 動かしたカードのボタンにフォーカスを戻す（続けて押せるように）
+    if (focusKey) {
+      const row = $(`.he-row[data-k="${focusKey}"]`, list);
+      const btn = $(`[data-move="${focusDir}"]`, row);
+      (btn && !btn.disabled ? btn : $('[data-move]:not([disabled])', row))?.focus();
+    }
+  };
+  draw();
+  $('[data-he-reset]', m.el).addEventListener('click', () => { order = [...HOME_BLOCKS]; hidden.clear(); draw(); });
+  $('[data-he-cancel]', m.el).addEventListener('click', () => m.close());
+  $('[data-he-save]', m.el).addEventListener('click', async () => {
+    try {
+      await saveSettings({ home_layout: JSON.stringify({ order, hidden: [...hidden] }) });
+      m.close();
+      toast('ホームの表示を保存しました');
+      onSaved();
+    } catch (err) { errorToast(err); }
+  });
 }
