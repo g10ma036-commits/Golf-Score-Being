@@ -34,7 +34,7 @@ export function summarize(round) {
     strokes: 0, par: 0, adjStrokes: 0,
     putts: 0, puttHoles: 0, threePutts: 0, onePutts: 0,
     fwHit: 0, fwLeft: 0, fwRight: 0, fwTotal: 0,
-    gir: 0, girKnown: 0, scrChances: 0, scrSaves: 0,
+    gir: 0, girKnown: 0, scrChances: 0, scrSaves: 0, bogeyOn: 0, girPutts: 0,
     sandChances: 0, sandSaves: 0, penalties: 0,
     front: half(), back: half(),
     byPar: { 3: { n: 0, strokes: 0, par: 0 }, 4: { n: 0, strokes: 0, par: 0 }, 5: { n: 0, strokes: 0, par: 0 } },
@@ -56,8 +56,8 @@ export function summarize(round) {
       if (h.putts >= 3) s.threePutts++;
       if (h.putts === 1) s.onePutts++;
       s.girKnown++;
-      if (isGir(h)) s.gir++;
-      else { s.scrChances++; if (h.strokes <= h.par) s.scrSaves++; }
+      if (h.strokes - h.putts <= h.par - 1) s.bogeyOn++; // ボギーオン（パーオンも含む）
+      if (isGir(h)) { s.gir++; s.girPutts += h.putts; } else { s.scrChances++; if (h.strokes <= h.par) s.scrSaves++; }
     }
     if (h.par >= 4 && h.fairway) {
       s.fwTotal++;
@@ -112,6 +112,8 @@ export function aggregate(sums) {
     fwRightRate: ratio(tot('fwRight'), fwTotal),
     fwHit: tot('fwHit'), fwLeft: tot('fwLeft'), fwRight: tot('fwRight'), fwTotal,
     girRate: ratio(tot('gir'), tot('girKnown')),
+    bogeyOnRate: ratio(tot('bogeyOn'), tot('girKnown')),
+    puttsPerGir: ratio(tot('girPutts'), tot('gir')),
     scrambleRate: ratio(tot('scrSaves'), tot('scrChances')),
     sandSaveRate: ratio(tot('sandSaves'), tot('sandChances')),
     sandChances: tot('sandChances'),

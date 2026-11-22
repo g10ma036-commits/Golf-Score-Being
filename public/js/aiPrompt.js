@@ -100,7 +100,7 @@ function summaryLines(a, title) {
     `- 平均スコア：${f1(a.avgScore)}（パー比 ${sign(a.avgToPar)}）／ベスト ${a.best ? a.best.strokes : '—'}${a.worst ? `／ワースト ${a.worst.strokes}` : ''}`,
     `- 平均パット（18ホール換算）：${f1(a.puttsPerRound)}（1パット率 ${pc(a.onePuttRate)}、3パット ${f1(a.threePuttsPerRound)} 回/ラウンド）`,
     `- FWキープ率：${pc(a.fwRate)}（左に外す ${pc(a.fwLeftRate)}、右に外す ${pc(a.fwRightRate)}、${a.fwTotal}回中）`,
-    `- パーオン率：${pc(a.girRate)}／リカバリー率（パーオンせずパー以内）：${pc(a.scrambleRate)}／サンドセーブ率：${pc(a.sandSaveRate)}（${a.sandChances}回中）`,
+    `- パーオン率：${pc(a.girRate)}（パーオン時の平均パット ${f2(a.puttsPerGir)}）／ボギーオン率（規定打数−1 までにオン）：${pc(a.bogeyOnRate)}／リカバリー率（パーオンせずパー以内）：${pc(a.scrambleRate)}／サンドセーブ率：${pc(a.sandSaveRate)}（${a.sandChances}回中）`,
     `- OB・ペナルティ：${f1(a.penaltiesPerRound)} 回/ラウンド`,
     `- パー別の平均：パー3 ${bp(3)}、パー4 ${bp(4)}、パー5 ${bp(5)}`,
     `- スコアの内訳（全${a.holes}ホール）：イーグル以上 ${pc(r.eagle / holes)}、バーディ ${pc(r.birdie / holes)}、パー ${pc(r.par / holes)}、ボギー ${pc(r.bogey / holes)}、ダブルボギー ${pc(r.double / holes)}、トリプル以上 ${pc(r.triple / holes)}`,

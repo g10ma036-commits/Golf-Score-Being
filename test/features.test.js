@@ -329,3 +329,18 @@ test('ラウンドを文章にする（LINE などに貼る用）', async () => 
   assert.match(full, /同伴：山田さん/);
   assert.match(full, /1\. 田中 72\n2\. 自分 90/);
 });
+
+test('ボギーオン率・パーオン時のパット・リカバリー率の数え方', () => {
+  // パー4: (4,2) パーオン / (5,2) ボギーオン・リカバリー失敗 / (4,1) ボギーオン・リカバリー成功 / (6,2) どちらでもない
+  const holes = [[4, 2], [5, 2], [4, 1], [6, 2]].map(([strokes, putts], i) => ({ hole_no: i + 1, par: 4, strokes, putts }));
+  const s = stats.summarize({ id: 1, date: '2026-01-01', holes });
+  assert.equal(s.gir, 1);
+  assert.equal(s.girPutts, 2);
+  assert.equal(s.bogeyOn, 3);
+  assert.equal(s.scrChances, 3);
+  assert.equal(s.scrSaves, 1);
+  const a = stats.aggregate([s]);
+  assert.equal(a.bogeyOnRate, 3 / 4);
+  assert.equal(a.puttsPerGir, 2);
+  assert.equal(a.scrambleRate, 1 / 3);
+});

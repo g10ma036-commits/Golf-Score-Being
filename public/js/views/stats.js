@@ -108,7 +108,9 @@ export async function render(root) {
         ${t('推定ハンディキャップ', a.handicap != null ? a.handicap.toFixed(1) : '—', '簡易計算')}
         ${t('平均パット', fmt(a.puttsPerRound, 1), `1ホール ${fmt(a.puttsPerHole, 2)}`)}
         ${t('FWキープ率', pct(a.fwRate), a.fwTotal ? `${a.fwHit}/${a.fwTotal}` : '')}
-        ${t('パーオン率', pct(a.girRate))}
+        ${t('パーオン率', pct(a.girRate), a.puttsPerGir != null ? `パーオン時 ${fmt(a.puttsPerGir, 2)} パット` : '')}
+        ${t('ボギーオン率', pct(a.bogeyOnRate), '規定打数-1 までにオン')}
+        ${t('1パット率', pct(a.onePuttRate), 'パットを記録したホール')}
         ${t('リカバリー率', pct(a.scrambleRate), 'パーオンせずパー以上')}
         ${t('サンドセーブ率', pct(a.sandSaveRate), a.sandChances ? `バンカー ${a.sandChances} ホール` : '簡易：バンカー後パー以上')}
         ${t('3パット率', pct(a.threePuttRate, 1), `1R あたり ${fmt(a.threePuttsPerRound, 1)} 回`)}
