@@ -64,6 +64,13 @@ export async function render(root) {
       </div>
 
       <div class="card">
+        <h2 style="margin-bottom:8px">ほかのアプリから取り込む</h2>
+        <p class="small muted" style="margin-bottom:10px">いまの記録は消えずに、まだ無いラウンドだけが追加されます（同じ日・同じコース・同じスコアのラウンドは飛ばします）。</p>
+        <label class="btn">⛳ IKScoreCard のバックアップから取り込む<input type="file" id="import-ik" multiple hidden></label>
+        <p class="small muted" style="margin-top:8px">IKScoreCard のバックアップ（ZIP、または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。スコア・パット・OB などのペナルティ・同伴者のスコア・コース（パーと距離）を取り込みます。</p>
+      </div>
+
+      <div class="card">
         <h2 style="margin-bottom:12px">プロフィール・表示</h2>
         <form id="settings-form" autocomplete="off"><div class="form-grid">
           <label class="field wide"><span>プレーヤー名</span><input name="player_name" maxlength="100" value="${s.player_name || ''}" placeholder="ホーム画面に表示されます"></label>
@@ -150,6 +157,14 @@ export async function render(root) {
   $('#make-backup', root)?.addEventListener('click', async () => {
     const m = await import('../standalone.js');
     m.runBackupFlow(() => renderDevice(root));
+  });
+
+  // ほかのアプリ（IKScoreCard）から取り込む
+  $('#import-ik', root).addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (!files.length) return;
+    (await import('./appImport.js')).openIkImport(files, () => render(root));
   });
 
   $('#import', root).addEventListener('change', async (e) => {
