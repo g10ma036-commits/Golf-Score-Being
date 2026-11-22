@@ -139,6 +139,7 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   // 条件別：2 つ以上に分かれるものだけ（3 ラウンドとも秋なので季節は出ない）
   assert.match(overall, /## 条件別の平均スコア（18ホールのラウンド）\n- 曜日：平日 [\d.]+（2回）、土日 [\d.]+（1回）\n\n/);
   assert.equal(overall.includes('季節：'), false);
+  assert.match(overall, /## 距離別の成績（コースに登録したホールの距離）\nパー,距離,ホール数,平均パー比,パー以内の率\n3,/);
   const rd =ai.buildAiPrompt(data, { purpose: 'round', roundId: 1, holes: true });
   assert.match(rd, /対象のラウンド/);
   assert.match(rd, /2026\/9\/1（火） ・ テストカントリー/);
@@ -389,4 +390,22 @@ test('条件別のスコア：天気・季節・曜日・ティー・同伴者�
   assert.deepEqual(stats.conditionStats(rs, 'companion').rows.map((r) => [r.key, r.n]), [['田中さん', 3], ['鈴木さん', 2]]);
   assert.deepEqual(stats.conditionStats(rs, 'tee').rows.map((r) => r.key), ['バック']);
   assert.deepEqual(stats.splitNames(' 田中さん、佐藤さん,鈴木さん・高橋さん '), ['田中さん', '佐藤さん', '鈴木さん', '高橋さん']);
+});
+
+test('距離別の成績：パーごとに距離で分け、27 ホールのコースは回った 9 ホールの距離を使う', () => {
+  const course = { id: 5, holes: [
+    ...PARS.map((par, i) => ({ hole_no: i + 1, par, yards: par === 3 ? 150 : par === 4 ? (i < 9 ? 320 : 420) : 500 })),
+    ...PARS.slice(0, 9).map((par, i) => ({ hole_no: 19 + i, par, yards: par === 4 ? 380 : par === 3 ? 200 : 540 })),
+  ] };
+  const r1 = { ...round(1, '2026-05-01', [1]), course_id: 5 }; // 1〜18 番
+  const r2 = { ...round(2, '2026-06-01', [0]), course_id: 5, front_nine: 3, back_nine: 1 }; // 3 つ目の 9 ホール → 1 つ目
+  const rows = stats.distanceStats([r1, r2, { ...round(3, '2026-07-01', [5]), course_id: null }], [course]);
+  const get = (par, label) => rows.find((r) => r.par === par && r.label === label);
+  assert.deepEqual(rows.map((r) => `${r.par}:${r.label}:${r.n}`), [
+    '3:130〜159y:6', '3:190y以上:2', '4:330y未満:10', '4:370〜409y:5', '4:410y以上:5', '5:470〜519y:6', '5:520y以上:2',
+  ]);
+  assert.equal(get(4, '410y以上').toPar, 1); // r1 の後半だけ（+1）
+  assert.equal(get(4, '370〜409y').parRate, 1); // r2 の前半（3 つ目の 9 ホール）はすべてパー
+  // メートルの設定では区切りも換算（330y → 300m）
+  assert.deepEqual(stats.distanceStats([r1], [course], 'm').filter((r) => r.par === 4).map((r) => r.label), ['300〜339m', '375m以上']); // 区切り 330/370/410y → 300/340/375m
 });

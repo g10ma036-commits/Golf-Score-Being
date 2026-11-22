@@ -615,3 +615,41 @@ export function conditionStats(rounds, by) {
   }
   return { rows, overall, total: all.length };
 }
+
+// ---------- 距離別の成績（コースに登録したホールの距離を使う） ----------
+// 区切りはヤード。設定の単位がメートルなら、記録した距離もメートルなので区切りを換算する
+const DIST_BANDS = { 3: [130, 160, 190], 4: [330, 370, 410], 5: [470, 520] };
+// rows: [{ par, label, from, to, n, toPar, parRate }]（パーごと・距離の短い順）
+export function distanceStats(rounds, courses, unit = 'yd') {
+  const byId = new Map((courses || []).map((c) => [c.id, c]));
+  const k = unit === 'm' ? 0.9144 : 1;
+  const u = unit === 'm' ? 'm' : 'y';
+  const cut = (y) => Math.round((y * k) / 5) * 5;
+  const groups = new Map();
+  for (const r of rounds) {
+    const c = byId.get(r.course_id);
+    if (!c?.holes?.length) continue;
+    for (const h of r.holes || []) {
+      if (!played(h) || !DIST_BANDS[h.par]) continue;
+      const ch = c.holes.find((x) => x.hole_no === courseHoleNo(r, h.hole_no));
+      const d = Number(ch?.yards);
+      if (!Number.isFinite(d) || d <= 0) continue;
+      const cuts = DIST_BANDS[h.par].map(cut);
+      const i = cuts.findIndex((t) => d < t);
+      const band = i < 0 ? cuts.length : i;
+      const key = `${h.par}-${band}`;
+      if (!groups.has(key)) {
+        const from = band === 0 ? null : cuts[band - 1];
+        const to = band === cuts.length ? null : cuts[band];
+        const label = from == null ? `${to}${u}未満` : to == null ? `${from}${u}以上` : `${from}〜${to - 1}${u}`;
+        groups.set(key, { par: h.par, band, label, from, to, list: [] });
+      }
+      groups.get(key).list.push(h);
+    }
+  }
+  return [...groups.values()].sort((a, b) => a.par - b.par || a.band - b.band).map(({ list, band, ...g }) => ({
+    ...g, n: list.length,
+    toPar: mean(list.map((h) => h.strokes - h.par)),
+    parRate: list.filter((h) => h.strokes <= h.par).length / list.length,
+  }));
+}

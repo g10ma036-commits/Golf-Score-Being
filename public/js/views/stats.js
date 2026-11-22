@@ -1,9 +1,9 @@
 // 統計分析
 import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '../util.js';
-import { api } from '../api.js';
+import { api, getSettings } from '../api.js';
 import {
   summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, teeClubStats, PERIODS,
-  conditionStats, CONDITIONS,
+  conditionStats, CONDITIONS, distanceStats,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
@@ -86,6 +86,31 @@ function courseTable(sums) {
   </div>`;
 }
 
+// 距離別の成績（コースにホールの距離を登録しているラウンド）。パーごとに、距離の帯でパー比を比べる
+function distanceCard(rows) {
+  if (rows.length < 2 || rows.reduce((a, r) => a + r.n, 0) < 18) return '';
+  // 同じパーの中で一番苦手な距離（5 ホール以上・平均との差が 0.3 打以上）
+  let weak = null;
+  for (const par of [3, 4, 5]) {
+    const rs = rows.filter((r) => r.par === par && r.n >= 5);
+    if (rs.length < 2) continue;
+    const avg = rs.reduce((a, r) => a + r.toPar * r.n, 0) / rs.reduce((a, r) => a + r.n, 0);
+    for (const r of rs) if (r.toPar - avg >= 0.3 && (!weak || r.toPar - avg > weak.gap)) weak = { ...r, gap: r.toPar - avg };
+  }
+  let prevPar = 0;
+  return html`<div class="card section">
+    <div class="card-header"><div><h2>距離別の成績</h2><div class="sub">コースに登録したホールの距離から。パー比は小さいほど良い</div></div></div>
+    ${weak ? html`<p class="dist-weak">苦手な距離：<strong>パー${weak.par}の${weak.label}</strong>（平均 ${sgn(weak.toPar)}・パー${weak.par}全体の平均より約 ${weak.gap.toFixed(1)} 打多い）</p>` : ''}
+    <div class="table-wrap"><table class="data"><thead><tr><th>パー</th><th>距離</th><th class="r">ホール数</th><th class="r">平均パー比</th><th class="r">パー以内</th></tr></thead>
+      <tbody>${rows.map((r) => {
+        const first = r.par !== prevPar;
+        prevPar = r.par;
+        return html`<tr class="${first ? 'par-first' : ''}"><td>${first ? `パー${r.par}` : ''}</td><td>${r.label}</td><td class="r">${r.n}</td><td class="r">${sgn(r.toPar)}</td><td class="r">${pct(r.parRate)}</td></tr>`;
+      })}</tbody></table></div>
+    <p class="small muted" style="margin-top:8px">ホールの距離はコースの編集で登録できます。27ホールのゴルフ場は、回った 9 ホールの距離を使います。</p>
+  </div>`;
+}
+
 // 条件別のスコア（天気・季節・曜日・ティー・同伴者）。2 つ以上に分かれて比べられる条件だけボタンを出す
 function drawConditions(box, list) {
   const avail = CONDITIONS.map(([k, l]) => ({ k, l, res: conditionStats(list, k) })).filter((c) => c.res.rows.length >= 2);
@@ -104,7 +129,7 @@ function drawConditions(box, list) {
 }
 
 export async function render(root) {
-  const rounds = await api.get('/api/rounds');
+  const [rounds, allCourses, settings] = await Promise.all([api.get('/api/rounds'), api.get('/api/courses').catch(() => []), getSettings().catch(() => ({}))]);
   const courses = [...new Map(rounds.filter((r) => r.course_id).map((r) => [r.course_id, r.course_name])).entries()]
     .sort((a, b) => a[1].localeCompare(b[1], 'ja'));
 
@@ -186,6 +211,7 @@ export async function render(root) {
       ${teeClubCard(teeClubStats(list))}
       ${courseTable(sums)}
       <div id="cond-box"></div>
+      ${distanceCard(distanceStats(list, allCourses, settings.unit))}
 
       <div class="grid grid-2 section">
         <div class="card">

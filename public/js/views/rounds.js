@@ -65,9 +65,28 @@ export async function render(root) {
     const full = list.map((r) => sums.get(r.id)).filter((s) => s.complete);
     const avg = full.length ? full.reduce((a, s) => a + s.strokes, 0) / full.length : null;
     $('#count', root).textContent = `${list.length} 件${full.length ? `・平均 ${avg.toFixed(1)}・ベスト ${Math.min(...full.map((s) => s.strokes))}` : ''}`;
+    // 日付順のときは月ごとに見出し（回数・18 ホールの平均）
+    const byMonth = new Map();
+    if (state.sort === 'date') {
+      for (const r of list) {
+        const k = r.date.slice(0, 7);
+        if (!byMonth.has(k)) byMonth.set(k, { n: 0, scores: [] });
+        const m = byMonth.get(k);
+        const s = sums.get(r.id);
+        m.n++;
+        if (s.complete) m.scores.push(s.strokes);
+      }
+    }
+    let prevMonth = '';
     mount($('#rows', root), list.map((r) => {
       const s = sums.get(r.id);
-      return html`<tr class="link" data-id="${r.id}" tabindex="0">
+      const k = r.date.slice(0, 7);
+      const m = byMonth.get(k);
+      const head = m && k !== prevMonth
+        ? html`<tr class="month-row"><th colspan="12" scope="rowgroup">${Number(k.slice(0, 4))}年${Number(k.slice(5))}月<span class="muted small">${m.n}回${m.scores.length ? `・平均 ${(m.scores.reduce((a, b) => a + b, 0) / m.scores.length).toFixed(1)}` : ''}</span></th></tr>`
+        : '';
+      prevMonth = k;
+      return html`${head}<tr class="link" data-id="${r.id}" tabindex="0">
         <td>${fmtDate(r.date)}</td>
         <td class="wrap">${r.course_name}${r.nines_label ? html` <span class="muted small nowrap">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small nowrap">${r.tee}</span>` : ''}${r.weather && WEATHER_ICON[r.weather] ? html` <span class="only-sm" title="${r.weather}">${WEATHER_ICON[r.weather]}</span>` : ''}${r.photo_count ? html` <span class="only-sm" aria-label="写真 ${r.photo_count} 枚">📷</span>` : ''}</td>
         <td class="r">${s.complete && s.strokes === bestScore ? html`<span title="ベストスコア">🏆</span> ` : goal && s.complete && s.strokes < goal ? html`<span title="${goal}切り達成">🎯</span> ` : ''}<strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
@@ -82,7 +101,7 @@ export async function render(root) {
         <td class="c hide-sm">${r.photo_count ? html`<span class="badge">📷 ${r.photo_count}</span>` : ''}</td>
       </tr>`;
     }));
-    $$('#rows tr', root).forEach((tr) => {
+    $$('#rows tr[data-id]', root).forEach((tr) => {
       tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`));
       tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigate(`/rounds/${tr.dataset.id}`); });
     });

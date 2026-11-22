@@ -1,7 +1,7 @@
 // AI（ChatGPT・Claude・Gemini など）にスコアを分析してもらうための質問文（プロンプト）を作る。
 // ここでは文章を作るだけで、どこにも送信しない（利用者が自分でコピーして貼り付ける）。
 // 名前・同伴者は含めない。メモは利用者が選んだときだけ含める。
-import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan, teeClubStats, conditionStats } from './stats.js';
+import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan, teeClubStats, conditionStats, distanceStats } from './stats.js';
 
 export const AI_PURPOSES = [
   { key: 'overall', label: '総合分析', desc: '強み・弱みと、スコアに一番影響していること', period: 'last20' },
@@ -270,6 +270,10 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
       // 条件別（天気・季節・曜日）。同伴者の名前は送らない
       const conds = [['weather', '天気'], ['season', '季節'], ['day', '曜日']].map(([k, l]) => [l, conditionStats(scope, k).rows]).filter(([, rows]) => rows.length >= 2);
       if (conds.length) add('## 条件別の平均スコア（18ホールのラウンド）', ...conds.map(([l, rows]) => `- ${l}：${rows.map((r) => `${r.key} ${f1(r.avg)}（${r.n}回）`).join('、')}`), '');
+      const dist = distanceStats(scope, courses, settings.unit);
+      if (dist.length >= 2 && dist.reduce((a, r) => a + r.n, 0) >= 18) {
+        add('## 距離別の成績（コースに登録したホールの距離）', 'パー,距離,ホール数,平均パー比,パー以内の率', ...dist.map((r) => [r.par, r.label, r.n, sign(r.toPar, 2), pc(r.parRate)].join(',')), '');
+      }
       add(`# ラウンド一覧（新しい順${scope.length > MAX_LIST ? `・最新 ${MAX_LIST} 件` : ''}）`, ...roundListLines(scope.slice(0, MAX_LIST)), '');
       if (opts.holes) {
         add(`# ホールごとの記録（新しい順・最大 ${MAX_HOLE_ROUNDS} ラウンド）`);
