@@ -1,7 +1,7 @@
 // ラウンドの新規入力・編集（スコアカード形式）
 import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, openModal, WEATHERS } from '../util.js';
 import { api, photoUrl, getSettings } from '../api.js';
-import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, suggestClub, RESULT_LABELS } from '../stats.js';
+import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, suggestClub, splitNames, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
@@ -33,7 +33,6 @@ export async function render(root, params) {
   const woods = clubs.filter((c) => c.in_bag && ['driver', 'wood', 'hybrid'].includes(c.category)).map((c) => c.name);
   const teeClubOptions = [...new Set([...(woods.length ? woods : ['1W', 'FW', 'UT']), 'アイアン'])].slice(0, 7);
   // よく一緒に回る人：過去の同伴者の欄と同伴者のスコアの名前から、回数の多い順に
-  const splitNames = (s) => String(s || '').split(/[、,，・\s]+/).map((x) => x.trim()).filter(Boolean);
   const frequentNames = (() => {
     const count = new Map();
     for (const r of allRounds) {

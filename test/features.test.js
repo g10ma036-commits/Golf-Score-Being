@@ -136,7 +136,10 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   assert.match(overall, /スコア: /);
   assert.match(overall, /秘密のメモ/); // メモはチェックしたときだけ
   assert.equal(overall.includes('クラブと飛距離'), false);
-  const rd = ai.buildAiPrompt(data, { purpose: 'round', roundId: 1, holes: true });
+  // 条件別：2 つ以上に分かれるものだけ（3 ラウンドとも秋なので季節は出ない）
+  assert.match(overall, /## 条件別の平均スコア（18ホールのラウンド）\n- 曜日：平日 [\d.]+（2回）、土日 [\d.]+（1回）\n\n/);
+  assert.equal(overall.includes('季節：'), false);
+  const rd =ai.buildAiPrompt(data, { purpose: 'round', roundId: 1, holes: true });
   assert.match(rd, /対象のラウンド/);
   assert.match(rd, /2026\/9\/1（火） ・ テストカントリー/);
   assert.match(rd, /いつもの私/);
@@ -367,4 +370,23 @@ test('ティーショットのクラブ別：回数・FWキープ率・OB率・�
   assert.equal(t[0].penaltyRate, 0.5);
   assert.equal(t[0].toPar, 2);
   assert.equal(t[1].toPar, 0);
+});
+
+test('条件別のスコア：天気・季節・曜日・ティー・同伴者（18ホールのラウンドだけ）', () => {
+  const rs = [
+    { ...round(1, '2026-04-04', [1]), weather: '晴れ', companions: '田中さん、佐藤さん' }, // 土曜 90
+    { ...round(2, '2026-04-08', [2]), weather: '雨', companions: '田中さん', party: [{ name: '鈴木さん', strokes: [] }] }, // 水曜 108
+    { ...round(3, '2026-07-12', [0]), weather: '晴れ', tee: 'バック', companions: '田中さん', party: [{ name: '鈴木さん', strokes: [] }] }, // 日曜 72
+    { id: 4, date: '2026-07-13', weather: '雨', course_name: '9H', holes: PARS.slice(0, 9).map((par, i) => ({ hole_no: i + 1, par, strokes: par })) }, // 9H は数えない
+  ];
+  const w = stats.conditionStats(rs, 'weather');
+  assert.equal(w.total, 3);
+  assert.equal(w.overall, 90);
+  assert.deepEqual(w.rows.map((r) => [r.key, r.n, r.avg, r.best, r.diff]), [['晴れ', 2, 81, 72, -9], ['雨', 1, 108, 108, 18]]);
+  assert.deepEqual(stats.conditionStats(rs, 'season').rows.map((r) => r.key), ['春（3〜5月）', '夏（6〜8月）']);
+  assert.deepEqual(stats.conditionStats(rs, 'day').rows.map((r) => [r.key, r.n]), [['平日', 1], ['土日', 2]]);
+  // 同伴者：2 回以上だけ・同伴者のスコアの名前も数える・同じラウンドで重複して数えない
+  assert.deepEqual(stats.conditionStats(rs, 'companion').rows.map((r) => [r.key, r.n]), [['田中さん', 3], ['鈴木さん', 2]]);
+  assert.deepEqual(stats.conditionStats(rs, 'tee').rows.map((r) => r.key), ['バック']);
+  assert.deepEqual(stats.splitNames(' 田中さん、佐藤さん,鈴木さん・高橋さん '), ['田中さん', '佐藤さん', '鈴木さん', '高橋さん']);
 });

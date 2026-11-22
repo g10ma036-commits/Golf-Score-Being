@@ -3,12 +3,13 @@ import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '.
 import { api } from '../api.js';
 import {
   summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, teeClubStats, PERIODS,
+  conditionStats, CONDITIONS,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
 import { navigate } from '../main.js';
 
-const state = { period: 'all', course: '' };
+const state = { period: 'all', course: '', cond: 'weather' };
 
 // ミスの影響：良い場合とミスの場合の「ホールあたりのパー比」を棒で並べ、ミス 1 回・1 ラウンドあたりの損失を示す
 const sgn = (v, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}`;
@@ -83,6 +84,23 @@ function courseTable(sums) {
       <tbody>${rows.map((r) => html`<tr ${r.courseId ? html`class="link" data-course="${r.courseId}"` : ''}><td class="wrap">${r.name}</td><td class="r">${r.n}</td><td class="r">${fmt(r.avg, 1)}</td><td class="r">${r.best ?? '—'}</td>
         <td class="r hide-sm">${fmt(r.putts, 1)}</td><td class="r">${r.tph != null ? sgn(r.tph, 2) : '—'}</td></tr>`)}</tbody></table></div>
   </div>`;
+}
+
+// 条件別のスコア（天気・季節・曜日・ティー・同伴者）。2 つ以上に分かれて比べられる条件だけボタンを出す
+function drawConditions(box, list) {
+  const avail = CONDITIONS.map(([k, l]) => ({ k, l, res: conditionStats(list, k) })).filter((c) => c.res.rows.length >= 2);
+  if (!avail.length || avail[0].res.total < 3) { box.innerHTML = ''; return; }
+  if (!avail.some((c) => c.k === state.cond)) state.cond = avail[0].k;
+  const cur = avail.find((c) => c.k === state.cond);
+  const note = { day: '祝日は平日として数えます。', companion: '2回以上一緒に回った人だけ。同伴者の名前は AI 分析には含めません。' }[cur.k] || '';
+  mount(box, html`<div class="card section">
+    <div class="card-header"><div><h2>条件別のスコア</h2><div class="sub">18ホールの平均。「差」は全体の平均 ${fmt(cur.res.overall, 1)} との比較（マイナスほど良い）</div></div></div>
+    <div class="seg cond-seg" role="group" aria-label="比べる条件">${avail.map((c) => html`<button type="button" data-cond="${c.k}" class="${c.k === cur.k ? 'on' : ''}" aria-pressed="${c.k === cur.k}">${c.l}</button>`)}</div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>${cur.l}</th><th class="r">回数</th><th class="r">平均</th><th class="r">ベスト</th><th class="r">差</th></tr></thead>
+      <tbody>${cur.res.rows.map((r) => html`<tr><td class="wrap">${r.key}</td><td class="r">${r.n}</td><td class="r">${fmt(r.avg, 1)}</td><td class="r">${r.best}</td><td class="r">${sgn(r.diff, 1)}</td></tr>`)}</tbody></table></div>
+    <p class="small muted" style="margin-top:8px">${note}回数が少ないうちは、偶然の差が大きく出ます。</p>
+  </div>`);
+  $$('[data-cond]', box).forEach((b) => b.addEventListener('click', () => { state.cond = b.dataset.cond; drawConditions(box, list); }));
 }
 
 export async function render(root) {
@@ -167,6 +185,7 @@ export async function render(root) {
       ${practiceCard(impact)}
       ${teeClubCard(teeClubStats(list))}
       ${courseTable(sums)}
+      <div id="cond-box"></div>
 
       <div class="grid grid-2 section">
         <div class="card">
@@ -190,6 +209,7 @@ export async function render(root) {
     `);
     $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
     $$('tr[data-course]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/courses/${tr.dataset.course}`)));
+    drawConditions($('#cond-box', body), list);
 
     setupChart(body, 'trend', (el) => lineChart(el, {
       labels: complete.map((s) => shortDate(s.date)),

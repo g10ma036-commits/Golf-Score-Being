@@ -567,3 +567,51 @@ export function teeClubStats(rounds) {
     };
   }).sort((a, b) => b.n - a.n);
 }
+
+// ---------- 条件別のスコア（18 ホール回ったラウンド） ----------
+// 同伴者の欄の名前の区切り（例:「田中さん、佐藤さん」）
+export const splitNames = (s) => String(s || '').split(/[、,，・\s]+/).map((x) => x.trim()).filter(Boolean);
+export const CONDITIONS = [['weather', '天気'], ['season', '季節'], ['day', '曜日'], ['tee', 'ティー'], ['companion', '同伴者']];
+const SEASONS = ['春（3〜5月）', '夏（6〜8月）', '秋（9〜11月）', '冬（12〜2月）'];
+const seasonOf = (m) => SEASONS[m >= 3 && m <= 5 ? 0 : m >= 6 && m <= 8 ? 1 : m >= 9 && m <= 11 ? 2 : 3];
+const CONDITION_ORDER = { weather: ['晴れ', '曇り', '雨', '雪', '強風'], season: SEASONS, day: ['平日', '土日'] };
+const conditionKeys = (r, by) => {
+  if (by === 'weather') return r.weather ? [r.weather] : [];
+  if (by === 'season') return [seasonOf(Number(r.date.slice(5, 7)))];
+  if (by === 'day') {
+    const [y, m, d] = r.date.split('-').map(Number);
+    const w = new Date(y, m - 1, d).getDay();
+    return [w === 0 || w === 6 ? '土日' : '平日'];
+  }
+  if (by === 'tee') return r.tee && r.tee.trim() ? [r.tee.trim()] : [];
+  if (by === 'companion') return [...new Set([...splitNames(r.companions), ...(r.party || []).map((p) => p.name)])];
+  return [];
+};
+// rows: [{ key, n, avg, best, diff }]。diff は全体の平均との差（マイナスほど良い）。
+// 同伴者は 2 回以上一緒に回った人だけ、回数の多い順に 10 人まで
+export function conditionStats(rounds, by) {
+  const groups = new Map();
+  const all = [];
+  for (const r of rounds) {
+    const s = summarize(r);
+    if (!s.complete) continue;
+    all.push(s.strokes);
+    for (const k of conditionKeys(r, by)) {
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(s.strokes);
+    }
+  }
+  const overall = mean(all);
+  let rows = [...groups.entries()].map(([key, xs]) => {
+    const avg = mean(xs);
+    return { key, n: xs.length, avg, best: Math.min(...xs), diff: overall == null ? null : avg - overall };
+  });
+  const order = CONDITION_ORDER[by];
+  if (order) {
+    const pos = (k) => { const i = order.indexOf(k); return i < 0 ? order.length : i; };
+    rows.sort((a, b) => pos(a.key) - pos(b.key) || b.n - a.n);
+  } else {
+    rows = rows.filter((r) => by !== 'companion' || r.n >= 2).sort((a, b) => b.n - a.n || a.avg - b.avg).slice(0, 10);
+  }
+  return { rows, overall, total: all.length };
+}

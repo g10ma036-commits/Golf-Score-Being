@@ -551,3 +551,7 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 /* よく一緒に回る人 */
 .name-chips { margin-top: 8px; }
 .name-chips .chip { min-width: 0; height: 40px; font-size: 14px; font-weight: 600; padding: 0 12px; border-radius: 999px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 条件別のスコア：狭い画面では条件のボタンを等幅で横いっぱいに */
+.cond-seg { display: flex; margin-bottom: 10px; width: fit-content; max-width: 100%; }
+.cond-seg button { min-height: 36px; white-space: nowrap; }
+@media (max-width: 480px) { .cond-seg { width: 100%; } .cond-seg button { flex: 1 1 0; padding: 5px 2px; min-width: 0; } }
