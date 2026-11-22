@@ -83,7 +83,7 @@ export async function render(root) {
       </div>
     </div>
     ${draftNotice}
-    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：AI分析・攻略シート・ミスの影響・同伴者のスコア・テーマカラーなど</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
+    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：文字の大きさ・条件別のスコア・距離別の成績・よく一緒に回る人など</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
     ${sampleNoticeHtml(sample)}
     ${guide}
     ${reminder ? html`<div class="notice" id="backup-notice">
