@@ -105,6 +105,7 @@ export async function render(root, [idStr]) {
     ['パット（18H換算）', sum.puttHoles ? n18(sum.putts, sum.puttHoles) : null, base.puttsPerRound, 'lower', (v) => fmt(v, 1)],
     ['FWキープ率', sum.fwTotal ? sum.fwHit / sum.fwTotal : null, base.fwRate, 'higher', (v) => pct(v)],
     ['パーオン率', sum.girKnown ? sum.gir / sum.girKnown : null, base.girRate, 'higher', (v) => pct(v)],
+    ['ボギーオン率', sum.girKnown ? sum.bogeyOn / sum.girKnown : null, base.bogeyOnRate, 'higher', (v) => pct(v)],
     ['リカバリー率', sum.scrChances ? sum.scrSaves / sum.scrChances : null, base.scrambleRate, 'higher', (v) => pct(v)],
     ['3パット（18H換算）', sum.puttHoles ? n18(sum.threePutts, sum.puttHoles) : null, base.threePuttsPerRound, 'lower', (v) => fmt(v, 1)],
     ['OB・ペナ（18H換算）', sum.holes ? n18(sum.penalties, sum.holes) : null, base.penaltiesPerRound, 'lower', (v) => fmt(v, 1)],
