@@ -519,8 +519,8 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 
 /* テーマカラーの選択（設定） */
 .accent-pick { display: flex; flex-wrap: wrap; gap: 10px; }
-.ac-sw { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; min-width: 56px; }
-.ac-sw input { position: absolute; opacity: 0; pointer-events: none; }
+.ac-sw { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; min-width: 56px; }
+.ac-sw input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
 .ac-sw .sw { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--surface-1); box-shadow: 0 0 0 1px var(--border-strong); }
 .ac-sw input:checked + .sw { box-shadow: 0 0 0 3px var(--text-primary); }
 .ac-sw input:focus-visible + .sw { outline: 2px solid var(--focus); outline-offset: 3px; }
