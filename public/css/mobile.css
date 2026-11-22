@@ -467,3 +467,5 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 .bulk-club > span { display: flex; flex-direction: column; min-width: 0; }
 .bulk-club .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 760px) { .bulk-clubs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bulk-club { padding: 6px 8px; gap: 8px; } .bulk-club .small { font-size: 11px; } }
+.brand-pick { display: flex; flex-direction: column; gap: 6px; }
+.brand-pick select, .brand-pick input { width: 100%; }

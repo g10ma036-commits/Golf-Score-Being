@@ -1,5 +1,5 @@
 // クラブセッティング
-import { html, mount, $, $$, fmt, icon, openModal, confirmDialog, toast, errorToast, numOrNull, formObject, CLUB_CATEGORIES, clubCategoryLabel } from '../util.js';
+import { html, raw, mount, $, $$, fmt, icon, openModal, confirmDialog, toast, errorToast, numOrNull, formObject, CLUB_CATEGORIES, clubCategoryLabel } from '../util.js';
 import { api, getSettings, unit } from '../api.js';
 import { hBarChart, chartCard, setupChart } from '../charts.js';
 
@@ -177,6 +177,44 @@ function fmtDist(c, u) {
 // メーカー・モデル・シャフト・フレックスなど、ほかのクラブと同じことが多い項目
 const SPEC_FIELDS = [['brand', 'メーカー'], ['model', 'モデル'], ['shaft', 'シャフト'], ['flex', 'フレックス']];
 const uniq = (list) => [...new Set(list.filter(Boolean))];
+
+// 主なメーカー（最初から選べる）。一覧にないメーカーは「その他（入力する）」で入力
+export const MAJOR_BRANDS = [
+  'テーラーメイド', 'キャロウェイ', 'タイトリスト', 'ピン', 'スリクソン', 'ゼクシオ', 'ダンロップ', 'ブリヂストン', 'ヤマハ', 'ミズノ',
+  '本間ゴルフ', 'プロギア', 'コブラ', 'クリーブランド', 'オデッセイ', 'スコッティ・キャメロン', 'フォーティーン', 'マジェスティ',
+  'オノフ', 'エポン', '三浦技研', 'PXG', 'ウィルソン',
+];
+// シャフトの入力候補（自由に入力もできる）
+const SHAFT_HINTS = ['純正カーボン', '純正スチール', 'N.S.PRO 950GH neo', 'N.S.PRO MODUS3 TOUR 105', 'N.S.PRO MODUS3 TOUR 120', 'ダイナミックゴールド', 'ダイナミックゴールド 105', 'KBS TOUR', 'Tour AD', 'Speeder NX', 'VENTUS', 'Diamana', 'TENSEI'];
+
+// メーカーの選択欄（登録済みのメーカー → 主なメーカー → その他）。実際の値は隣の入力欄（inputAttrs）に入る
+function brandPicker(value, used, inputAttrs, emptyLabel = '選んでください') {
+  const preset = MAJOR_BRANDS.filter((b) => !used.includes(b));
+  const other = Boolean(value) && !used.includes(value) && !MAJOR_BRANDS.includes(value);
+  const opt = (b) => html`<option value="${b}" ${b === value ? 'selected' : ''}>${b}</option>`;
+  return html`<div class="brand-pick">
+    <select data-brand-select aria-label="メーカーを選ぶ">
+      <option value="">${emptyLabel}</option>
+      ${used.length ? html`<optgroup label="登録済みのメーカー">${used.map(opt)}</optgroup>` : ''}
+      <optgroup label="主なメーカー">${preset.map(opt)}</optgroup>
+      <option value="__other" ${other ? 'selected' : ''}>その他（入力する）</option>
+    </select>
+    <input ${raw(inputAttrs)} value="${value || ''}" placeholder="メーカー名を入力" ${other ? '' : raw('hidden')}>
+  </div>`;
+}
+// 選択欄と入力欄をつなぐ。返り値は「入力欄の値を選択欄に反映する」関数（コピーしたときに使う）
+function bindBrandPicker(wrap) {
+  const sel = $('[data-brand-select]', wrap);
+  const input = $('input', wrap);
+  sel.addEventListener('change', () => {
+    if (sel.value === '__other') { input.hidden = false; input.value = ''; input.focus(); } else { input.value = sel.value; input.hidden = true; }
+  });
+  return () => {
+    const v = input.value.trim();
+    sel.value = !v ? '' : [...sel.options].some((o) => o.value === v) ? v : '__other';
+    input.hidden = sel.value !== '__other';
+  };
+}
 const specText = (c) => [c.brand, c.model, c.shaft, c.flex].filter(Boolean).join(' / ');
 
 // まとめて設定：選んだクラブのメーカー・モデル・シャフト・フレックスを一度に書き換える（空欄の項目は変えない）
@@ -194,13 +232,16 @@ function openBulkSpec(clubs) {
         <div class="bulk-clubs">${clubs.map((c) => html`<label class="bulk-club"><input type="checkbox" data-club="${c.id}"><span><strong>${c.name}</strong><span class="small muted">${specText(c) || '未設定'}${c.in_bag ? '' : '（保管中）'}</span></span></label>`)}</div>
         <h3 style="margin:16px 0 6px">2. 入れる内容（空欄の項目は変えません）</h3>
         ${sources.length ? html`<label class="field" style="margin-bottom:8px"><span>ほかのクラブからコピー</span><select data-bulk-copy><option value="">—</option>${sources.map((c) => html`<option value="${c.id}">${c.name}：${specText(c)}</option>`)}</select></label>` : ''}
-        <div class="form-grid">${SPEC_FIELDS.map(([k, l]) => html`<label class="field"><span>${l}</span><input data-spec="${k}" maxlength="${k === 'flex' ? 20 : 100}" list="bulk-${k}-list"></label>
-          <datalist id="bulk-${k}-list">${uniq(clubs.map((c) => c[k])).map((v) => html`<option value="${v}">`)}</datalist>`)}</div>`,
+        <div class="form-grid">${SPEC_FIELDS.map(([k, l]) => (k === 'brand'
+          ? html`<div class="field"><span>${l}</span>${brandPicker('', uniq(clubs.map((c) => c.brand)), 'data-spec="brand" maxlength="100" aria-label="メーカー"', '変えない')}</div>`
+          : html`<label class="field"><span>${l}</span><input data-spec="${k}" maxlength="${k === 'flex' ? 20 : 100}" list="bulk-${k}-list" placeholder="空欄なら変えない"></label>
+          <datalist id="bulk-${k}-list">${uniq([...clubs.map((c) => c[k]), ...(k === 'shaft' ? SHAFT_HINTS : k === 'flex' ? ['L', 'A', 'R', 'SR', 'S', 'X'] : [])]).map((v) => html`<option value="${v}">`)}</datalist>`))}</div>`,
       footer: html`<button class="btn" data-bulk-cancel>キャンセル</button><button class="btn btn-primary" data-bulk-save>選んだクラブに設定</button>`,
       onClose: () => resolve(changed),
     });
     const boxes = $$('[data-club]', m.el);
     const btn = $('[data-bulk-save]', m.el);
+    const syncBulkBrand = bindBrandPicker($('.brand-pick', m.el));
     const sync = () => {
       const n = boxes.filter((b) => b.checked).length;
       btn.textContent = n ? `選んだ ${n} 本に設定` : '選んだクラブに設定';
@@ -218,6 +259,7 @@ function openBulkSpec(clubs) {
     $('[data-bulk-copy]', m.el)?.addEventListener('change', (e) => {
       const src = sources.find((c) => c.id === Number(e.target.value));
       if (src) for (const [k] of SPEC_FIELDS) $(`[data-spec="${k}"]`, m.el).value = src[k] || '';
+      syncBulkBrand();
     });
     $('[data-bulk-cancel]', m.el).addEventListener('click', () => m.close());
     btn.addEventListener('click', async () => {
@@ -257,14 +299,13 @@ export function openClubEditor(club, clubs = []) {
         <div class="form-grid">
         <label class="field"><span>種類 *</span><select name="category" required>${CLUB_CATEGORIES.map(([k, l]) => html`<option value="${k}" ${club?.category === k ? 'selected' : ''}>${l}</option>`)}</select></label>
         <label class="field"><span>番手・名前 *</span><input name="name" required maxlength="50" list="club-names" value="${club?.name || ''}" placeholder="例: 7I"><datalist id="club-names"></datalist></label>
-        <label class="field"><span>メーカー</span><input name="brand" maxlength="100" list="brand-list" value="${club?.brand || ''}"></label>
+        <div class="field"><span>メーカー</span>${brandPicker(club?.brand || '', uniq(clubs.map((c) => c.brand)), 'name="brand" maxlength="100" aria-label="メーカー"')}</div>
         <label class="field"><span>モデル</span><input name="model" maxlength="100" list="model-list" value="${club?.model || ''}"></label>
         <label class="field"><span>ロフト（°）</span><input name="loft" type="number" step="0.5" min="0" max="80" value="${club?.loft ?? ''}"></label>
         <label class="field"><span>長さ（インチ）</span><input name="length" type="number" step="0.25" min="20" max="52" value="${club?.length ?? ''}"></label>
         <label class="field"><span>シャフト</span><input name="shaft" maxlength="100" list="shaft-list" value="${club?.shaft || ''}" placeholder="例: カーボン 60g"></label>
-        <datalist id="brand-list">${uniq(clubs.map((c) => c.brand)).map((v) => html`<option value="${v}">`)}</datalist>
         <datalist id="model-list">${uniq(clubs.map((c) => c.model)).map((v) => html`<option value="${v}">`)}</datalist>
-        <datalist id="shaft-list">${uniq(clubs.map((c) => c.shaft)).map((v) => html`<option value="${v}">`)}</datalist>
+        <datalist id="shaft-list">${uniq([...clubs.map((c) => c.shaft), ...SHAFT_HINTS]).map((v) => html`<option value="${v}">`)}</datalist>
         <label class="field"><span>フレックス</span><input name="flex" maxlength="20" list="flex-list" value="${club?.flex || ''}">
           <datalist id="flex-list"><option value="L"><option value="A"><option value="R"><option value="SR"><option value="S"><option value="X"></datalist></label>
         <label class="field"><span>想定飛距離（キャリー ${u}）</span><input name="target_carry" type="number" min="0" max="450" value="${club?.target_carry ?? ''}"></label>
@@ -279,6 +320,7 @@ export function openClubEditor(club, clubs = []) {
     form.category.addEventListener('change', fillHints);
     fillHints();
     // 同じ種類のクラブを、コピー元の候補の先頭に並べる
+    const syncBrand = bindBrandPicker($('.brand-pick', form));
     const copySel = $('[data-copy-from]', m.el);
     const sortSources = () => {
       if (!copySel) return;
@@ -292,6 +334,7 @@ export function openClubEditor(club, clubs = []) {
       const src = sources.find((c) => c.id === Number(copySel.value));
       if (!src) return;
       for (const [k] of SPEC_FIELDS) form[k].value = src[k] || '';
+      syncBrand();
       toast(`${src.name} のメーカー・モデル・シャフト・フレックスを入れました`);
     });
     $('[data-cancel]', m.el).addEventListener('click', () => m.close());
