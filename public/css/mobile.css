@@ -547,3 +547,6 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 .lightbox.playing .lb-nav { opacity: .3; }
 .tee-club-row { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .chips.tee-clubs .chip { min-width: 48px; height: 40px; font-size: 14px; padding: 0 10px; }
+/* よく一緒に回る人 */
+.name-chips { margin-top: 8px; }
+.name-chips .chip { min-width: 0; height: 40px; font-size: 14px; font-weight: 600; padding: 0 12px; border-radius: 999px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

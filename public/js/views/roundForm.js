@@ -32,6 +32,15 @@ export async function render(root, params) {
   // ティーショットのクラブの選択肢：バッグのドライバー・ウッド・ユーティリティ（なければ一般的な名前）＋「アイアン」
   const woods = clubs.filter((c) => c.in_bag && ['driver', 'wood', 'hybrid'].includes(c.category)).map((c) => c.name);
   const teeClubOptions = [...new Set([...(woods.length ? woods : ['1W', 'FW', 'UT']), 'アイアン'])].slice(0, 7);
+  // よく一緒に回る人：過去の同伴者の欄と同伴者のスコアの名前から、回数の多い順に
+  const splitNames = (s) => String(s || '').split(/[、,，・\s]+/).map((x) => x.trim()).filter(Boolean);
+  const frequentNames = (() => {
+    const count = new Map();
+    for (const r of allRounds) {
+      for (const n of new Set([...splitNames(r.companions), ...(r.party || []).map((p) => p.name)])) count.set(n, (count.get(n) || 0) + 1);
+    }
+    return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja')).slice(0, 8).map(([n]) => n);
+  })();
 
   const meta = {
     date: round?.date || today(),
@@ -213,7 +222,8 @@ export async function render(root, params) {
             <label class="field"><span>ティー</span><input name="tee" list="tee-list" value="${meta.tee}" placeholder="例: レギュラー">
               <datalist id="tee-list"><option value="レギュラー"><option value="バック"><option value="フロント"><option value="レディース"><option value="チャンピオン"></datalist></label>
             <label class="field"><span>天気</span><select name="weather"><option value="">—</option>${WEATHERS.map((w) => html`<option ${w === meta.weather ? 'selected' : ''}>${w}</option>`)}</select></label>
-            <label class="field" style="grid-column:span 2"><span>同伴者</span><input name="companions" value="${meta.companions}" maxlength="300" placeholder="例: 田中さん、佐藤さん"></label>
+            <div class="field" style="grid-column:span 2"><label for="companions">同伴者</label><input id="companions" name="companions" value="${meta.companions}" maxlength="300" placeholder="例: 田中さん、佐藤さん">
+              ${frequentNames.length ? html`<div class="chips name-chips" role="group" aria-label="よく一緒に回る人（タップで追加・もう一度で外す）">${frequentNames.map((n) => html`<button type="button" class="chip" data-name="${n}" aria-pressed="false">${n}</button>`)}</div>` : ''}</div>
             <label class="field wide"><span>メモ・振り返り</span><textarea name="memo" rows="2" maxlength="4000" placeholder="良かった点・反省点など">${meta.memo}</textarea></label>
           </div>
         </details>
@@ -317,6 +327,25 @@ export async function render(root, params) {
     const fd = new FormData(form);
     $('#more-summary', form).textContent = moreSummary({ tee: fd.get('tee'), weather: fd.get('weather'), companions: fd.get('companions'), memo: fd.get('memo') });
   });
+  // よく一緒に回る人のチップ：タップで同伴者の欄に追加、もう一度タップで外す
+  const syncNameChips = () => {
+    const names = splitNames(form.companions.value);
+    $$('[data-name]', form).forEach((b) => {
+      const on = names.includes(b.dataset.name);
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  };
+  $$('[data-name]', form).forEach((b) => b.addEventListener('click', () => {
+    const names = splitNames(form.companions.value);
+    const n = b.dataset.name;
+    const next = names.includes(n) ? names.filter((x) => x !== n) : [...names, n];
+    form.companions.value = next.join('、').slice(0, 300);
+    form.dispatchEvent(new Event('change')); // まとめ表示の更新と下書きの保存
+  }));
+  form.companions.addEventListener('input', syncNameChips);
+  form.addEventListener('change', syncNameChips);
+  syncNameChips();
 
   // Enter で スコア → パット → 次のホールのスコア へ
   form.addEventListener('keydown', (e) => {
@@ -534,9 +563,9 @@ export async function render(root, params) {
   };
 
   // ---- 同伴者のスコア ----
-  // 同伴者の欄（例:「田中さん、佐藤さん」）から名前の候補を作る
-  const nameCandidates = () => String(new FormData(form).get('companions') || '')
-    .split(/[、,，・\s]+/).map((s) => s.trim()).filter((s) => s && !party.some((p) => p.name === s)).slice(0, 6);
+  // 同伴者の欄（例:「田中さん、佐藤さん」）とよく一緒に回る人から名前の候補を作る
+  const nameCandidates = () => [...new Set([...splitNames(form.companions.value), ...frequentNames])]
+    .filter((s) => s.length <= 30 && !party.some((p) => p.name === s)).slice(0, 8);
   const editPartyMember = (i) => {
     const p = i == null ? null : party[i];
     const cands = p ? [] : nameCandidates();

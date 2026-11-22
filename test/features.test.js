@@ -192,6 +192,12 @@ test('スコアの CSV：1行 = 1ラウンド、カンマや改行を含む文�
   assert.match(csv, /"A,B カントリー"/);
   assert.match(csv, /"1行目\n""2行目"""/);
   assert.match(csv, /2026-05-01,"A,B カントリー",,,,田中さん,18,90,72,18,45,45,36,/);
+  assert.match(rows[0], /,メモ,ホールのメモ,1番,/);
+  // ホールのメモはホール番号の順に 1 つの欄へ（メモが無いラウンドは空欄）
+  const noted = { ...round(3, '2026-06-01', [1]) };
+  noted.holes = noted.holes.map((h) => (h.hole_no === 7 ? { ...h, note: '池に入れた' } : h.hole_no === 2 ? { ...h, note: '3パット' } : h));
+  const csv2 = roundsCsv([noted]).slice(1).trim().split('\r\n')[1];
+  assert.match(csv2, /,2番: 3パット／7番: 池に入れた,/);
 });
 
 test('スコアの分布（5打ごと）とハンディキャップの推移', () => {

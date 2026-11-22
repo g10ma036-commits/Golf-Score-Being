@@ -49,7 +49,8 @@ export async function render(root) {
       if (state.course && key !== state.course) return false;
       if (state.q) {
         const q = state.q.toLowerCase();
-        if (![r.companions, r.memo, r.course_name, r.tee].some((v) => v && v.toLowerCase().includes(q))) return false;
+        const texts = [r.companions, r.memo, r.course_name, r.tee, ...(r.party || []).map((p) => p.name), ...(r.holes || []).map((h) => h.note)];
+        if (!texts.some((v) => v && v.toLowerCase().includes(q))) return false;
       }
       return true;
     });
