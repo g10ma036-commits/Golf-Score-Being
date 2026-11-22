@@ -546,3 +546,24 @@ export function shotImpact(rounds) {
   // 1 ラウンドあたりの損失が大きい順（パーオンは最後）
   return out.sort((a, b) => (b.perRound ?? -Infinity) - (a.perRound ?? -Infinity));
 }
+
+// ---------- ティーショットのクラブ別（パー4・5） ----------
+export function teeClubStats(rounds) {
+  const by = new Map();
+  for (const r of rounds) {
+    for (const h of r.holes || []) {
+      if (!played(h) || h.par < 4 || !h.tee_club) continue;
+      if (!by.has(h.tee_club)) by.set(h.tee_club, []);
+      by.get(h.tee_club).push(h);
+    }
+  }
+  return [...by.entries()].map(([club, hs]) => {
+    const fw = hs.filter((h) => h.fairway);
+    return {
+      club, n: hs.length,
+      fwRate: fw.length ? fw.filter((h) => h.fairway === 'hit').length / fw.length : null,
+      penaltyRate: hs.filter((h) => h.penalties > 0).length / hs.length,
+      toPar: mean(hs.map((h) => h.strokes - h.par)),
+    };
+  }).sort((a, b) => b.n - a.n);
+}

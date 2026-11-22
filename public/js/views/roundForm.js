@@ -8,7 +8,7 @@ import { uploadPhotos, isImageFile } from './photoTools.js';
 import { loadDraft, saveDraft, clearDraft, draftText, draftTime, draftHref } from '../draft.js';
 import { parseParty, parseNextRound, MAX_PARTY } from '../shared/model.js';
 
-const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker', 'note'];
+const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker', 'note', 'tee_club'];
 const META_TEXT = ['date', 'course_name', 'tee', 'weather', 'companions', 'memo'];
 const finiteOr = (v, d = null) => (Number.isFinite(v) ? v : d);
 
@@ -29,6 +29,9 @@ export async function render(root, params) {
     api.get('/api/clubs').catch(() => []),
   ]);
   const goal = Number(settings.goal) || null;
+  // ティーショットのクラブの選択肢：バッグのドライバー・ウッド・ユーティリティ（なければ一般的な名前）＋「アイアン」
+  const woods = clubs.filter((c) => c.in_bag && ['driver', 'wood', 'hybrid'].includes(c.category)).map((c) => c.name);
+  const teeClubOptions = [...new Set([...(woods.length ? woods : ['1W', 'FW', 'UT']), 'アイアン'])].slice(0, 7);
 
   const meta = {
     date: round?.date || today(),
@@ -53,6 +56,7 @@ export async function render(root, params) {
       penalties: h?.penalties ?? null,
       bunker: h?.bunker ?? null,
       note: h?.note ?? null,
+      tee_club: h?.tee_club ?? null,
     };
   });
 
@@ -72,6 +76,7 @@ export async function render(root, params) {
         if (k === 'fairway') holes[i].fairway = FW_CYCLE.includes(d.fairway) ? d.fairway : null;
         else if (k === 'par') holes[i].par = finiteOr(d.par, holes[i].par);
         else if (k === 'note') holes[i].note = typeof d.note === 'string' && d.note.trim() ? d.note.slice(0, 200) : null;
+        else if (k === 'tee_club') holes[i].tee_club = typeof d.tee_club === 'string' && d.tee_club ? d.tee_club.slice(0, 30) : null;
         else holes[i][k] = finiteOr(d[k]);
       }
     });
@@ -419,7 +424,8 @@ export async function render(root, params) {
         ${played(h) && Number.isFinite(h.putts) && h.putts >= h.strokes ? html`<div class="he-warn" role="alert">⚠ パット数がスコア以上になっています（このままでは保存できません）</div>` : ''}</div>
       <div class="he-row"><div class="he-label">ティーショット</div>
         <div class="chips fw">${h.par === 3 ? html`<span class="muted small">パー3は対象外</span>`
-          : [['left', '← 左'], ['hit', raw('○ FW<wbr>キープ')], ['right', '右 →']].map(([v, l]) => chip('fairway', v, h.fairway === v, l))}</div></div>
+          : [['left', '← 左'], ['hit', raw('○ FW<wbr>キープ')], ['right', '右 →']].map(([v, l]) => chip('fairway', v, h.fairway === v, l))}</div>
+        ${h.par >= 4 ? html`<div class="tee-club-row"><span class="small muted">使ったクラブ（任意）</span><div class="chips tee-clubs">${teeClubOptions.map((name) => chip('tee_club', name, h.tee_club === name, name))}</div></div>` : ''}</div>
       <div class="he-row he-two">
         <div><div class="he-label">OB・ペナルティ</div>${stepper('penalties', h.penalties ?? 0, 'OB・ペナルティ')}</div>
         <div><div class="he-label">バンカー</div>${stepper('bunker', h.bunker ?? 0, 'バンカー')}</div>
@@ -473,10 +479,10 @@ export async function render(root, params) {
     navigator.vibrate?.(8); // 押した手応え（対応している Android のみ）
     if (b.dataset.field) {
       const f = b.dataset.field;
-      let v = f === 'fairway' ? b.dataset.value : Number(b.dataset.value);
+      let v = f === 'fairway' || f === 'tee_club' ? b.dataset.value : Number(b.dataset.value);
       if (h[f] === v && f !== 'par') v = null; // もう一度押すと解除
       h[f] = v;
-      if (f === 'par' && v === 3) h.fairway = null;
+      if (f === 'par' && v === 3) { h.fairway = null; h.tee_club = null; }
     } else if (b.dataset.step) {
       const f = b.dataset.step;
       const d = Number(b.dataset.d);

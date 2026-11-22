@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS round_holes (
   penalties INTEGER,
   bunker    INTEGER,
   note      TEXT,     -- このラウンドでのホールのメモ
+  tee_club  TEXT,     -- ティーショットで使ったクラブ
   PRIMARY KEY (round_id, hole_no)
 );
 
@@ -152,6 +153,7 @@ function migrate(raw) {
   // ホールの攻略メモ（後から追加した列）
   if (!cols('course_holes').includes('memo')) raw.exec('ALTER TABLE course_holes ADD COLUMN memo TEXT');
   if (!cols('round_holes').includes('note')) raw.exec('ALTER TABLE round_holes ADD COLUMN note TEXT'); // ラウンドのホールのメモ（後から追加した列）
+  if (!cols('round_holes').includes('tee_club')) raw.exec('ALTER TABLE round_holes ADD COLUMN tee_club TEXT'); // ティーショットのクラブ（後から追加した列）
 }
 
 function openDb(file) {

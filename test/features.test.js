@@ -345,3 +345,20 @@ test('ボギーオン率・パーオン時のパット・リカバリー率の�
   assert.equal(a.puttsPerGir, 2);
   assert.equal(a.scrambleRate, 1 / 3);
 });
+
+test('ティーショットのクラブ別：回数・FWキープ率・OB率・パー比', () => {
+  const holes = [
+    { hole_no: 1, par: 4, strokes: 5, fairway: 'hit', tee_club: '1W' },
+    { hole_no: 2, par: 4, strokes: 7, fairway: 'right', penalties: 1, tee_club: '1W' },
+    { hole_no: 3, par: 4, strokes: 4, fairway: 'hit', tee_club: '5W' },
+    { hole_no: 4, par: 3, strokes: 3, tee_club: '7I' }, // パー3 は数えない
+    { hole_no: 5, par: 5, strokes: 6, fairway: 'left' }, // クラブ未記録
+  ];
+  const t = stats.teeClubStats([{ id: 1, date: '2026-01-01', holes }]);
+  assert.deepEqual(t.map((x) => x.club), ['1W', '5W']);
+  assert.equal(t[0].n, 2);
+  assert.equal(t[0].fwRate, 0.5);
+  assert.equal(t[0].penaltyRate, 0.5);
+  assert.equal(t[0].toPar, 2);
+  assert.equal(t[1].toPar, 0);
+});

@@ -1,7 +1,7 @@
 // AI（ChatGPT・Claude・Gemini など）にスコアを分析してもらうための質問文（プロンプト）を作る。
 // ここでは文章を作るだけで、どこにも送信しない（利用者が自分でコピーして貼り付ける）。
 // 名前・同伴者は含めない。メモは利用者が選んだときだけ含める。
-import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan } from './stats.js';
+import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan, teeClubStats } from './stats.js';
 
 export const AI_PURPOSES = [
   { key: 'overall', label: '総合分析', desc: '強み・弱みと、スコアに一番影響していること', period: 'last20' },
@@ -265,6 +265,8 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
       const byCourse = new Map();
       for (const s of scope.map(summarize)) { const k = s.courseId ? `c${s.courseId}` : `n${s.course}`; if (!byCourse.has(k)) byCourse.set(k, { name: s.course || '不明', list: [] }); byCourse.get(k).list.push(s); }
       if (byCourse.size >= 2) add('## コース別の成績', 'コース,ラウンド数,平均スコア,ベスト,ホールあたりのパー比', ...[...byCourse.values()].map((c) => { const a = aggregate(c.list); return [c.name, c.list.length, f1(a.avgScore), a.best?.strokes ?? '—', a.holes ? sign(c.list.reduce((t, s) => t + s.toPar, 0) / a.holes, 2) : '—'].join(','); }), '');
+      const tee = teeClubStats(scope);
+      if (tee.length) add('## ティーショットのクラブ別（パー4・5）', 'クラブ,回数,FWキープ率,OB・ペナ率,平均パー比', ...tee.map((t) => [t.club, t.n, pc(t.fwRate), pc(t.penaltyRate), sign(t.toPar, 2)].join(',')), '');
       add(`# ラウンド一覧（新しい順${scope.length > MAX_LIST ? `・最新 ${MAX_LIST} 件` : ''}）`, ...roundListLines(scope.slice(0, MAX_LIST)), '');
       if (opts.holes) {
         add(`# ホールごとの記録（新しい順・最大 ${MAX_HOLE_ROUNDS} ラウンド）`);

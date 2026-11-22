@@ -278,6 +278,7 @@ test('古い版のデータベース（18 ホールまで）を開くと、27 �
     assert.equal(db.get('SELECT front_nine FROM rounds WHERE id = 1').front_nine, 3);
     db.run("UPDATE rounds SET party = '[]' WHERE id = 1"); // 同伴者のスコアの列も追加される
     assert.ok(db.all('PRAGMA table_info(round_holes)').some((c) => c.name === 'note')); // ラウンドのホールのメモの列も
+    assert.ok(db.all('PRAGMA table_info(round_holes)').some((c) => c.name === 'tee_club')); // ティーショットのクラブの列も
     db.run('DELETE FROM courses WHERE id = 1'); // 外部キー（ON DELETE CASCADE）も引き続き効く
     assert.equal(db.get('SELECT COUNT(*) AS n FROM course_holes').n, 0);
     db.close();

@@ -2,7 +2,7 @@
 import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '../util.js';
 import { api } from '../api.js';
 import {
-  summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, PERIODS,
+  summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, teeClubStats, PERIODS,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
@@ -47,6 +47,19 @@ function practiceCard(items) {
       <a class="btn btn-sm" href="#/ai?purpose=practice">${icon('ai')}AIに練習メニューを相談</a></div>
     ${picks.map((it) => html`<div class="pr-item"><div class="pr-head"><strong>${DRILLS[it.key].title}</strong><span class="small muted">1ラウンドで約 ${it.perRound.toFixed(1)} 打の差</span></div>
       <ul>${DRILLS[it.key].drills.map((d) => html`<li>${d}</li>`)}</ul></div>`)}
+  </div>`;
+}
+
+// ティーショットのクラブ別（パー4・5）。スコア入力で「使ったクラブ」を選ぶと集計される
+function teeClubCard(rows) {
+  if (!rows.length) {
+    return html`<div class="card section"><h2 style="margin-bottom:6px">ティーショットのクラブ別</h2>
+      <p class="small muted">スコア入力（1ホールずつ）のティーショットで「使ったクラブ」を選ぶと、ドライバーとウッド・UT のどちらが良い結果になっているかを比べられます。</p></div>`;
+  }
+  return html`<div class="card section">
+    <div class="card-header"><div><h2>ティーショットのクラブ別</h2><div class="sub">パー4・5。刻むべきかの判断に（回数が少ないうちは参考程度に）</div></div></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>クラブ</th><th class="r">回数</th><th class="r">FWキープ率</th><th class="r">OB・ペナ率</th><th class="r">平均パー比</th></tr></thead>
+      <tbody>${rows.map((r) => html`<tr><td><strong>${r.club}</strong></td><td class="r">${r.n}</td><td class="r">${pct(r.fwRate)}</td><td class="r">${pct(r.penaltyRate)}</td><td class="r">${sgn(r.toPar, 2)}</td></tr>`)}</tbody></table></div>
   </div>`;
 }
 
@@ -152,6 +165,7 @@ export async function render(root) {
 
       ${impactCard(impact)}
       ${practiceCard(impact)}
+      ${teeClubCard(teeClubStats(list))}
       ${courseTable(sums)}
 
       <div class="grid grid-2 section">

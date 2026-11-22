@@ -545,3 +545,5 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 .mem-label { font-size: 12px; font-weight: 700; color: var(--accent); }
 .mem-body strong { overflow-wrap: anywhere; }
 .lightbox.playing .lb-nav { opacity: .3; }
+.tee-club-row { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.chips.tee-clubs .chip { min-width: 48px; height: 40px; font-size: 14px; padding: 0 10px; }
