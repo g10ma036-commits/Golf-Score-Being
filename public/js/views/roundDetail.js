@@ -59,6 +59,7 @@ export async function render(root, [idStr]) {
         <tr><td>パット</td>${hs.map((h) => html`<td class="${h.putts >= 3 ? 'bad' : ''}">${h.putts ?? ''}</td>`)}<td class="sum">${hs.some((h) => Number.isFinite(h.putts)) ? total('putts') : ''}</td></tr>
         <tr><td>FW</td>${hs.map((h) => html`<td class="fw-cell ${h.fairway === 'hit' ? 'good' : ''}">${h.par === 3 ? html`<span class="muted">—</span>` : FW_MARK[h.fairway] || ''}</td>`)}
           <td class="sum">${fwT ? `${hs.filter((h) => h.fairway === 'hit').length}/${fwT}` : ''}</td></tr>
+        ${hs.some((h) => h.tee_club) ? html`<tr><td>ティー</td>${hs.map((h) => html`<td class="small muted">${h.tee_club || ''}</td>`)}<td class="sum"></td></tr>` : ''}
         <tr><td>パーオン</td>${hs.map((h) => html`<td>${played(h) && Number.isFinite(h.putts) ? (isGir(h) ? html`<span class="good">●</span>` : html`<span class="muted">·</span>`) : ''}</td>`)}
           <td class="sum">${hs.filter((h) => played(h) && isGir(h)).length || ''}</td></tr>
         <tr><td>OB・ペナ</td>${hs.map((h) => html`<td class="${h.penalties ? 'bad' : ''}">${h.penalties || ''}</td>`)}<td class="sum">${total('penalties') || ''}</td></tr>
