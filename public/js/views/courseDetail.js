@@ -86,7 +86,7 @@ export async function render(root, [idStr]) {
 
     ${rounds.length ? html`<div class="card section"><h2 style="margin-bottom:8px">ラウンド履歴</h2><div class="table-wrap"><table class="data">
       <thead><tr><th>日付</th>${multi ? html`<th>回ったコース</th>` : ''}<th class="r">スコア</th><th class="r">パー比</th><th class="r">パット</th><th>ティー</th><th>同伴者</th></tr></thead>
-      <tbody>${sums.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${fmtDate(s.date)}</td>${multi ? html`<td>${rounds[i].nines_label || ''}</td>` : ''}<td class="r"><strong>${s.holes ? s.strokes : '—'}</strong></td>
+      <tbody>${sums.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${fmtDate(s.date)}</td>${multi ? html`<td>${rounds[i].nines_label || ''}</td>` : ''}<td class="r">${s.complete && s.strokes === best ? html`<span title="このコースのベスト">🏆</span> ` : ''}<strong>${s.holes ? s.strokes : '—'}</strong></td>
         <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td><td class="r">${s.puttHoles ? s.putts : '—'}</td><td>${rounds[i].tee || ''}</td><td>${rounds[i].companions || ''}</td></tr>`)}</tbody>
     </table></div></div>` : ''}
 

@@ -530,3 +530,7 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 .ac-sw[data-ac="red"] .sw { background: #b3261e; }
 .ac-sw[data-ac="orange"] .sw { background: #b85309; }
 .ac-sw[data-ac="purple"] .sw { background: #6b3fa0; }
+.practice-card .pr-item { padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.practice-card .pr-item + .pr-item { margin-top: 8px; }
+.pr-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.practice-card ul { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }

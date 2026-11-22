@@ -32,6 +32,24 @@ function impactCard(items) {
   </div>`;
 }
 
+// 今やるべき練習：ミスの影響が大きい項目（1 ラウンドで 0.8 打以上）から、練習のヒントを出す
+const DRILLS = {
+  putt3: { title: 'パッティングの距離感', drills: ['10m・15m のパットを、カップの周り 1m に止める練習（各 10 球）', '1m のパットを続けて 10 回入れる（外したら最初から）'] },
+  penalty: { title: 'OB・ペナルティを減らすティーショット', drills: ['練習場で1球ごとに狙いを決め、左右 30 ヤード幅に入った数を数える', 'OB が多いホールは、ドライバーではなく曲がりにくいクラブ（UT・FW）を選ぶ練習もしておく'] },
+  bunker: { title: 'バンカーから一度で出す', drills: ['ボールの 5cm 手前に入れて、砂ごと飛ばす練習', 'まずは「1回で出す」ことを目標に、グリーンの真ん中を狙う'] },
+  fw: { title: 'ティーショットの方向性', drills: ['フェアウェイの幅（約 30 ヤード）を決めて、10 球中何球入るかを数える', '曲がる方向が決まっているなら、逆側を狙って打つ'] },
+};
+function practiceCard(items) {
+  const picks = items.filter((it) => DRILLS[it.key] && it.loss >= 0.3 && (it.perRound ?? 0) >= 0.8).slice(0, 2);
+  if (!picks.length) return '';
+  return html`<div class="card section practice-card">
+    <div class="card-header"><div><h2>🏌️ 今やるべき練習</h2><div class="sub">ミスの影響が大きいところから（くわしい練習メニューは AI分析の「練習メニュー」でも作れます）</div></div>
+      <a class="btn btn-sm" href="#/ai?purpose=practice">${icon('ai')}AIに練習メニューを相談</a></div>
+    ${picks.map((it) => html`<div class="pr-item"><div class="pr-head"><strong>${DRILLS[it.key].title}</strong><span class="small muted">1ラウンドで約 ${it.perRound.toFixed(1)} 打の差</span></div>
+      <ul>${DRILLS[it.key].drills.map((d) => html`<li>${d}</li>`)}</ul></div>`)}
+  </div>`;
+}
+
 // コース別の成績（2 コース以上のとき）。ホールあたりのパー比で、コースの難しさも比べられる
 function courseTable(sums) {
   const by = new Map();
@@ -80,6 +98,7 @@ export async function render(root) {
       return;
     }
     const sums = list.map(summarize);
+    const impact = shotImpact(list);
     const a = aggregate(sums);
     const complete = sums.filter((s) => s.complete).sort((x, y) => x.date.localeCompare(y.date));
     const scores = complete.map((s) => s.strokes);
@@ -131,7 +150,8 @@ export async function render(root) {
         ${chartCard('hctrend', '推定ハンディキャップの推移', '3ラウンド目から・小さいほど良い')}
       </div>
 
-      ${impactCard(shotImpact(list))}
+      ${impactCard(impact)}
+      ${practiceCard(impact)}
       ${courseTable(sums)}
 
       <div class="grid grid-2 section">

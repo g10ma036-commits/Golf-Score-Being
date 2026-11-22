@@ -1,6 +1,6 @@
 // ラウンド一覧
 import { html, mount, $, $$, pct, toPar, fmtDate, icon } from '../util.js';
-import { api } from '../api.js';
+import { api, getSettings } from '../api.js';
 import { summarize } from '../stats.js';
 import { navigate } from '../main.js';
 
@@ -9,6 +9,9 @@ const WEATHER_ICON = { 晴れ: '☀️', 曇り: '☁️', 雨: '☔', 雪: '❄
 export async function render(root) {
   const rounds = await api.get('/api/rounds');
   const sums = new Map(rounds.map((r) => [r.id, summarize(r)]));
+  const fullScores = [...sums.values()].filter((s) => s.complete).map((s) => s.strokes);
+  const bestScore = fullScores.length ? Math.min(...fullScores) : null;
+  const goal = Number((await getSettings().catch(() => ({}))).goal) || null;
   const years = [...new Set(rounds.map((r) => r.date.slice(0, 4)))].sort().reverse();
   const courses = [...new Map(rounds.map((r) => [r.course_id ? String(r.course_id) : `n:${r.course_name}`, r.course_name])).entries()]
     .sort((a, b) => a[1].localeCompare(b[1], 'ja'));
@@ -66,7 +69,7 @@ export async function render(root) {
       return html`<tr class="link" data-id="${r.id}" tabindex="0">
         <td>${fmtDate(r.date)}</td>
         <td class="wrap">${r.course_name}${r.nines_label ? html` <span class="muted small nowrap">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small nowrap">${r.tee}</span>` : ''}${r.weather && WEATHER_ICON[r.weather] ? html` <span class="only-sm" title="${r.weather}">${WEATHER_ICON[r.weather]}</span>` : ''}${r.photo_count ? html` <span class="only-sm" aria-label="写真 ${r.photo_count} 枚">📷</span>` : ''}</td>
-        <td class="r"><strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
+        <td class="r">${s.complete && s.strokes === bestScore ? html`<span title="ベストスコア">🏆</span> ` : goal && s.complete && s.strokes < goal ? html`<span title="${goal}切り達成">🎯</span> ` : ''}<strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
         <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td>
         <td class="r hide-sm">${s.front.holes ? s.front.strokes : '—'}</td>
         <td class="r hide-sm">${s.back.holes ? s.back.strokes : '—'}</td>
