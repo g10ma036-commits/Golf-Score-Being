@@ -4,6 +4,8 @@ import { api } from '../api.js';
 import { summarize } from '../stats.js';
 import { navigate } from '../main.js';
 
+const WEATHER_ICON = { 晴れ: '☀️', 曇り: '☁️', 雨: '☔', 雪: '❄️', 強風: '💨' };
+
 export async function render(root) {
   const rounds = await api.get('/api/rounds');
   const sums = new Map(rounds.map((r) => [r.id, summarize(r)]));
@@ -63,7 +65,7 @@ export async function render(root) {
       const s = sums.get(r.id);
       return html`<tr class="link" data-id="${r.id}" tabindex="0">
         <td>${fmtDate(r.date)}</td>
-        <td class="wrap">${r.course_name}${r.nines_label ? html` <span class="muted small nowrap">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small nowrap">${r.tee}</span>` : ''}${r.photo_count ? html` <span class="only-sm" aria-label="写真 ${r.photo_count} 枚">📷</span>` : ''}</td>
+        <td class="wrap">${r.course_name}${r.nines_label ? html` <span class="muted small nowrap">${r.nines_label}</span>` : ''}${r.tee ? html` <span class="muted small nowrap">${r.tee}</span>` : ''}${r.weather && WEATHER_ICON[r.weather] ? html` <span class="only-sm" title="${r.weather}">${WEATHER_ICON[r.weather]}</span>` : ''}${r.photo_count ? html` <span class="only-sm" aria-label="写真 ${r.photo_count} 枚">📷</span>` : ''}</td>
         <td class="r"><strong>${s.holes ? s.strokes : '—'}</strong>${s.holes && !s.complete ? html` <span class="badge">${s.holes}H</span>` : ''}</td>
         <td class="r">${s.holes ? toPar(s.toPar) : '—'}</td>
         <td class="r hide-sm">${s.front.holes ? s.front.strokes : '—'}</td>
@@ -72,7 +74,7 @@ export async function render(root) {
         <td class="r hide-sm">${s.fwTotal ? pct(s.fwHit / s.fwTotal) : '—'}</td>
         <td class="r hide-sm">${s.girKnown ? pct(s.gir / s.girKnown) : '—'}</td>
         <td class="r hide-sm">${s.holes ? s.penalties : '—'}</td>
-        <td class="hide-sm">${r.weather || ''}</td>
+        <td class="hide-sm">${r.weather ? `${WEATHER_ICON[r.weather] || ''} ${r.weather}` : ''}</td>
         <td class="c hide-sm">${r.photo_count ? html`<span class="badge">📷 ${r.photo_count}</span>` : ''}</td>
       </tr>`;
     }));

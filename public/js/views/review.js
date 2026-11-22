@@ -1,7 +1,7 @@
 // 年間のまとめ：1年のラウンド数・ベスト・前の年との比較・月別の推移・記録・回ったコース（画像で共有もできる）
 import { html, mount, $, $$, fmt, pct, fmtDate, shortDate, icon } from '../util.js';
 import { api } from '../api.js';
-import { yearReview, reviewYears } from '../stats.js';
+import { yearReview, reviewYears, achievements } from '../stats.js';
 import { barChart, lineChart, chartCard, setupChart } from '../charts.js';
 import { navigate } from '../main.js';
 
@@ -24,6 +24,7 @@ export async function render(root) {
   const tile = (label, value, sub = '') => html`<div class="tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
   const avgDelta = r.avgScore != null && r.prevAvg != null ? r.avgScore - r.prevAvg : null;
   const milestones = keyMilestones(r);
+  const yearAch = achievements(rounds).filter((a) => a.achieved && a.round?.date.startsWith(String(year)));
   const roundLink = (s, text) => (s ? html`<a href="#/rounds/${s.id}">${text}</a>` : '—');
 
   mount(root, html`
@@ -49,6 +50,11 @@ export async function render(root) {
       ${milestones.length ? html`<div class="card section milestones">
         <h2 style="margin-bottom:10px">🎉 この年の節目</h2>
         <ul>${milestones.map((m) => html`<li><span class="ms-badge">${m.goal}切り</span><span>${m.everFirst ? '初めて達成' : 'この年初めて'}：${roundLink(m.round, `${fmtDate(m.round.date)} ${m.round.course || ''}（${m.round.strokes}）`)}</span></li>`)}</ul>
+      </div>` : ''}
+
+      ${yearAch.length ? html`<div class="card section">
+        <div class="card-header"><div><h2>🏅 この年に達成した実績</h2><div class="sub">${yearAch.length} 個</div></div><a class="small" href="#/achievements">すべての実績 →</a></div>
+        <div class="year-ach">${yearAch.map((a) => html`<a class="ya-item" href="#/rounds/${a.round.id}"><span aria-hidden="true">${a.icon}</span><span><strong>${a.title}</strong><span class="small muted">${fmtDate(a.round.date)}</span></span></a>`)}</div>
       </div>` : ''}
 
       <div class="grid grid-2 section">

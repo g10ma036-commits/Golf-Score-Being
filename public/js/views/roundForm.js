@@ -137,9 +137,23 @@ export async function render(root, params) {
     clearDraft();
   };
 
-  const courseOptions = () => html`<option value="">コースを選択…</option>
-    ${courses.map((c) => html`<option value="${c.id}" ${c.id === meta.course_id ? 'selected' : ''}>${c.name}</option>`)}
+  // 最近回ったコース（3 つまで）を先頭にまとめて、すぐ選べるように
+  const recentCourseIds = () => {
+    const ids = [];
+    for (const r of [...allRounds].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)) {
+      if (r.course_id && !ids.includes(r.course_id) && courses.some((c) => c.id === r.course_id)) ids.push(r.course_id);
+      if (ids.length >= 3) break;
+    }
+    return courses.length > 4 ? ids : [];
+  };
+  const courseOptions = () => {
+    const opt = (c) => html`<option value="${c.id}" ${c.id === meta.course_id ? 'selected' : ''}>${c.name}</option>`;
+    const recent = recentCourseIds();
+    return html`<option value="">コースを選択…</option>
+    ${recent.length ? html`<optgroup label="最近のコース">${recent.map((id) => opt(courses.find((c) => c.id === id)))}</optgroup>
+      <optgroup label="すべてのコース">${courses.filter((c) => !recent.includes(c.id)).map(opt)}</optgroup>` : courses.map(opt)}
     ${!meta.course_id && meta.course_name ? html`<option value="" selected>${meta.course_name}（未登録）</option>` : ''}`;
+  };
 
   // ティー・天気・同伴者・メモは、スマホでは折りたたむ（すぐスコア入力に進めるように）。入力済みなら中身を一行で表示
   const moreSummary = (m = meta) => [m.tee && `${m.tee}ティー`, m.weather, m.companions && `同伴：${m.companions}`, m.memo && 'メモあり'].filter(Boolean).join('・');

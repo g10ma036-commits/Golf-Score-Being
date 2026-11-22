@@ -7,6 +7,7 @@ import { summarize } from '../stats.js';
 import { navigate } from '../main.js';
 
 export const DEFAULT_PARS = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5];
+const COURSE_SORTS = [['name', '名前順'], ['count', 'よく行く順'], ['recent', '最近']];
 
 // ---------- 9 ホールのまとまり（東・西・南コースなど）の表示 ----------
 export const ninesOf = (c) => (c?.nines?.length ? c.nines : ['OUT', 'IN']);
@@ -42,7 +43,10 @@ export async function render(root) {
         <button class="btn btn-primary" id="add">${icon('plus')}コースを追加</button>
       </div>
     </div>
-    ${courses.length > 6 ? html`<div class="toolbar"><input id="course-q" type="search" placeholder="コース名・所在地で検索" aria-label="コースを検索"><span class="small muted" id="course-count"></span></div>` : ''}
+    ${courses.length > 3 ? html`<div class="toolbar">
+      ${courses.length > 6 ? html`<input id="course-q" type="search" placeholder="コース名・所在地で検索" aria-label="コースを検索">` : ''}
+      <div class="seg" role="group" aria-label="並び順">${COURSE_SORTS.map(([k, l]) => html`<button type="button" data-csort="${k}">${l}</button>`)}</div>
+      <span class="small muted" id="course-count"></span></div>` : ''}
     ${courses.length ? html`<div class="album-grid" id="course-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
       ${courses.map((c) => {
         const sums = (byCourse.get(c.id) || []).filter((s) => s.complete);
@@ -51,7 +55,8 @@ export async function render(root) {
         const nines = nineTotals(c);
         const par = nines.reduce((a, n) => a + n.par, 0);
         const yards = nines.reduce((a, n) => a + n.yards, 0);
-        return html`<a class="card album-card" href="#/courses/${c.id}" style="padding:16px" data-search="${`${c.name} ${c.location || ''}`.toLowerCase()}">
+        const lastDate = (byCourse.get(c.id) || []).reduce((m, s) => (s.date > m ? s.date : m), '');
+        return html`<a class="card album-card" href="#/courses/${c.id}" style="padding:16px" data-search="${`${c.name} ${c.location || ''}`.toLowerCase()}" data-count="${c.round_count}" data-last="${lastDate}">
           <h3>${c.name}</h3>
           <div class="small muted">${c.location || '　'}</div>
           <dl class="kv" style="margin-top:10px">
@@ -71,6 +76,23 @@ export async function render(root) {
     const c = await openCourseEditor(null);
     if (c) navigate(`/courses/${c.id}`);
   });
+  // 並び替え（名前順・よく行く順・最近回った順）。選んだ並び順は覚えておく
+  const grid = $('#course-grid', root);
+  const applySort = (k) => {
+    if (!grid) return;
+    const cards = [...grid.children];
+    const name = (a) => a.querySelector('h3').textContent;
+    cards.sort((a, b) => (k === 'count' ? Number(b.dataset.count) - Number(a.dataset.count) : k === 'recent' ? b.dataset.last.localeCompare(a.dataset.last) : 0) || name(a).localeCompare(name(b), 'ja'));
+    grid.append(...cards);
+    $$('[data-csort]', root).forEach((b) => b.classList.toggle('on', b.dataset.csort === k));
+    try { localStorage.setItem('golf-course-sort', k); } catch { /* ignore */ }
+  };
+  $$('[data-csort]', root).forEach((b) => b.addEventListener('click', () => applySort(b.dataset.csort)));
+  if ($('[data-csort]', root)) {
+    let saved = 'name';
+    try { saved = localStorage.getItem('golf-course-sort') || 'name'; } catch { /* ignore */ }
+    applySort(COURSE_SORTS.some(([k]) => k === saved) ? saved : 'name');
+  }
   $('#course-q', root)?.addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
     let n = 0;
