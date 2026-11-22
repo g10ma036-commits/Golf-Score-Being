@@ -149,8 +149,8 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
       }
       db.run('DELETE FROM round_holes WHERE round_id = ?', roundId);
       for (const h of holes) {
-        db.run(`INSERT INTO round_holes(round_id, hole_no, par, yards, strokes, putts, fairway, penalties, bunker)
-                VALUES (?,?,?,?,?,?,?,?,?)`, roundId, h.hole_no, h.par, h.yards, h.strokes, h.putts, h.fairway, h.penalties, h.bunker);
+        db.run(`INSERT INTO round_holes(round_id, hole_no, par, yards, strokes, putts, fairway, penalties, bunker, note)
+                VALUES (?,?,?,?,?,?,?,?,?,?)`, roundId, h.hole_no, h.par, h.yards, h.strokes, h.putts, h.fairway, h.penalties, h.bunker, h.note);
       }
       return getRound(roundId);
     });

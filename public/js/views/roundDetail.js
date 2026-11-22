@@ -172,6 +172,9 @@ export async function render(root, [idStr]) {
       <div class="table-wrap" style="margin-top:12px">${half(9)}</div>
     </div>
 
+    ${holes.some((h) => h.note) ? html`<div class="card section"><h2 style="margin-bottom:8px">✏️ ホールの振り返りメモ</h2>
+      <ul class="memo-list">${holes.filter((h) => h.note).map((h) => html`<li><span class="memo-no">${h.hole_no}番</span><span class="small muted">Par ${h.par}${played(h) ? `・${h.strokes}（${RESULT_LABELS[resultKey(h.strokes, h.par)]}）` : ''}</span><span>${h.note}</span></li>`)}</ul></div>` : ''}
+
     ${partyCard()}
 
     <div class="grid grid-2 section">

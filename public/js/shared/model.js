@@ -37,7 +37,7 @@ export const SCHEMA = {
   },
   round_holes: {
     round_id: 'int!', hole_no: 'int!', par: 'int=4', yards: 'int', strokes: 'int', putts: 'int',
-    fairway: 'text', penalties: 'int', bunker: 'int',
+    fairway: 'text', penalties: 'int', bunker: 'int', note: 'text',
   },
   clubs: {
     id: 'id', category: 'text!', name: 'text!', brand: 'text', model: 'text', loft: 'real', shaft: 'text', flex: 'text',
@@ -277,6 +277,7 @@ function normalizeRoundHoles(list) {
       fairway: par === 3 ? null : oneOf(`${no}番のフェアウェイ`, h.fairway, FAIRWAY),
       penalties: num(`${no}番のペナルティ`, h.penalties, { min: 0, max: 10, integer: true }),
       bunker: num(`${no}番のバンカー`, h.bunker, { min: 0, max: 10, integer: true }),
+      note: text(h.note, 200), // このラウンドでのホールのメモ（例: 3パット。下りのライン）
     };
   });
 }

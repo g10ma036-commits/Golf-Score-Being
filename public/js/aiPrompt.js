@@ -140,6 +140,7 @@ function holeLines(r, { memo }) {
   if (hs.some((h) => h?.penalties)) lines.push(`OB等:   ${cell((h) => h.penalties || 0)}`);
   if (hs.some((h) => h?.bunker)) lines.push(`バンカー: ${cell((h) => h.bunker || 0)}`);
   if (memo && r.memo) lines.push(`メモ：${r.memo.replace(/\s*\n\s*/g, ' ／ ')}`);
+  if (memo && hs.some((h) => h?.note)) lines.push(`ホールのメモ：${hs.filter((h) => h?.note).map((h) => `${h.hole_no}番 ${h.note.replace(/\s*\n\s*/g, ' ')}`).join(' ／ ')}`);
   return lines;
 }
 

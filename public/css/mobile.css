@@ -534,3 +534,5 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 .practice-card .pr-item + .pr-item { margin-top: 8px; }
 .pr-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .practice-card ul { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.he-note { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.he-note-text { font-size: 13px; overflow-wrap: anywhere; }

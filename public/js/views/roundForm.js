@@ -8,7 +8,7 @@ import { uploadPhotos, isImageFile } from './photoTools.js';
 import { loadDraft, saveDraft, clearDraft, draftText, draftTime, draftHref } from '../draft.js';
 import { parseParty, parseNextRound, MAX_PARTY } from '../shared/model.js';
 
-const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker'];
+const HOLE_KEYS = ['par', 'yards', 'strokes', 'putts', 'fairway', 'penalties', 'bunker', 'note'];
 const META_TEXT = ['date', 'course_name', 'tee', 'weather', 'companions', 'memo'];
 const finiteOr = (v, d = null) => (Number.isFinite(v) ? v : d);
 
@@ -52,6 +52,7 @@ export async function render(root, params) {
       fairway: h?.fairway ?? null,
       penalties: h?.penalties ?? null,
       bunker: h?.bunker ?? null,
+      note: h?.note ?? null,
     };
   });
 
@@ -70,6 +71,7 @@ export async function render(root, params) {
       for (const k of HOLE_KEYS) {
         if (k === 'fairway') holes[i].fairway = FW_CYCLE.includes(d.fairway) ? d.fairway : null;
         else if (k === 'par') holes[i].par = finiteOr(d.par, holes[i].par);
+        else if (k === 'note') holes[i].note = typeof d.note === 'string' && d.note.trim() ? d.note.slice(0, 200) : null;
         else holes[i][k] = finiteOr(d[k]);
       }
     });
@@ -422,6 +424,7 @@ export async function render(root, params) {
         <div><div class="he-label">OB・ペナルティ</div>${stepper('penalties', h.penalties ?? 0, 'OB・ペナルティ')}</div>
         <div><div class="he-label">バンカー</div>${stepper('bunker', h.bunker ?? 0, 'バンカー')}</div>
       </div>
+      <div class="he-row he-note">${h.note ? html`<span class="he-note-text">✏️ ${h.note}</span>` : ''}<button type="button" class="link-btn" data-note-edit>${h.note ? 'メモを編集' : '＋ このホールの振り返りメモ（今日）'}</button></div>
       <div class="he-row he-party">
         <div class="he-label">同伴者のスコア<span class="small muted">（任意）</span></div>
         ${party.map((p, i) => {
@@ -452,6 +455,7 @@ export async function render(root, params) {
     if (b.hasAttribute('data-next')) { cur = Math.min(18, cur + 1); drawHole(); holeEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     if (b.hasAttribute('data-done')) { $('#totals', root).scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     if (b.hasAttribute('data-memo-edit')) { editHoleMemo(); return; }
+    if (b.hasAttribute('data-note-edit')) { editRoundNote(); return; }
     if (b.hasAttribute('data-party-add')) { editPartyMember(null); return; }
     if (b.dataset.partyEdit != null) { editPartyMember(Number(b.dataset.partyEdit)); return; }
     if (b.dataset.pstep != null) {
@@ -504,6 +508,24 @@ export async function render(root, params) {
     cur = next;
     drawHole();
   }, { passive: true });
+
+  // ---- このラウンドでのホールの振り返りメモ（ラウンドと一緒に保存。コースの攻略メモとは別） ----
+  const editRoundNote = () => {
+    const h = holes[cur - 1];
+    const m = openModal({
+      title: `${nineOfHole(cur) || `${cur}番`}ホールの振り返りメモ`,
+      body: html`<label class="field"><span>今日のこのホールで気づいたこと</span><input data-note-input maxlength="200" value="${h.note || ''}" placeholder="例：3パット。下りのラインを読み違えた"></label>
+        <p class="small muted" style="margin-top:8px">このラウンドと一緒に保存され、ラウンド詳細に表示されます（次回も表示したい注意点は「このホールのメモ」へ）。</p>`,
+      footer: html`<button class="btn" data-note-cancel>キャンセル</button><button class="btn btn-primary" data-note-ok>保存</button>`,
+    });
+    $('[data-note-cancel]', m.el).addEventListener('click', () => m.close());
+    $('[data-note-ok]', m.el).addEventListener('click', () => {
+      h.note = $('[data-note-input]', m.el).value.trim().slice(0, 200) || null;
+      markDirty();
+      m.close();
+      drawHole();
+    });
+  };
 
   // ---- 同伴者のスコア ----
   // 同伴者の欄（例:「田中さん、佐藤さん」）から名前の候補を作る

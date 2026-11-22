@@ -114,7 +114,7 @@ export function createLocalBackend(store, {
     for (const h of D.round_holes) {
       if (!byRound.has(h.round_id)) byRound.set(h.round_id, []);
       const { round_id, ...rest } = h;
-      byRound.get(round_id).push(rest);
+      byRound.get(round_id).push({ ...rest, note: rest.note ?? null });
     }
     return rounds.map((r) => {
       const c = r.course_id != null ? find('courses', r.course_id) : null;
