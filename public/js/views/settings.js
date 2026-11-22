@@ -2,7 +2,7 @@
 import { html, mount, $, openModal, confirmDialog, toast, errorToast, fmtDate, localDateTime, icon } from '../util.js';
 import { api, getSettings, saveSettings, STANDALONE, inspectBackup, restoreBackup, localMeta } from '../api.js';
 import { applyTheme, applyAccent } from '../main.js';
-import { PHONE_APP_URL } from '../config.js';
+import { PHONE_APP_URL, APP_VERSION } from '../config.js';
 import { sampleCountText, loadSample, deleteSampleFlow } from './sampleTools.js';
 import { GOAL_CHOICES } from '../stats.js';
 import { ACCENTS } from '../shared/model.js';
@@ -94,7 +94,7 @@ export async function render(root) {
     <div class="card section">
       <h2 style="margin-bottom:8px">このアプリについて</h2>
       <dl class="kv">
-        <dt>アプリ</dt><dd>Golf Enjoy Manager 1.2${STANDALONE ? '（スマホ単独版）' : ''}</dd>
+        <dt>アプリ</dt><dd>Golf Enjoy Manager ${APP_VERSION}${STANDALONE ? '（スマホ単独版）' : ''}</dd>
         <dt>使い方</dt><dd><a href="#/help">使い方・よくある質問を見る</a></dd>
         <dt>保存件数</dt><dd>ラウンド ${rounds.length} ・ コース ${courses.length} ・ クラブ ${clubs.length}</dd>
         ${STANDALONE

@@ -1,8 +1,20 @@
 // 使い方・よくある質問
 import { html, mount, icon } from '../util.js';
 import { STANDALONE } from '../api.js';
+import { APP_VERSION } from '../config.js';
 
 const SECTIONS = [
+  {
+    id: 'news', title: `新しくなったこと（バージョン ${APP_VERSION}）`, open: false,
+    body: () => html`<ul>
+      <li><strong>AIに分析してもらう</strong>：目的を選ぶと、記録をまとめた質問文を作成（自由に質問・答えの長さ・続けて聞く質問の例も）</li>
+      <li><strong>スコア入力</strong>：自動の下書き保存、合計と目標ペース、このホールの過去の平均と前回、攻略メモ・振り返りメモ、パー3の番手の目安、スワイプでホール移動、「前回と同じにする」、画面を消さない設定、同伴者のスコア</li>
+      <li><strong>統計分析</strong>：ミスの影響（何打損しているか）と今やるべき練習、スコアの分布、ハンディキャップの推移、コース別の成績、ボギーオン率</li>
+      <li><strong>コース</strong>：攻略シート（目標打数・番手の目安・メモ）、友達にコースを渡す・読み込む、地図で開く、並び替え</li>
+      <li><strong>記録を楽しむ</strong>：年間のまとめ、実績、ラウンドの比較、保存直後のお祝い、画像やテキストで共有、写真のスライドショー、ホームの思い出の1枚</li>
+      <li><strong>そのほか</strong>：目標スコア、次のラウンドの予定、クラブのメーカー選択・まとめて設定、テーマカラー、CSV 書き出し</li>
+    </ul>`,
+  },
   {
     id: 'start', title: 'はじめに', open: true,
     body: () => html`<ul>
@@ -80,9 +92,10 @@ const SECTIONS = [
 ];
 
 export async function render(root) {
+  const openId = new URLSearchParams(location.hash.split('?')[1] || '').get('open');
   mount(root, html`
     <div class="page-header"><div><h1>使い方</h1><div class="sub">知りたい項目をタップすると開きます</div></div></div>
-    <div class="help">${SECTIONS.map((s) => html`<details class="card help-item" id="help-${s.id}" ${s.open ? 'open' : ''}>
+    <div class="help">${SECTIONS.map((s) => html`<details class="card help-item" id="help-${s.id}" ${s.open || s.id === openId ? 'open' : ''}>
       <summary><h2>${s.title}</h2></summary>
       <div class="help-body">${s.body()}</div>
     </details>`)}</div>

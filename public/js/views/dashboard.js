@@ -7,6 +7,9 @@ import { navigate } from '../main.js';
 import { sampleNoticeHtml, loadSample, deleteSampleFlow } from './sampleTools.js';
 import { loadDraft, clearDraft, draftText, draftHref } from '../draft.js';
 import { goalCardHtml, guideHtml, nextRoundHtml, bindHomeCards } from './homeCards.js';
+import { APP_VERSION } from '../config.js';
+
+const SEEN_KEY = 'golf-seen-version';
 
 export async function render(root) {
   const [rounds, clubs, photos, settings, sample, courses, allPhotos] = await Promise.all([
@@ -26,6 +29,9 @@ export async function render(root) {
     <span>📝 入力途中のラウンドがあります：${draftText(draft)}</span>
     <a class="btn btn-sm btn-primary" href="${draftHref(draft)}">続きを入力</a></div>` : '';
   const guide = await guideHtml({ rounds, courses, sample });
+  let seenVersion = null;
+  try { seenVersion = localStorage.getItem(SEEN_KEY); } catch { /* ignore */ }
+  const showNews = rounds.length > 0 && seenVersion !== APP_VERSION;
   // スマホ単独版：バックアップのお知らせ（サンプルデータしかないときは出さない）
   const onlySample = sample?.present && sample.counts.rounds >= rounds.length && !photos.length;
   const reminder = STANDALONE && !onlySample ? await import('../standalone.js').then((m) => m.backupReminder()).catch(() => null) : null;
@@ -54,6 +60,7 @@ export async function render(root) {
     });
     $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
     bindHomeCards(root, { sums: [], settings, rerender: () => render(root) });
+    try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch { /* ignore */ } // 初めての人には「新しくなったこと」は出さない
     return;
   }
 
@@ -76,6 +83,7 @@ export async function render(root) {
       </div>
     </div>
     ${draftNotice}
+    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：AI分析・攻略シート・ミスの影響・同伴者のスコア・テーマカラーなど</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
     ${sampleNoticeHtml(sample)}
     ${guide}
     ${reminder ? html`<div class="notice" id="backup-notice">
@@ -151,6 +159,9 @@ export async function render(root) {
   $$('tr[data-id]', root).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
   $('[data-delete-sample]', root)?.addEventListener('click', async () => { if (await deleteSampleFlow()) render(root); });
   bindHomeCards(root, { sums, settings, courses, rerender: () => render(root) });
+  const markSeen = () => { try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch { /* ignore */ } };
+  $('[data-news-ok]', root)?.addEventListener('click', markSeen);
+  $('[data-news-close]', root)?.addEventListener('click', () => { markSeen(); $('#news-notice', root)?.remove(); });
   $('#do-backup', root)?.addEventListener('click', async () => {
     (await import('../standalone.js')).runBackupFlow(() => $('#backup-notice', root)?.remove());
   });
