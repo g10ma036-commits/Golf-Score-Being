@@ -506,3 +506,41 @@ export function achievements(rounds) {
   for (const n of [5, 10]) list.push({ key: `c${n}`, icon: '🗾', title: `${n}つのコース`, desc: `${n}か所のゴルフ場で記録する`, achieved: firsts.length >= n, round: firsts[n - 1] || null });
   return list;
 }
+
+// ---------- ミスの影響（ホールあたりの打数の差） ----------
+// rounds: ホールつきのラウンド。それぞれの項目で「良い場合」と「ミスの場合」のホールのパー比の平均と、その差（ミス 1 回の損失）を出す
+const MIN_N = 5;
+export function shotImpact(rounds) {
+  const holes = [];
+  let roundCount = 0;
+  for (const r of rounds) {
+    const hs = (r.holes || []).filter(played);
+    if (hs.length) roundCount += hs.length / 18;
+    holes.push(...hs);
+  }
+  const avg = (list) => (list.length ? list.reduce((a, h) => a + h.strokes - h.par, 0) / list.length : null);
+  const group = (label, list) => ({ label, n: list.length, avg: avg(list) });
+  const item = (key, title, good, bads, perRoundOf) => {
+    const bad = bads.flatMap((b) => b.list);
+    if (good.list.length < MIN_N || bad.length < MIN_N) return null;
+    const g = group(good.label, good.list);
+    const loss = avg(bad) - g.avg;
+    return {
+      key, title, good: g, bads: bads.filter((b) => b.list.length).map((b) => group(b.label, b.list)),
+      loss, perRound: roundCount && perRoundOf ? (bad.length / roundCount) * loss : null, count: bad.length,
+      perRoundCount: roundCount ? bad.length / roundCount : null, unit: perRoundOf,
+    };
+  };
+  const fw = holes.filter((h) => h.par >= 4 && h.fairway);
+  const withPutts = holes.filter((h) => Number.isFinite(h.putts));
+  const out = [
+    item('fw', 'ティーショット（パー4・5）', { label: 'FWキープ', list: fw.filter((h) => h.fairway === 'hit') },
+      [{ label: '左に外す', list: fw.filter((h) => h.fairway === 'left') }, { label: '右に外す', list: fw.filter((h) => h.fairway === 'right') }], '回'),
+    item('gir', 'パーオン', { label: 'パーオンした', list: withPutts.filter(isGir) }, [{ label: 'パーオンしない', list: withPutts.filter((h) => !isGir(h)) }], null), // パーオンしないのが普通なので 1 ラウンドの合計は出さない
+    item('penalty', 'OB・ペナルティ', { label: 'なし', list: holes.filter((h) => !(h.penalties > 0)) }, [{ label: 'あり', list: holes.filter((h) => h.penalties > 0) }], 'ホール'),
+    item('bunker', 'バンカー', { label: '入らない', list: holes.filter((h) => !(h.bunker > 0)) }, [{ label: '入った', list: holes.filter((h) => h.bunker > 0) }], 'ホール'),
+    item('putt3', '3パット', { label: '2パット以下', list: withPutts.filter((h) => h.putts <= 2) }, [{ label: '3パット以上', list: withPutts.filter((h) => h.putts >= 3) }], 'ホール'),
+  ].filter(Boolean);
+  // 1 ラウンドあたりの損失が大きい順（パーオンは最後）
+  return out.sort((a, b) => (b.perRound ?? -Infinity) - (a.perRound ?? -Infinity));
+}

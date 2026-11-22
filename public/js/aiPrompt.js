@@ -1,7 +1,7 @@
 // AI（ChatGPT・Claude・Gemini など）にスコアを分析してもらうための質問文（プロンプト）を作る。
 // ここでは文章を作るだけで、どこにも送信しない（利用者が自分でコピーして貼り付ける）。
 // 名前・同伴者は含めない。メモは利用者が選んだときだけ含める。
-import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights } from './stats.js';
+import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact } from './stats.js';
 
 export const AI_PURPOSES = [
   { key: 'overall', label: '総合分析', desc: '強み・弱みと、スコアに一番影響していること', period: 'last20' },
@@ -252,6 +252,8 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
       add('# 成績のまとめ', ...summaryLines(aggregate(scope.map(summarize)), `対象：${label}（${scope.length} ラウンド）`), '');
       const trend = trendInsights(allSums);
       if (trend.length) add('## 最近の傾向（直近5ラウンドとそれ以前の比較）', ...trend.map((t) => `- ${t.text}`), '');
+      const impact = shotImpact(scope);
+      if (impact.length) add('## ミスの影響（ホールあたりのパー比の平均）', ...impact.map((it) => `- ${it.title}：${[it.good, ...it.bads].map((g) => `${g.label} ${sign(g.avg, 2)}（${g.n}ホール）`).join('、')}${it.perRound != null ? `。1ラウンドあたり約 ${f1(it.perRound)} 打の差` : ''}`), '');
       add(`# ラウンド一覧（新しい順${scope.length > MAX_LIST ? `・最新 ${MAX_LIST} 件` : ''}）`, ...roundListLines(scope.slice(0, MAX_LIST)), '');
       if (opts.holes) {
         add(`# ホールごとの記録（新しい順・最大 ${MAX_HOLE_ROUNDS} ラウンド）`);

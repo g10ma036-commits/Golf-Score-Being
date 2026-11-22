@@ -298,3 +298,21 @@ test('AI の質問文：自由に質問・答えの長さ', async () => {
   assert.ok(ai.AI_FOLLOWUPS.free.length >= 1);
   for (const p of ai.AI_PURPOSES) assert.ok(ai.AI_FOLLOWUPS[p.key]?.length, p.key);
 });
+
+test('ミスの影響：良い場合とミスの場合のパー比の差、1ラウンドあたりの損失', () => {
+  // パー4 だけの 18 ホール。FW キープはパー、外すとボギー、OB はダブルボギー
+  const mk = (id, pattern) => ({ id, date: `2026-0${id}-01`, holes: Array.from({ length: 18 }, (_, i) => {
+    const p = pattern[i % pattern.length];
+    return { hole_no: i + 1, par: 4, strokes: p === 'hit' ? 4 : p === 'ob' ? 6 : 5, putts: 2, fairway: p === 'ob' ? 'right' : p, penalties: p === 'ob' ? 1 : 0 };
+  }) });
+  const rounds = [mk(1, ['hit', 'left', 'hit']), mk(2, ['hit', 'right', 'ob'])];
+  const im = stats.shotImpact(rounds);
+  const fw = im.find((x) => x.key === 'fw');
+  assert.equal(fw.good.avg, 0);
+  assert.ok(Math.abs(fw.loss - (6 * 1 + 6 * 1 + 6 * 2) / 18) < 1e-9); // 外した 18 ホールの平均 +1.33
+  assert.equal(fw.perRoundCount, 9); // 2 ラウンドで 18 回
+  const pen = im.find((x) => x.key === 'penalty');
+  assert.ok(Math.abs(pen.loss - (2 - 12 / 30)) < 1e-9); // なしの 30 ホールはパー比 +12
+  assert.equal(im.some((x) => x.key === 'bunker'), false); // データが少ない項目は出さない
+  for (let i = 1; i < im.length; i++) assert.ok(im[i - 1].perRound >= im[i].perRound);
+});

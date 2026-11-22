@@ -2,13 +2,35 @@
 import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '../util.js';
 import { api } from '../api.js';
 import {
-  summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, PERIODS,
+  summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, PERIODS,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
 import { navigate } from '../main.js';
 
 const state = { period: 'all', course: '' };
+
+// ミスの影響：良い場合とミスの場合の「ホールあたりのパー比」を棒で並べ、ミス 1 回・1 ラウンドあたりの損失を示す
+const sgn = (v, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}`;
+function impactCard(items) {
+  if (!items.length) return '';
+  const max = Math.max(0.5, ...items.flatMap((it) => [it.good.avg, ...it.bads.map((b) => b.avg)]).map((v) => Math.abs(v)));
+  const bar = (g, good) => html`<div class="imp-bar ${good ? 'good' : 'bad'}"><span class="imp-label">${g.label}<span class="muted">（${g.n}）</span></span>
+    <span class="imp-track"><span style="width:${Math.max(2, Math.round((Math.max(0, g.avg) / max) * 100))}%"></span></span><span class="imp-val">${sgn(g.avg)}</span></div>`;
+  return html`<div class="card section">
+    <div class="card-header"><div><h2>ミスの影響</h2><div class="sub">ホールあたりのパー比。ミスすると何打多くなっているか、大きい順</div></div></div>
+    <div class="impact">${items.map((it) => html`<div class="imp-item">
+      <div class="imp-title">${it.title}</div>
+      ${bar(it.good, true)}${it.bads.map((b) => bar(b, false))}
+      <div class="imp-loss">${it.loss < 0.15
+        ? html`<span class="muted">大きな差はありません（スコアへの影響は小さめ）</span>`
+        : it.key === 'gir'
+          ? html`パーオンが1回増えると、約 <strong>${it.loss.toFixed(1)}打</strong> 少なくなります`
+          : html`ミス1回で <strong>${sgn(it.loss, 1)}打</strong>${it.perRound != null ? html`・1ラウンドで約 <strong>${it.perRound.toFixed(1)}打</strong><span class="muted">（平均 ${it.perRoundCount.toFixed(1)}${it.unit}）</span>` : ''}`}</div>
+    </div>`)}</div>
+    <p class="small muted" style="margin-top:8px">（ ）はホール数。1ラウンドの損失は「ミスの回数 × 1回の差」の目安です。</p>
+  </div>`;
+}
 
 export async function render(root) {
   const rounds = await api.get('/api/rounds');
@@ -84,6 +106,8 @@ export async function render(root) {
         ${chartCard('scoredist', 'スコアの分布', '18ホールのスコアを5打ごとに')}
         ${chartCard('hctrend', '推定ハンディキャップの推移', '3ラウンド目から・小さいほど良い')}
       </div>
+
+      ${impactCard(shotImpact(list))}
 
       <div class="grid grid-2 section">
         <div class="card">

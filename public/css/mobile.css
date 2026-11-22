@@ -469,3 +469,17 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 @media (max-width: 760px) { .bulk-clubs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bulk-club { padding: 6px 8px; gap: 8px; } .bulk-club .small { font-size: 11px; } }
 .brand-pick { display: flex; flex-direction: column; gap: 6px; }
 .brand-pick select, .brand-pick input { width: 100%; }
+
+/* ミスの影響（統計分析） */
+.impact { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.imp-item { padding: 12px; border-radius: 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.imp-title { font-weight: 700; }
+.imp-bar { display: grid; grid-template-columns: 9.5em 1fr 3.6em; align-items: center; gap: 8px; font-size: 12px; }
+.imp-label { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-track { height: 10px; border-radius: 5px; background: var(--surface-1); overflow: hidden; }
+.imp-track > span { display: block; height: 100%; border-radius: 5px; }
+.imp-bar.good .imp-track > span { background: var(--series-1); }
+.imp-bar.bad .imp-track > span { background: var(--score-double); }
+.imp-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.imp-loss { font-size: 13px; margin-top: 2px; }
+.imp-loss strong { color: var(--score-double); }
