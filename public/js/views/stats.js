@@ -3,7 +3,7 @@ import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '.
 import { api, getSettings } from '../api.js';
 import {
   summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, teeClubStats, PERIODS,
-  conditionStats, CONDITIONS, distanceStats,
+  conditionStats, CONDITIONS, distanceStats, flowStats, flowInsights, simItems, simulate, simPlan,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
@@ -111,6 +111,69 @@ function distanceCard(rows) {
   </div>`;
 }
 
+// スコアのシミュレーター：3パット・OB などの回数を動かすと、予想の平均スコアがすぐ変わる
+function drawSim(box, base, items, goal) {
+  if (base == null || !items.length) { box.innerHTML = ''; return; }
+  const values = Object.fromEntries(items.map((it) => [it.key, it.current]));
+  const v1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
+  const plan = simPlan(base, items, goal);
+  mount(box, html`<div class="card section sim-card" id="simulator">
+    <div class="card-header"><div><h2>🧮 スコアのシミュレーター</h2><div class="sub">1ラウンドあたりの回数を動かすと、予想の平均スコアが変わります（あなたの記録から計算した目安）</div></div></div>
+    <div class="sim-result" aria-live="polite"></div>
+    <div class="sim-rows">${items.map((it) => html`<div class="sim-row" data-key="${it.key}">
+      <div class="sim-head"><label for="sim-${it.key}"><strong>${it.label}</strong></label><span class="small muted">1回${it.dir === 'up' ? '増やす' : '減らす'}と −${it.loss.toFixed(1)}打</span></div>
+      <div class="sim-ctl"><button type="button" class="btn btn-icon btn-sm" data-step="-1" aria-label="${it.label}を減らす">−</button>
+        <input type="range" id="sim-${it.key}" min="${v1(it.min)}" max="${v1(it.max)}" step="0.1" value="${v1(it.current)}">
+        <button type="button" class="btn btn-icon btn-sm" data-step="1" aria-label="${it.label}を増やす">＋</button>
+        <span class="sim-val"></span></div>
+    </div>`)}</div>
+    <div class="sim-actions">${plan ? html`<button type="button" class="btn btn-sm btn-primary" data-plan ${plan.reached ? '' : 'disabled'}>${plan.reached ? `${goal}切りに届く例を見る` : `${goal}切りは、この方法だけでは遠いです`}</button>` : ''}
+      <button type="button" class="btn btn-sm" data-reset>元に戻す</button></div>
+    <p class="small muted" style="margin-top:8px">ミスどうしは重なることがある（OB のあとに3パットなど）ので、たくさん動かすと実際より良く出ます。</p>
+  </div>`);
+  const update = () => {
+    const r = simulate(base, items, values);
+    const goalLine = goal ? (Math.round(r.projected * 10) / 10 < goal ? html`<span class="good">🎯 ${goal}切りペース</span>` : html`<span class="muted">${goal}切りまで あと ${Math.max(0.1, r.projected - goal + 0.1).toFixed(1)} 打</span>`) : '';
+    mount($('.sim-result', box), html`<div><span class="muted small">いまの平均</span> <strong>${base.toFixed(1)}</strong></div><div class="sim-arrow">→</div>
+      <div><span class="muted small">予想</span> <strong class="sim-proj">${r.projected.toFixed(1)}</strong> <span class="${r.total < -0.05 ? 'good' : 'muted'}">（${r.total < -0.05 ? '−' : '±'}${Math.abs(r.total).toFixed(1)}）</span></div>
+      <div class="sim-goal">${goalLine}</div>`);
+    for (const it of items) {
+      const row = $(`[data-key="${it.key}"]`, box);
+      $('input', row).value = v1(values[it.key]);
+      const d = r.effects[it.key];
+      mount($('.sim-val', row), html`<span>${v1(values[it.key])}回</span><span class="small ${d < -0.05 ? 'good' : 'muted'}">${d < -0.05 ? `−${Math.abs(d).toFixed(1)}打` : `今 ${v1(it.current)}回`}</span>`);
+    }
+  };
+  for (const it of items) {
+    const row = $(`[data-key="${it.key}"]`, box);
+    const set = (v) => { values[it.key] = Math.min(it.max, Math.max(it.min, v)); update(); };
+    $('input', row).addEventListener('input', (e) => set(Number(e.target.value)));
+    $$('[data-step]', row).forEach((b) => b.addEventListener('click', () => set(Math.round((values[it.key] + Number(b.dataset.step) * 0.5) * 2) / 2)));
+  }
+  $('[data-reset]', box).addEventListener('click', () => { for (const it of items) values[it.key] = it.current; update(); });
+  $('[data-plan]', box)?.addEventListener('click', () => { Object.assign(values, plan.values); update(); });
+  update();
+}
+
+// スコアの流れ：出だし・中盤・上がりのホールあたりのパー比、大叩きの後、ボギー以上の連続
+function flowCard(f) {
+  if (!f || f.rounds < 3) return '';
+  const segs = [['出だし', '1〜3番', f.start], ['中盤', '4〜15番', f.middle], ['上がり', '16〜18番', f.finish]];
+  const worst = Math.max(...segs.map((s) => s[2]));
+  const ins = flowInsights(f);
+  const bigDiff = f.afterBig.avg != null && f.afterOther.avg != null ? f.afterBig.avg - f.afterOther.avg : null;
+  return html`<div class="card section">
+    <div class="card-header"><div><h2>スコアの流れ</h2><div class="sub">18ホールのラウンド ${f.rounds} 件。1番から順に回ったものとして計算（ホールあたりのパー比）</div></div></div>
+    <div class="flow-segs">${segs.map(([l, sub, v]) => html`<div class="flow-seg ${v === worst && v - f.all >= 0.25 ? 'worst' : ''}"><div class="label">${l}<span class="muted">${sub}</span></div><div class="value">${sgn(v)}</div></div>`)}</div>
+    <div class="flow-rows">
+      ${f.afterBig.n ? html`<div class="fr"><div>大叩き（ダボ以上）の次のホール<div class="small muted">普段 ${sgn(f.afterOther.avg)}${bigDiff != null ? `（差 ${sgn(bigDiff)}）` : ''}</div></div><strong>${sgn(f.afterBig.avg)}</strong></div>
+        <div class="fr"><div>大叩きの次をボギー以内で立て直した率<div class="small muted">普段 ${pct(f.afterOther.recover)}・大叩き ${f.afterBig.n} 回</div></div><strong>${pct(f.afterBig.recover)}</strong></div>` : ''}
+      <div class="fr"><div>ボギー以上の連続（1ラウンドの最長）<div class="small muted">いちばん長いとき ${f.longestMax} ホール</div></div><strong>平均 ${fmt(f.longestAvg, 1)}</strong></div>
+    </div>
+    ${ins.length ? html`<ul class="insights" style="margin-top:10px">${ins.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '✓' : '!'}</span><span>${i.text}</span></li>`)}</ul>` : ''}
+  </div>`;
+}
+
 // 条件別のスコア（天気・季節・曜日・ティー・同伴者）。2 つ以上に分かれて比べられる条件だけボタンを出す
 function drawConditions(box, list) {
   const avail = CONDITIONS.map(([k, l]) => ({ k, l, res: conditionStats(list, k) })).filter((c) => c.res.rows.length >= 2);
@@ -208,10 +271,12 @@ export async function render(root) {
 
       ${impactCard(impact)}
       ${practiceCard(impact)}
+      <div id="sim-box"></div>
       ${teeClubCard(teeClubStats(list))}
       ${courseTable(sums)}
       <div id="cond-box"></div>
       ${distanceCard(distanceStats(list, allCourses, settings.unit))}
+      ${flowCard(flowStats(list))}
 
       <div class="grid grid-2 section">
         <div class="card">
@@ -236,6 +301,7 @@ export async function render(root) {
     $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
     $$('tr[data-course]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/courses/${tr.dataset.course}`)));
     drawConditions($('#cond-box', body), list);
+    drawSim($('#sim-box', body), a.avgScore, simItems(impact), Number(settings.goal) || null);
 
     setupChart(body, 'trend', (el) => lineChart(el, {
       labels: complete.map((s) => shortDate(s.date)),
@@ -355,4 +421,6 @@ export async function render(root) {
   }));
   $('#f-course', root).addEventListener('change', (e) => { state.course = e.target.value; draw(); });
   draw();
+  // ホームの目標カードの「試算」から来たときはシミュレーターへ
+  if (/[?&]sim=1/.test(location.hash)) requestAnimationFrame(() => $("#simulator", root)?.scrollIntoView({ block: "start" }));
 }

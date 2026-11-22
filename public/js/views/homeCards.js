@@ -26,7 +26,7 @@ export function goalCardHtml(sums, goalSetting) {
   const pace = p.gap == null ? '' : p.gap <= 0 ? '平均で達成ペースです 🎉' : `目標まで平均あと ${fmt(p.gap, 1)} 打`;
   return html`<div class="card goal-card" id="goal-card">
     <div class="card-header"><div><h2>🎯 目標：${goal}切り</h2><div class="sub">18ホールで ${goal - 1} 以下なら達成</div></div>
-      <div class="actions"><a class="btn btn-sm" href="#/ai?purpose=goal">AIに相談</a><button type="button" class="btn btn-sm" data-goal-edit>変更</button></div></div>
+      <div class="actions"><a class="btn btn-sm" href="#/stats?sim=1">🧮 試算</a><a class="btn btn-sm" href="#/ai?purpose=goal">AIに相談</a><button type="button" class="btn btn-sm" data-goal-edit>変更</button></div></div>
     <div class="tiles goal-tiles">
       ${t('達成', `${p.achieved} 回`, p.rounds ? `${p.rounds} ラウンド中${p.firstAchieved ? `・初達成 ${shortDate(p.firstAchieved.date)}` : ''}` : 'まだ記録がありません')}
       ${t('直近5ラウンドの平均', fmt(p.recentAvg, 1), pace)}

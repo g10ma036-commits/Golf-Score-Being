@@ -1,7 +1,7 @@
 // AI（ChatGPT・Claude・Gemini など）にスコアを分析してもらうための質問文（プロンプト）を作る。
 // ここでは文章を作るだけで、どこにも送信しない（利用者が自分でコピーして貼り付ける）。
 // 名前・同伴者は含めない。メモは利用者が選んだときだけ含める。
-import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan, teeClubStats, conditionStats, distanceStats } from './stats.js';
+import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan, teeClubStats, conditionStats, distanceStats, flowStats } from './stats.js';
 
 export const AI_PURPOSES = [
   { key: 'overall', label: '総合分析', desc: '強み・弱みと、スコアに一番影響していること', period: 'last20' },
@@ -273,6 +273,13 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
       const dist = distanceStats(scope, courses, settings.unit);
       if (dist.length >= 2 && dist.reduce((a, r) => a + r.n, 0) >= 18) {
         add('## 距離別の成績（コースに登録したホールの距離）', 'パー,距離,ホール数,平均パー比,パー以内の率', ...dist.map((r) => [r.par, r.label, r.n, sign(r.toPar, 2), pc(r.parRate)].join(',')), '');
+      }
+      const flow = flowStats(scope);
+      if (flow && flow.rounds >= 3) {
+        add('## スコアの流れ（18ホールのラウンド・ホールあたりのパー比）',
+          `- 出だし3ホール ${sign(flow.start, 2)}、中盤 ${sign(flow.middle, 2)}、上がり3ホール ${sign(flow.finish, 2)}`,
+          ...(flow.afterBig.n ? [`- 大叩き（ダボ以上）の次のホール ${sign(flow.afterBig.avg, 2)}（普段 ${sign(flow.afterOther.avg, 2)}）、ボギー以内で立て直した率 ${pc(flow.afterBig.recover)}（普段 ${pc(flow.afterOther.recover)}）`] : []),
+          `- ボギー以上の連続：1ラウンドの最長の平均 ${f1(flow.longestAvg)} ホール`, '');
       }
       add(`# ラウンド一覧（新しい順${scope.length > MAX_LIST ? `・最新 ${MAX_LIST} 件` : ''}）`, ...roundListLines(scope.slice(0, MAX_LIST)), '');
       if (opts.holes) {

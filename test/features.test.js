@@ -140,6 +140,7 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   assert.match(overall, /## 条件別の平均スコア（18ホールのラウンド）\n- 曜日：平日 [\d.]+（2回）、土日 [\d.]+（1回）\n\n/);
   assert.equal(overall.includes('季節：'), false);
   assert.match(overall, /## 距離別の成績（コースに登録したホールの距離）\nパー,距離,ホール数,平均パー比,パー以内の率\n3,/);
+  assert.match(overall, /## スコアの流れ（18ホールのラウンド・ホールあたりのパー比）\n- 出だし3ホール [+−±][\d.]+、中盤/);
   const rd =ai.buildAiPrompt(data, { purpose: 'round', roundId: 1, holes: true });
   assert.match(rd, /対象のラウンド/);
   assert.match(rd, /2026\/9\/1（火） ・ テストカントリー/);
@@ -408,4 +409,50 @@ test('距離別の成績：パーごとに距離で分け、27 ホールのコ�
   assert.equal(get(4, '370〜409y').parRate, 1); // r2 の前半（3 つ目の 9 ホール）はすべてパー
   // メートルの設定では区切りも換算（330y → 300m）
   assert.deepEqual(stats.distanceStats([r1], [course], 'm').filter((r) => r.par === 4).map((r) => r.label), ['300〜339m', '375m以上']); // 区切り 330/370/410y → 300/340/375m
+});
+
+test('スコアの流れ：出だし・上がり・大叩きの後・ボギー以上の連続', () => {
+  // 1〜3 番 +2（大叩き）、4 番 +1、5〜15 番 0、16〜18 番 +1
+  const over = (i) => (i < 3 ? 2 : i === 3 ? 1 : i >= 15 ? 1 : 0);
+  const r = { id: 1, date: '2026-05-01', holes: PARS.map((par, i) => ({ hole_no: i + 1, par, strokes: par + over(i) })) };
+  const f1 = stats.roundFlow(r);
+  assert.deepEqual(f1, { start: 6, finish: 3, big: 3, recovered: 1, longest: 4, holes: 18 }); // 3 番の次（4 番 +1）だけ立て直し
+  const f = stats.flowStats([r, { ...r, id: 2 }, { ...r, id: 3 }, { id: 4, date: '2026-06-01', holes: r.holes.slice(0, 9) }]); // 9H は数えない
+  assert.equal(f.rounds, 3);
+  assert.equal(f.start, 2);
+  assert.equal(f.finish, 1);
+  assert.equal(f.middle, 1 / 12);
+  assert.equal(f.afterBig.n, 9);
+  assert.equal(f.afterBig.avg, (2 + 2 + 1) / 3);
+  assert.equal(f.longestMax, 4);
+  const texts = stats.flowInsights(f).map((x) => x.text).join('\n');
+  assert.match(texts, /出だし3ホールが平均より/);
+  assert.match(texts, /上がり3ホールが平均より/);
+  assert.match(texts, /引きずる傾向/);
+  assert.deepEqual(stats.flowInsights(null), []);
+});
+
+test('スコアのシミュレーター：ミスを減らしたときの予想スコアと、目標に届く組み合わせ', () => {
+  const impact = [
+    { key: 'putt3', good: { n: 100 }, count: 40, perRoundCount: 2, loss: 1 },
+    { key: 'penalty', good: { n: 120 }, count: 20, perRoundCount: 1, loss: 2 },
+    { key: 'gir', good: { n: 30 }, count: 150, perRoundCount: 15, loss: 0.8 }, // パーオン 3 回/R
+    { key: 'fw', good: { n: 50 }, count: 50, perRoundCount: 5, loss: 0.02 }, // 影響が小さいものは出さない
+  ];
+  const items = stats.simItems(impact);
+  assert.deepEqual(items.map((i) => [i.key, i.dir, i.current]), [['penalty', 'down', 1], ['putt3', 'down', 2], ['gir', 'up', 3]]);
+  assert.equal(stats.simulate(100, items).projected, 100); // 動かさなければ同じ
+  const r = stats.simulate(100, items, { putt3: 1, penalty: 0, gir: 5 });
+  assert.equal(r.effects.putt3, -1);
+  assert.equal(r.effects.penalty, -2);
+  assert.ok(Math.abs(r.effects.gir + 1.6) < 1e-9);
+  assert.ok(Math.abs(r.projected - 95.4) < 1e-9);
+  assert.equal(stats.simulate(100, items, { putt3: -5 }).effects.putt3, -2); // 範囲の外は丸める
+  // 101.5 → 100 切り（99.x）：効き目の大きい OB から（半分まで）
+  const plan = stats.simPlan(101.5, items, 100);
+  assert.equal(plan.reached, true);
+  assert.equal(plan.values.penalty, 0.5);
+  assert.ok(plan.projected < 100);
+  assert.equal(stats.simPlan(98, items, 100), null); // もう届いている
+  assert.equal(stats.simPlan(130, items, 100).reached, false); // 無理のない範囲では届かない
 });

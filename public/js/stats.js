@@ -653,3 +653,113 @@ export function distanceStats(rounds, courses, unit = 'yd') {
     parRate: list.filter((h) => h.strokes <= h.par).length / list.length,
   }));
 }
+
+// ---------- スコアの流れ（出だし・上がり・大叩きの後・ボギー以上の連続） ----------
+// ホール番号の順に回ったものとして計算する（10 番スタートは記録していないため）
+const sortedPlayed = (r) => (r.holes || []).filter(played).sort((a, b) => a.hole_no - b.hole_no);
+// 1 ラウンドの流れ：出だし 3H・上がり 3H のパー比、大叩き（ダボ以上）の回数と次のホールで立て直した回数、ボギー以上の最長連続
+export function roundFlow(round) {
+  const hs = sortedPlayed(round);
+  const seg = (from, to) => { const xs = hs.filter((h) => h.hole_no >= from && h.hole_no <= to); return xs.length === 3 ? xs.reduce((a, h) => a + h.strokes - h.par, 0) : null; };
+  let big = 0;
+  let recovered = 0;
+  let run = 0;
+  let longest = 0;
+  hs.forEach((h, i) => {
+    const d = h.strokes - h.par;
+    run = d >= 1 ? run + 1 : 0;
+    longest = Math.max(longest, run);
+    const next = hs[i + 1];
+    if (d >= 2 && next && next.hole_no === h.hole_no + 1) {
+      big++;
+      if (next.strokes - next.par <= 1) recovered++;
+    }
+  });
+  return { start: seg(1, 3), finish: seg(16, 18), big, recovered, longest, holes: hs.length };
+}
+// 全体：区間ごとのホールあたりのパー比、大叩きの次のホールの平均と普段の平均、ボギー以上の最長連続の平均
+export function flowStats(rounds) {
+  const segs = { start: [], middle: [], finish: [] };
+  const afterBig = [];
+  const afterOther = [];
+  const longest = [];
+  for (const r of rounds) {
+    const hs = sortedPlayed(r);
+    if (hs.length < 18) continue;
+    hs.forEach((h, i) => {
+      const d = h.strokes - h.par;
+      segs[h.hole_no <= 3 ? 'start' : h.hole_no >= 16 ? 'finish' : 'middle'].push(d);
+      const next = hs[i + 1];
+      if (next && next.hole_no === h.hole_no + 1) (d >= 2 ? afterBig : afterOther).push(next.strokes - next.par);
+    });
+    longest.push(roundFlow(r).longest);
+  }
+  if (!longest.length) return null;
+  const rate = (xs) => (xs.length ? xs.filter((d) => d <= 1).length / xs.length : null);
+  return {
+    rounds: longest.length,
+    all: mean([...segs.start, ...segs.middle, ...segs.finish]),
+    start: mean(segs.start), middle: mean(segs.middle), finish: mean(segs.finish),
+    afterBig: { avg: mean(afterBig), n: afterBig.length, recover: rate(afterBig) },
+    afterOther: { avg: mean(afterOther), n: afterOther.length, recover: rate(afterOther) },
+    longestAvg: mean(longest), longestMax: Math.max(...longest),
+  };
+}
+// 流れの傾向をことばで（差が小さいときは出さない）
+export function flowInsights(f) {
+  if (!f || f.rounds < 3) return [];
+  const out = [];
+  if (f.start - f.all >= 0.25) out.push({ type: 'bad', text: `出だし3ホールが平均より ${(f.start - f.all).toFixed(1)} 打/H 悪い。スタート前のパター・アプローチ練習が効きそうです` });
+  else if (f.all - f.start >= 0.25) out.push({ type: 'good', text: '出だし3ホールは平均より良く、スタートは得意です' });
+  if (f.finish - f.all >= 0.25) out.push({ type: 'bad', text: `上がり3ホールが平均より ${(f.finish - f.all).toFixed(1)} 打/H 悪い。後半の体力・集中力を意識しましょう` });
+  else if (f.all - f.finish >= 0.25) out.push({ type: 'good', text: '上がり3ホールは平均より良く、最後まで粘れています' });
+  if (f.afterBig.n >= 5 && f.afterOther.avg != null) {
+    const d = f.afterBig.avg - f.afterOther.avg;
+    if (d >= 0.3) out.push({ type: 'bad', text: `大叩き（ダボ以上）の次のホールは普段より ${d.toFixed(1)} 打悪く、引きずる傾向。次のホールは安全なクラブで` });
+    else if (d <= 0.1) out.push({ type: 'good', text: '大叩きの次のホールも普段どおり。気持ちを切り替えられています' });
+  }
+  return out;
+}
+
+// ---------- スコアのシミュレーター ----------
+// ミスの影響（shotImpact）から、1 ラウンドあたりの回数を動かせる項目を作る。
+// dir: 'down' は減らすと良くなる（3パット・OB など）、'up' は増やすと良くなる（パーオン）
+const r1 = (x) => Math.round(x * 10) / 10;
+const SIM_LABELS = { putt3: '3パット', penalty: 'OB・ペナルティ', bunker: 'バンカー', fw: 'フェアウェイを外す', gir: 'パーオン' };
+export function simItems(impact) {
+  return (impact || []).filter((it) => SIM_LABELS[it.key] && it.loss > 0.05 && it.perRoundCount > 0).map((it) => {
+    if (it.key === 'gir') {
+      const cur = (it.good.n * it.perRoundCount) / it.count; // 1 ラウンドあたりのパーオンの回数
+      return { key: it.key, label: SIM_LABELS[it.key], dir: 'up', current: cur, min: cur, max: Math.min(18, cur + 6), loss: it.loss };
+    }
+    return { key: it.key, label: SIM_LABELS[it.key], dir: 'down', current: it.perRoundCount, min: 0, max: it.perRoundCount, loss: it.loss };
+  }).map((it) => ({ ...it, current: r1(it.current), min: r1(it.min), max: r1(it.max) })) // 表示と同じく 0.1 回単位にそろえる
+    .sort((a, b) => (a.dir === b.dir ? b.loss - a.loss : a.dir === 'down' ? -1 : 1)); // ミスを減らす項目を先に、パーオンは最後
+}
+// values: { key: 1 ラウンドあたりの回数 }。返り値の effects は項目ごとの打数の変化（マイナスほど良い）
+export function simulate(base, items, values = {}) {
+  const effects = {};
+  let total = 0;
+  for (const it of items) {
+    const v = Math.min(it.max, Math.max(it.min, values[it.key] ?? it.current));
+    const d = (it.dir === 'up' ? -(v - it.current) : -(it.current - v)) * it.loss;
+    effects[it.key] = d;
+    total += d;
+  }
+  return { projected: base + total, total, effects };
+}
+// 目標（例: 100 → 99 以下）に届く組み合わせの例：1 回あたりの効き目が大きい項目から、無理のない範囲（減らすのは半分まで・パーオンは +3 まで）で動かす
+export function simPlan(base, items, goal) {
+  if (!goal || base == null || base < goal) return null;
+  const values = Object.fromEntries(items.map((it) => [it.key, it.current]));
+  const limit = (it) => (it.dir === 'up' ? Math.min(it.max, it.current + 3) : it.current / 2);
+  for (const it of items) {
+    while (simulate(base, items, values).projected >= goal - 0.05) { // 表示（小数 1 桁）でも目標未満になるまで
+      const next = r1(it.dir === 'up' ? values[it.key] + 0.1 : values[it.key] - 0.1); // 0.1 回ずつ
+      if (it.dir === 'up' ? next > limit(it) + 1e-9 : next < limit(it) - 1e-9) break;
+      values[it.key] = next;
+    }
+  }
+  const r = simulate(base, items, values);
+  return { values, reached: r.projected < goal - 0.05, projected: r.projected };
+}

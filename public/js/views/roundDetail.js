@@ -2,7 +2,7 @@
 import { html, mount, $, $$, fmt, pct, toPar, signed, fmtDate, icon, confirmDialog, toast, errorToast } from '../util.js';
 import { api, getSettings } from '../api.js';
 import {
-  summarize, aggregate, roundInsights, roundAchievements, achievements as achievementList, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir,
+  summarize, aggregate, roundInsights, roundAchievements, achievements as achievementList, holeAnalysis, onCourseHoles, courseHoleNo, resultKey, played, isGir, roundFlow,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { barChart, segmentedBar, chartCard, setupChart } from '../charts.js';
@@ -29,6 +29,10 @@ export async function render(root, [idStr]) {
   const otherComplete = otherSums.filter((s) => s.complete);
   const isBest = sum.complete && otherComplete.length > 0 && otherComplete.every((s) => s.strokes > sum.strokes);
   const insights = roundInsights(sum, base, { isBest });
+  // このラウンドの流れ（18 ホール回ったとき）
+  const flow = sum.complete ? roundFlow(round) : null;
+  const sg = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '±0');
+  const flowText = flow ? [`出だし3H ${sg(flow.start)}`, `上がり3H ${sg(flow.finish)}`, flow.big ? `大叩き ${flow.big}回（次のホールで立て直し ${flow.recovered}回）` : '大叩きなし', flow.longest >= 2 ? `ボギー以上の最長 ${flow.longest}連続` : ''].filter(Boolean).join('・') : '';
   const goal = Number(settings.goal) || null;
   const achievements = justSaved ? roundAchievements(sum, otherSums, goal) : [];
   // このラウンドで新しく達成した「実績」（スコアの節目・バーディはお祝いと重なるので除く）
@@ -214,6 +218,7 @@ export async function render(root, [idStr]) {
       <div class="card">
         <h2 style="margin-bottom:12px">振り返りコメント</h2>
         <ul class="insights">${insights.map((it) => html`<li><span class="ico ${it.type}">${it.type === 'good' ? '✓' : it.type === 'bad' ? '!' : 'i'}</span><span>${it.text}</span></li>`)}</ul>
+        ${flowText ? html`<p class="flow-line small"><strong>流れ</strong>　${flowText}</p>` : ''}
         ${round.memo ? html`<h3 style="margin:16px 0 6px">メモ</h3><p style="white-space:pre-wrap" class="secondary">${round.memo}</p>` : ''}
       </div>
     </div>
