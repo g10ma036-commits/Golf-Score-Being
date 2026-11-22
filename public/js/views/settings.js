@@ -66,7 +66,7 @@ export async function render(root) {
       <div class="card">
         <h2 style="margin-bottom:8px">ほかのアプリから取り込む</h2>
         <p class="small muted" style="margin-bottom:10px">いまの記録は消えずに、まだ無いラウンドだけが追加されます（同じ日・同じコース・同じスコアのラウンドは飛ばします）。</p>
-        <label class="btn">⛳ IKScoreCard のバックアップから取り込む<input type="file" id="import-ik" multiple hidden></label>
+        <label class="btn btn-wrap">⛳ IKScoreCard のバックアップから取り込む<input type="file" id="import-ik" multiple hidden></label>
         <p class="small muted" style="margin-top:8px">IKScoreCard のバックアップ（ZIP、または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。スコア・パット・OB などのペナルティ・同伴者のスコア・コース（パーと距離）を取り込みます。</p>
       </div>
 

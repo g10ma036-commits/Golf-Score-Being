@@ -236,11 +236,11 @@ function openHomeEditor(current, onSaved) {
   });
   const list = $('.home-edit-list', m.el);
   const draw = (focusKey, focusDir) => {
-    mount(list, html`${order.map((k, i) => html`<div class="he-row ${hidden.has(k) ? 'off' : ''}" data-k="${k}">
-      <label class="check he-check"><input type="checkbox" ${hidden.has(k) ? '' : 'checked'} aria-label="${BLOCK_LABELS[k][0]}を表示"><span><strong>${BLOCK_LABELS[k][0]}</strong>${BLOCK_LABELS[k][1] ? html`<span class="small muted">${BLOCK_LABELS[k][1]}</span>` : ''}</span></label>
-      <div class="he-move"><button type="button" class="btn btn-icon btn-sm" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="${BLOCK_LABELS[k][0]}を上へ">↑</button><button type="button" class="btn btn-icon btn-sm" data-move="1" ${i === order.length - 1 ? 'disabled' : ''} aria-label="${BLOCK_LABELS[k][0]}を下へ">↓</button></div>
+    mount(list, html`${order.map((k, i) => html`<div class="hed-row ${hidden.has(k) ? 'off' : ''}" data-k="${k}">
+      <label class="check hed-check"><input type="checkbox" ${hidden.has(k) ? '' : 'checked'} aria-label="${BLOCK_LABELS[k][0]}を表示"><span><strong>${BLOCK_LABELS[k][0]}</strong>${BLOCK_LABELS[k][1] ? html`<span class="small muted">${BLOCK_LABELS[k][1]}</span>` : ''}</span></label>
+      <div class="hed-move"><button type="button" class="btn btn-icon btn-sm" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="${BLOCK_LABELS[k][0]}を上へ">↑</button><button type="button" class="btn btn-icon btn-sm" data-move="1" ${i === order.length - 1 ? 'disabled' : ''} aria-label="${BLOCK_LABELS[k][0]}を下へ">↓</button></div>
     </div>`)}`);
-    $$('.he-row', list).forEach((row) => {
+    $$('.hed-row', list).forEach((row) => {
       const k = row.dataset.k;
       $('input', row).addEventListener('change', (e) => { if (e.target.checked) hidden.delete(k); else hidden.add(k); row.classList.toggle('off', !e.target.checked); });
       $$('[data-move]', row).forEach((b) => b.addEventListener('click', () => {
@@ -252,7 +252,7 @@ function openHomeEditor(current, onSaved) {
     });
     // 動かしたカードのボタンにフォーカスを戻す（続けて押せるように）
     if (focusKey) {
-      const row = $(`.he-row[data-k="${focusKey}"]`, list);
+      const row = $(`.hed-row[data-k="${focusKey}"]`, list);
       const btn = $(`[data-move="${focusDir}"]`, row);
       (btn && !btn.disabled ? btn : $('[data-move]:not([disabled])', row))?.focus();
     }

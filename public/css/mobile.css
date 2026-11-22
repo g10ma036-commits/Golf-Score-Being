@@ -604,10 +604,16 @@ table.data tr.par-first td { border-top: 2px solid var(--border-strong); }
 /* ホームを編集 */
 .home-edit { display: flex; justify-content: center; margin: 20px 0 8px; }
 .home-edit-list { display: grid; gap: 6px; }
-.he-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
-.he-row.off { opacity: .55; }
-.he-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.he-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent); }
-.he-check > span { display: flex; flex-direction: column; min-width: 0; }
-.he-move { display: flex; gap: 4px; flex: none; }
-.he-move .btn-icon { width: 40px; height: 40px; font-size: 18px; padding: 0; }
+.hed-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
+.hed-row.off { opacity: .55; }
+.hed-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.hed-check input { width: 22px; height: 22px; flex: none; accent-color: var(--accent); }
+.hed-check > span { display: flex; flex-direction: column; min-width: 0; }
+.hed-move { display: flex; gap: 4px; flex: none; }
+.hed-move .btn-icon { width: 40px; height: 40px; font-size: 18px; padding: 0; }
+/* 長い文字のボタンは、狭い画面や文字を大きくしたときに折り返す */
+.btn.btn-wrap { white-space: normal; height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; max-width: 100%; text-align: center; line-height: 1.3; }
+/* 1ホールずつ入力の 2 列の＋−：幅が足りないときだけボタンを縮める（文字「大きい」の 320px 幅など） */
+.he-two > * { min-width: 0; }
+.he-two .stepper .btn-icon { flex: 0 1 44px; width: auto; min-width: 28px; }
+@media (max-width: 360px) { .he-two .stepper .btn-icon { flex-basis: 40px; } }
