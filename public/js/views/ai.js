@@ -1,7 +1,7 @@
 // AI に分析してもらう：スコアのデータから、ChatGPT・Claude・Gemini などに貼り付ける質問文（プロンプト）を作る
 import { html, mount, $, $$, fmtDate, icon, toast, errorToast } from '../util.js';
 import { api, getSettings } from '../api.js';
-import { AI_PURPOSES, AI_PERIODS, buildAiPrompt } from '../aiPrompt.js';
+import { AI_PURPOSES, AI_PERIODS, AI_LENGTHS, AI_FOLLOWUPS, buildAiPrompt } from '../aiPrompt.js';
 import { summarize } from '../stats.js';
 
 const AI_LINKS = [
@@ -22,6 +22,8 @@ export async function render(root) {
     period: '',
     roundId: Number(query.get('round')) || sorted[0]?.id || null,
     courseId: Number(query.get('course')) || (sorted.find((r) => r.course_id)?.course_id ?? playedCourses[0]?.id ?? null),
+    question: '',
+    length: 'normal',
     ...DEFAULTS,
   };
   const purposeOf = () => AI_PURPOSES.find((p) => p.key === state.purpose);
@@ -47,6 +49,8 @@ export async function render(root) {
           ${AI_PURPOSES.map((p) => html`<label class="ai-purpose"><input type="radio" name="purpose" value="${p.key}" ${p.key === state.purpose ? 'checked' : ''}>
             <span class="ai-p-title">${p.label}</span><span class="ai-p-desc">${p.desc}</span></label>`)}
         </div>
+        <label class="field ai-question" data-show="free" style="margin-top:12px"><span>聞きたいこと</span>
+          <textarea name="question" rows="3" maxlength="2000" placeholder="例：ドライバーが右に曲がることが多いです。スコアへの影響と、すぐできる対策を教えてください"></textarea></label>
         <h2 style="margin:18px 0 10px">2. 使うデータ</h2>
         <div class="form-grid">
           <label class="field" data-show="period"><span>対象の期間</span><select name="period">${AI_PERIODS.map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></label>
@@ -54,6 +58,7 @@ export async function render(root) {
             <select name="round">${sorted.slice(0, 100).map((r) => html`<option value="${r.id}" ${r.id === state.roundId ? 'selected' : ''}>${roundLabel(r)}</option>`)}</select></label>
           <label class="field" data-show="course" style="grid-column:span 2"><span>攻略するコース</span>
             <select name="course">${playedCourses.map((c) => html`<option value="${c.id}" ${c.id === state.courseId ? 'selected' : ''}>${c.name}</option>`)}</select></label>
+          <label class="field"><span>答えの長さ</span><select name="length">${AI_LENGTHS.map(([k, l]) => html`<option value="${k}" ${k === 'normal' ? 'selected' : ''}>${l}</option>`)}</select></label>
         </div>
         <div class="ai-checks">
           <label class="check"><input type="checkbox" name="holes"> ホールごとの記録（スコア・パット・FW など）</label>
@@ -74,6 +79,7 @@ export async function render(root) {
           <span class="small secondary">AIを開く：</span>
           ${AI_LINKS.map(([name, url]) => html`<a class="btn btn-sm" href="${url}" target="_blank" rel="noopener noreferrer">${name}${icon('external')}</a>`)}
         </div>
+        <div class="ai-followups"><div class="small secondary">答えを読んだあと、続けて聞くと良い質問（タップでコピー）</div><div id="ai-follow"></div></div>
         <ol class="steps small secondary" style="margin-top:12px">
           <li>「質問文をコピー」を押す</li>
           <li>使いたいAIを開き、入力欄に貼り付けて送信</li>
@@ -90,8 +96,9 @@ export async function render(root) {
     $$('[name=purpose]', form).forEach((r) => { r.closest('.ai-purpose').classList.toggle('on', r.checked); });
     $$('[data-show]', form).forEach((el) => {
       const k = el.dataset.show;
-      el.hidden = k === 'period' ? !['overall', 'practice', 'goal', 'clubs'].includes(state.purpose) : k !== state.purpose;
+      el.hidden = k === 'period' ? !['overall', 'practice', 'goal', 'clubs', 'free'].includes(state.purpose) : k !== state.purpose;
     });
+    mount($('#ai-follow', root), html`${(AI_FOLLOWUPS[state.purpose] || []).map((q) => html`<button type="button" class="ai-follow" data-follow="${q}">${q}</button>`)}`);
     $('[name=period]', form).value = state.period || 'last20';
     for (const k of ['holes', 'clubs', 'memo']) $(`[name=${k}]`, form).checked = state[k];
     let prompt = '';
@@ -108,6 +115,14 @@ export async function render(root) {
   $('[name=round]', form)?.addEventListener('change', (e) => { state.roundId = Number(e.target.value); sync(); });
   $('[name=course]', form)?.addEventListener('change', (e) => { state.courseId = Number(e.target.value); sync(); });
   for (const k of ['holes', 'clubs', 'memo']) $(`[name=${k}]`, form).addEventListener('change', (e) => { state[k] = e.target.checked; sync(); });
+  $('[name=length]', form).addEventListener('change', (e) => { state.length = e.target.value; sync(); });
+  let qTimer = 0;
+  $('[name=question]', form).addEventListener('input', (e) => { state.question = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(sync, 250); });
+  $('#ai-follow', root).addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-follow]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.follow); toast('コピーしました。AIの入力欄に貼り付けてください'); } catch { errorToast('コピーできませんでした'); }
+  });
 
   $('#ai-copy', root).addEventListener('click', async () => {
     try {

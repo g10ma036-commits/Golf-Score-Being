@@ -450,3 +450,9 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 .ach.on .ach-body strong { color: var(--text-primary); }
 .ach.on .small { color: var(--text-secondary); }
 .ach-check { position: absolute; top: 8px; right: 10px; color: var(--accent); font-weight: 800; }
+.ai-followups { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+#ai-follow { display: flex; flex-direction: column; gap: 6px; }
+.ai-follow { text-align: left; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
+.ai-follow:hover { border-color: var(--accent); }
+.ai-follow::before { content: "💬 "; }
+.ai-question textarea { width: 100%; }

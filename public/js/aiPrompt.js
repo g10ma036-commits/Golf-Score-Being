@@ -10,7 +10,20 @@ export const AI_PURPOSES = [
   { key: 'round', label: 'ラウンドの振り返り', desc: '1つのラウンドを詳しく振り返る' },
   { key: 'course', label: 'コース攻略', desc: '次に回るコースのホールごとの作戦' },
   { key: 'clubs', label: 'クラブ・飛距離', desc: '14本の構成と番手選びの相談', period: 'last10' },
+  { key: 'free', label: '自由に質問', desc: '聞きたいことを自分で書く', period: 'last20' },
 ];
+export const AI_LENGTHS = [['short', '短め'], ['normal', 'ふつう'], ['long', '詳しく']];
+
+// 答えを読んだあとに続けて聞くと良い質問の例（目的ごと）
+export const AI_FOLLOWUPS = {
+  overall: ['いちばん効果が大きい改善点を、練習方法とあわせてもう少し詳しく教えてください。', '次のラウンドで、スコアを守るために避けるべきことを教えてください。'],
+  practice: ['この練習メニューを、時間がない週向けに半分の量にしてください。', 'パター練習だけを、自宅でできるメニューにしてください。'],
+  goal: ['目標を達成するための、ラウンド前日・当日の準備を教えてください。', 'ダブルボギー以上を減らすための考え方を、場面別に教えてください。'],
+  round: ['崩れたホールで、どう判断すればよかったかを具体的に教えてください。', '次に同じコースを回るときの作戦を、ホールごとに短くまとめてください。'],
+  course: ['この作戦を、スマホで見やすいようにホールごとに1行でまとめてください。', '雨や風が強い日に変えたほうがいいところを教えてください。'],
+  clubs: ['次に買い替えるなら、どの番手を優先すべきですか？', '練習場で飛距離の階段を確かめる方法を教えてください。'],
+  free: ['今の答えを、優先度の高い順に3つにまとめてください。', 'もう少し初心者にも分かる言葉で説明してください。'],
+};
 export const AI_PERIODS = [['last10', '直近10ラウンド'], ['last20', '直近20ラウンド'], ['12m', '直近12か月'], ['year', '今年'], ['all', '全期間']];
 
 const MAX_LIST = 30; // ラウンド一覧に載せる最大数
@@ -61,6 +74,10 @@ function purposeText(p, ctx) {
       'ホールごとに、ティーショットのクラブ選び（私の飛距離をもとに）・狙う場所・刻むべきか・注意点を簡潔に書いてください。',
       '私がこのコースで過去に崩しやすかったホールと、その対策を特に詳しく説明してください（データがない場合はホールの長さ・パー・HDCP から推測してください）。',
       goal ? `目標「${goal}」を達成するための、ホールごとの目標打数（パー狙い・ボギーでOK など）の配分も示してください。` : '今の実力に合った、ホールごとの目標打数（パー狙い・ボギーでOK など）の配分も示してください。',
+    ];
+    case 'free': return [
+      ctx.question ? `質問：${ctx.question}` : '質問：（ここに聞きたいことを書いてください）',
+      '下の私のデータを参考に、私に合った答えをお願いします。',
     ];
     case 'clubs': return [
       '私のクラブセッティングと飛距離を分析してください。番手間の距離の差（重なっている番手・大きく空いている距離）を指摘してください。',
@@ -174,17 +191,19 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
   const handicap = aggregate(allSums).handicap;
   const course = purpose.key === 'course' ? courses.find((c) => c.id === Number(opts.courseId)) || null : null;
   const target = purpose.key === 'round' ? all.find((r) => r.id === Number(opts.roundId)) || all[0] || null : null;
-  const ctx = { goal, courseName: course?.name || '' };
+  const ctx = { goal, courseName: course?.name || '', question: String(opts.question || '').trim().slice(0, 2000) };
 
   const out = [];
   const add = (...lines) => out.push(...lines);
   add('あなたは経験豊富なゴルフのコーチであり、データ分析が得意なアナリストです。',
     '以下は、私（アマチュアゴルファー）がスマホアプリに記録したスコアのデータです。データをよく読み、「お願い」に沿って日本語で答えてください。', '');
   add(`# お願い（${purpose.label}）`, ...purposeText(purpose.key, ctx).map((t) => `- ${t}`), '');
+  const length = { short: '- 全体で 400 字くらいに短くまとめてください。', long: '- 根拠や具体例を交えて、詳しく説明してください。' }[opts.length] || '';
   add('# 答え方',
     '- 最初に、結論を3行以内でまとめてください。',
     '- 見出しと箇条書きを使い、判断の根拠になった数字を添えてください。',
     '- 提案は具体的に、優先度の高い順に。専門用語には短い説明をつけてください。',
+    ...(length ? [length] : []),
     '- データから分からないことは推測で断定せず、必要なら最後に私への質問を書いてください。', '');
 
   const first = all.length ? sdate(all[all.length - 1].date) : null;

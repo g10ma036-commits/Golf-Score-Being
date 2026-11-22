@@ -286,3 +286,15 @@ test('実績：条件を最初に満たしたラウンドを記録し、未達�
   assert.equal(get('even').achieved, false);
   assert.ok(a.length > 20);
 });
+
+test('AI の質問文：自由に質問・答えの長さ', async () => {
+  const ai = await load('public/js/aiPrompt.js');
+  const data = { rounds: [round(1, '2026-09-01', [1])], courses: [], clubs: [], settings: {} };
+  const t = ai.buildAiPrompt(data, { purpose: 'free', question: '  雨の日のコツは？  ', length: 'short', holes: false });
+  assert.match(t, /お願い（自由に質問）/);
+  assert.match(t, /- 質問：雨の日のコツは？\n/);
+  assert.match(t, /400 字くらい/);
+  assert.match(t, /ラウンド一覧/);
+  assert.ok(ai.AI_FOLLOWUPS.free.length >= 1);
+  for (const p of ai.AI_PURPOSES) assert.ok(ai.AI_FOLLOWUPS[p.key]?.length, p.key);
+});
