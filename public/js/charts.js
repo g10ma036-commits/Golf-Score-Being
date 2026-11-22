@@ -452,6 +452,7 @@ export function segmentedBar(el, { parts, format = (v) => String(v), ariaLabel =
       d.style.color = p.ink || '#fff';
       d.tabIndex = 0;
       d.textContent = `${Math.round(share * 100)}%`;
+      d.setAttribute('aria-label', `${p.label} ${(share * 100).toFixed(1)}%（${format(p.value)}）`);
       const show = (cx, cy) => showTooltip(cx, cy, { title: p.label, rows: [{ value: `${(share * 100).toFixed(1)}%`, label: format(p.value), color: p.color, swatch: true }] });
       d.addEventListener('pointermove', (e) => show(e.clientX, e.clientY));
       d.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') show(e.clientX, e.clientY); });
