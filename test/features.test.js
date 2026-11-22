@@ -143,7 +143,8 @@ test('AI に貼り付ける質問文：目的ごとに必要なデータが入�
   const cs = ai.buildAiPrompt(data, { purpose: 'course', courseId: 7, holes: true, clubs: true });
   assert.match(cs, /テストカントリー」を次に回るとき/);
   assert.match(cs, /ホール,パー,ヤード,HDCP/);
-  assert.match(cs, /^1,4,300,1,2,/m); // 1番：パー4・300ヤード・HDCP1・私の回数2
+  assert.match(cs, /^1,4,300,1,\d+,2,/m); // 1番：パー4・300ヤード・HDCP1・目標打数・私の回数2
+  assert.match(cs, /目標打数（100切りの配分）/);
   // データがなくても作れる
   const empty = ai.buildAiPrompt({ rounds: [], courses: [], clubs: [], settings: {} }, { purpose: 'overall' });
   assert.match(empty, /まだラウンドの記録がありません/);

@@ -358,9 +358,13 @@ export async function render(root, params) {
       pastKey = c?.id ?? null;
       const rs = c ? allRounds.filter((r) => r.course_id === c.id && r.id !== editId) : [];
       pastStats = rs.length ? holeAnalysis(rs.map(onCourseHoles), 54) : null;
+      // 前回（いちばん新しいラウンド）のホールごとのスコア（コースの通し番号で）
+      const latest = [...rs].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)[0];
+      lastScores = new Map((latest ? onCourseHoles(latest).holes : []).filter(played).map((h) => [h.hole_no, h.strokes]));
     }
     return pastStats;
   };
+  let lastScores = new Map();
   // 目標スコア（設定済みのとき）を 18 ホールに配る。難しいホール（過去のパー比 → HDCP の順）ほど多く
   const planFor = () => {
     if (!goal) return null;
@@ -402,7 +406,7 @@ export async function render(root, params) {
       ${c || target || club ? html`<div class="he-info">
         ${target ? html`<span class="he-target">🎯 目標 <strong>${target}</strong>（${planLabel(target, h.par)}）<span class="small muted">${goal}切りの配分</span></span>` : ''}
         ${club ? html`<span class="he-club">🏌️ 番手の目安：<strong>${club.name}</strong>（${club.measured ? '平均' : '想定'} ${club.carry}${unitLabel}）</span>` : ''}
-        ${past?.n ? html`<span class="he-past">このホールの過去：平均 <strong>${past.avg.toFixed(1)}</strong>・ベスト ${past.best}（${past.n}回）</span>` : ''}
+        ${past?.n ? html`<span class="he-past">このホールの過去：平均 <strong>${past.avg.toFixed(1)}</strong>・ベスト ${past.best}${lastScores.has(cno) ? `・前回 ${lastScores.get(cno)}` : ''}（${past.n}回）</span>` : ''}
         ${c ? html`<span class="he-memo">${ch?.memo ? html`📝 ${ch.memo}` : ''}<button type="button" class="link-btn" data-memo-edit>${ch?.memo ? '編集' : '＋ このホールのメモ'}</button></span>` : ''}
       </div>` : ''}
       <div class="he-row"><div class="he-label">スコア <span class="he-res">${k ? RESULT_LABELS[k] : ''}</span></div>
