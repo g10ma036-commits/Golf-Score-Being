@@ -9,14 +9,16 @@ import { loadDraft, clearDraft, draftText, draftHref } from '../draft.js';
 import { goalCardHtml, guideHtml, nextRoundHtml, bindHomeCards } from './homeCards.js';
 
 export async function render(root) {
-  const [rounds, clubs, photos, settings, sample, courses] = await Promise.all([
+  const [rounds, clubs, photos, settings, sample, courses, allPhotos] = await Promise.all([
     api.get('/api/rounds'),
     api.get('/api/clubs'),
     api.get('/api/photos?limit=8'),
     getSettings(),
     api.get('/api/sample').catch(() => null),
     api.get('/api/courses'),
+    api.get('/api/photos').catch(() => []),
   ]);
+  const memory = pickMemory(allPhotos, rounds);
   // 入力途中のラウンド（編集中のラウンドが削除されていたら下書きも捨てる）
   let draft = loadDraft();
   if (draft?.edit_id && !rounds.some((r) => r.id === draft.edit_id)) { clearDraft(); draft = null; }
@@ -137,6 +139,8 @@ export async function render(root) {
       </div>
     </div>
 
+    ${memoryHtml(memory)}
+
     <div class="card section">
       <div class="card-header"><h2>最近の写真</h2><a class="small" href="#/album">アルバムへ →</a></div>
       ${photos.length ? html`<div class="photo-grid">${photos.map((p) => html`<a class="ph" href="#/album/${p.album_id || 'all'}"><img src="${photoUrl(p)}" alt="${p.caption || '写真'}" loading="lazy"></a>`)}</div>`
@@ -166,6 +170,31 @@ export async function render(root) {
     columns: [{ label: '日付' }, { label: 'コース' }, { label: 'スコア', align: 'r' }, { label: '5R平均', align: 'r' }],
     rows: trend.map((s, i) => [fmtDate(s.date), s.course, String(s.strokes), fmt(ma[i], 1)]),
   });
+}
+
+// 思い出の1枚：1年前（2年前…）の今ごろ（前後 7 日）のラウンドの写真。なければラウンドの写真から1枚
+function pickMemory(photos, rounds) {
+  const byId = new Map(rounds.map((r) => [r.id, r]));
+  const withRound = photos.filter((p) => p.round_id && byId.has(p.round_id));
+  if (!withRound.length) return null;
+  const now = new Date();
+  for (let y = 1; y <= 5; y++) {
+    const center = new Date(now.getFullYear() - y, now.getMonth(), now.getDate()).getTime();
+    const hits = withRound.filter((p) => Math.abs(new Date(`${byId.get(p.round_id).date}T00:00`).getTime() - center) <= 7 * 86400000);
+    if (hits.length) return { photo: hits[Math.floor(Math.random() * hits.length)], round: null, label: `${y}年前の今ごろ`, byId };
+  }
+  const photo = withRound[Math.floor(Math.random() * withRound.length)];
+  return { photo, label: '思い出の1枚', byId };
+}
+function memoryHtml(m) {
+  if (!m) return '';
+  const r = m.byId.get(m.photo.round_id);
+  const s = summarize(r);
+  return html`<a class="card memory-card section" href="#/rounds/${r.id}">
+    <img src="${photoUrl(m.photo)}" alt="${m.photo.caption || '思い出の写真'}" loading="lazy">
+    <span class="mem-body"><span class="mem-label">📸 ${m.label}</span><strong>${fmtDate(r.date)} ${r.course_name || ''}</strong>
+      <span class="small secondary">${s.holes ? `スコア ${s.strokes}（${toPar(s.toPar)}）` : ''}${m.photo.caption ? `　${m.photo.caption}` : ''}</span></span>
+  </a>`;
 }
 
 function tile(label, value, sub = '') {

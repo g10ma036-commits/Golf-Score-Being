@@ -124,13 +124,17 @@ export async function openLightbox(photos, index, { onChanged = () => {} } = {})
   document.body.appendChild(box);
   const prevFocus = document.activeElement;
 
+  // スライドショー（3 秒ごとに次の写真へ。操作したり閉じたりすると止まる）
+  let slideTimer = 0;
+  const stopSlide = () => { clearInterval(slideTimer); slideTimer = 0; box.classList.remove('playing'); };
   const close = () => {
+    stopSlide();
     box.remove();
     document.removeEventListener('keydown', onKey);
     prevFocus?.focus?.();
     if (changed) onChanged();
   };
-  const go = (d) => { if (!photos.length) return; i = (i + d + photos.length) % photos.length; draw(); };
+  const go = (d, auto = false) => { if (!photos.length) return; if (!auto) stopSlide(); i = (i + d + photos.length) % photos.length; draw(); };
   const onKey = (e) => {
     if (document.querySelector('.modal-backdrop')) return; // 確認ダイアログ表示中
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { if (e.key === 'Escape') document.activeElement.blur(); return; }
@@ -148,6 +152,7 @@ export async function openLightbox(photos, index, { onChanged = () => {} } = {})
         <div class="lb-top">
           <span class="lb-count">${i + 1} / ${photos.length}</span>
           <span class="lb-cap">${p.caption || ''}</span>
+          ${photos.length > 1 ? html`<button class="lb-btn" data-slide aria-pressed="${Boolean(slideTimer)}">${slideTimer ? '❚❚ 停止' : '▶ スライドショー'}</button>` : ''}
           ${canSharePhotos ? html`<button class="lb-btn" data-share-photo disabled>共有</button>` : ''}
           <button class="lb-btn lb-info" data-info aria-expanded="${box.classList.contains('side-open')}">情報・編集</button>
           <button class="lb-btn" data-close aria-label="閉じる">✕</button>
@@ -184,11 +189,18 @@ export async function openLightbox(photos, index, { onChanged = () => {} } = {})
         try { await navigator.share({ files: [file] }); } catch (e) { if (e?.name !== 'AbortError') errorToast('共有できませんでした'); }
       });
     }
+    box.querySelector('[data-slide]')?.addEventListener('click', () => {
+      if (slideTimer) { stopSlide(); draw(); return; }
+      box.classList.add('playing');
+      slideTimer = setInterval(() => go(1, true), 3000);
+      draw();
+    });
     box.querySelector('.lb-prev')?.addEventListener('click', () => go(-1));
     box.querySelector('.lb-next')?.addEventListener('click', () => go(1));
     box.querySelector('[data-close]').addEventListener('click', close);
     box.querySelector('[data-goto]')?.addEventListener('click', close);
     box.querySelector('[data-info]').addEventListener('click', (e) => {
+      if (slideTimer) { stopSlide(); const sb = box.querySelector('[data-slide]'); if (sb) { sb.textContent = '▶ スライドショー'; sb.setAttribute('aria-pressed', 'false'); } }
       const open = box.classList.toggle('side-open');
       e.currentTarget.setAttribute('aria-expanded', String(open));
     });
