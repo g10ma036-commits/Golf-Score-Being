@@ -468,3 +468,25 @@ test('スコアのシミュレーター：ミスを減らしたときの予想�
   assert.equal(stats.simPlan(98, items, 100), null); // もう届いている
   assert.equal(stats.simPlan(130, items, 100).reached, false); // 無理のない範囲では届かない
 });
+
+test('上達の履歴：年ごとの成績・ベスト更新・初めての○○切り・最初と直近の比較', () => {
+  const rs = [
+    round(1, '2020-05-01', [2]), // 108
+    round(2, '2020-09-01', [1, 2]), // 99
+    round(3, '2021-04-01', [2, 1]), // 99（ベストと同じ → 更新ではない）
+    round(4, '2021-08-01', [1]), // 90
+    round(5, '2022-06-01', [0, 1]), // 81
+    round(6, '2022-07-01', [1, 0]), // 81
+    { id: 7, date: '2022-08-01', course_name: '9H', holes: PARS.slice(0, 9).map((par, i) => ({ hole_no: i + 1, par, strokes: par })) }, // 9H は年の回数にだけ
+  ];
+  const h = stats.progressHistory(rs);
+  assert.deepEqual(h.years.map((y) => [y.year, y.rounds, y.complete, y.avg, y.best.strokes]), [[2020, 2, 2, 103.5, 99], [2021, 2, 2, 94.5, 90], [2022, 3, 2, 81, 81]]);
+  assert.equal(h.years[0].handicap, null); // 3 ラウンド目から
+  assert.ok(h.years[2].handicap < h.years[1].handicap);
+  assert.deepEqual(h.bests.map((b) => [b.id, b.strokes, b.prev]), [[1, 108, null], [2, 99, 108], [4, 90, 99], [5, 81, 90]]);
+  assert.deepEqual(h.firsts.map((f) => [f.goal, f.id, f.nth]), [[100, 2, 2], [95, 4, 4], [90, 5, 5], [85, 5, 5]]);
+  assert.deepEqual([h.totalRounds, h.completeRounds, h.from, h.to, h.compareN], [7, 6, '2020-05-01', '2022-08-01', 3]);
+  assert.equal(h.firstAvg, 102); // 108, 99, 99
+  assert.equal(h.recentAvg, 84); // 90, 81, 81
+  assert.deepEqual(stats.progressHistory([]).years, []);
+});

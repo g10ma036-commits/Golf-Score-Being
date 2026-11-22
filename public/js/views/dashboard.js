@@ -104,7 +104,7 @@ export async function render(root) {
       ${nextRound ? '' : html`<button type="button" class="quick-link" data-nr-edit><span class="ql-ico">📅</span><span><strong>次のラウンドの予定</strong><span class="small muted">日付とコースを入れると、あと何日・攻略のヒント</span></span></button>`}
     </div>`,
     trend: () => html`<div class="grid grid-3 section">
-      ${chartCard('trend', 'スコアの推移', `直近 ${trend.length} ラウンド（18ホール）・点をクリックで詳細`, 'span-2')}
+      ${chartCard('trend', 'スコアの推移', html`直近 ${trend.length} ラウンド（18ホール）・<a href="#/progress">これまでの履歴を見る →</a>`, 'span-2')}
       <div class="card">
         <div class="card-header"><h2>直近の傾向</h2><a class="small" href="#/stats">統計分析へ →</a></div>
         ${insights.length ? html`<ul class="insights">${insights.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '↑' : '↓'}</span><span>${i.text}</span></li>`)}</ul>`
@@ -148,7 +148,7 @@ export async function render(root) {
       </div>
     </div>
     ${draftNotice}
-    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：IKScoreCard からの取り込み・スコアのシミュレーター・スコアの流れ・ホームの編集</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
+    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：これまでの「上達の履歴」・背景のデザイン</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
     ${sampleNoticeHtml(sample)}
     ${guide}
     ${reminder ? html`<div class="notice" id="backup-notice">

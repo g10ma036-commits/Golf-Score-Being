@@ -2,11 +2,13 @@
 import { $, $$, html, mount, icon, errorToast } from './util.js';
 import { clearCharts, hideTooltip } from './charts.js';
 import { api, getSettings, STANDALONE } from './api.js';
+import { BACKGROUNDS } from './shared/model.js';
 
 const NAV = [
   ['/', 'home', 'ホーム'],
   ['/rounds', 'score', 'スコア・ラウンド'],
   ['/stats', 'stats', '統計分析'],
+  ['/progress', 'stats', '上達の履歴'],
   ['/ai', 'ai', 'AIに分析してもらう'],
   ['/courses', 'course', 'コース'],
   ['/clubs', 'club', 'クラブセッティング'],
@@ -17,7 +19,7 @@ const NAV = [
 ];
 // スマホ用タブバー（中央はスコア入力ボタン）と「その他」メニュー
 const TABS = [['/', 'home', 'ホーム'], ['/rounds', 'score', 'スコア'], ['/rounds/new', 'plus', '入力'], ['/stats', 'stats', '分析']];
-const MORE = [['/ai', 'ai', 'AI分析'], ['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定'], ['/help', 'help', '使い方']];
+const MORE = [['/progress', 'stats', '上達の履歴'], ['/ai', 'ai', 'AI分析'], ['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定'], ['/help', 'help', '使い方']];
 
 const ROUTES = [
   [/^\/$/, () => import('./views/dashboard.js')],
@@ -28,6 +30,7 @@ const ROUTES = [
   [/^\/stats$/, () => import('./views/stats.js')],
   [/^\/ai$/, () => import('./views/ai.js')],
   [/^\/review$/, () => import('./views/review.js')],
+  [/^\/progress$/, () => import('./views/progress.js')],
   [/^\/compare$/, () => import('./views/compare.js')],
   [/^\/achievements$/, () => import('./views/achievements.js')],
   [/^\/courses$/, () => import('./views/courses.js')],
@@ -76,6 +79,13 @@ export function applyTextSize(size) {
   if (v) document.documentElement.dataset.text = v;
   else delete document.documentElement.dataset.text;
   try { localStorage.setItem('golf-text-size', v || 'normal'); } catch { /* ignore */ }
+}
+// 背景のデザイン（標準は無地）
+export function applyBackground(bg) {
+  const v = bg && bg !== 'plain' && BACKGROUNDS.includes(bg) ? bg : null;
+  if (v) document.documentElement.dataset.bg = v;
+  else delete document.documentElement.dataset.bg;
+  try { localStorage.setItem('golf-bg', v || 'plain'); } catch { /* ignore */ }
 }
 
 const isActive = (p, path) => (p === '/' ? path === '/' : path === p || (path.startsWith(p + '/') && !(p === '/rounds' && path === '/rounds/new')));
@@ -183,6 +193,7 @@ function hideTabbarWhileTyping() {
     applyTheme(s.theme);
     applyAccent(s.accent);
     applyTextSize(s.text_size);
+    applyBackground(s.background);
   } catch (e) {
     errorToast(e);
   }

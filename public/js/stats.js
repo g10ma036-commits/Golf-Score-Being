@@ -763,3 +763,53 @@ export function simPlan(base, items, goal) {
   const r = simulate(base, items, values);
   return { values, reached: r.projected < goal - 0.05, projected: r.projected };
 }
+
+// ---------- 上達の履歴（全期間） ----------
+// years: 年ごとの成績（古い順）。handicap はその年の終わりの時点の推定ハンディキャップ
+// bests: ベストスコアを更新したラウンド（古い順）。firsts: 初めての○○切り（初めてのラウンドより後に達成したもの）
+const FIRST_GOALS = [120, 110, 100, 95, 90, 85, 80, 75, 70];
+export function progressHistory(rounds) {
+  const sums = rounds.map(summarize).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const complete = sums.filter((s) => s.complete);
+  const byYear = new Map();
+  for (const s of sums) {
+    const y = Number(s.date.slice(0, 4));
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(s);
+  }
+  const years = [...byYear.keys()].sort((a, b) => a - b).map((year) => {
+    const a = aggregate(byYear.get(year));
+    return {
+      year, rounds: a.rounds, complete: a.completeRounds, avg: a.avgScore, best: a.best,
+      handicap: handicapEstimate(sums.filter((s) => s.date <= `${year}-12-31`)),
+      putts: a.puttsPerRound, girRate: a.girRate, fwRate: a.fwRate, penalties: a.penaltiesPerRound, threePutts: a.threePuttsPerRound,
+    };
+  });
+  const bests = [];
+  let best = Infinity;
+  for (const s of complete) {
+    if (s.strokes < best) {
+      bests.push({ id: s.id, date: s.date, course: s.course, strokes: s.strokes, prev: Number.isFinite(best) ? best : null });
+      best = s.strokes;
+    }
+  }
+  const firsts = [];
+  if (complete.length) {
+    const start = complete[0].strokes;
+    for (const goal of FIRST_GOALS) {
+      if (start < goal) continue; // 最初のラウンドからすでに切れていたものは出さない
+      const hit = complete.find((s) => s.strokes < goal);
+      if (hit) firsts.push({ goal, id: hit.id, date: hit.date, course: hit.course, strokes: hit.strokes, nth: complete.indexOf(hit) + 1 });
+    }
+    firsts.sort((a, b) => a.date.localeCompare(b.date) || b.goal - a.goal);
+  }
+  const avgOf = (list) => (list.length ? mean(list.map((s) => s.strokes)) : null);
+  const n = Math.min(5, Math.floor(complete.length / 2));
+  return {
+    years, bests, firsts,
+    totalRounds: sums.length, completeRounds: complete.length,
+    from: sums[0]?.date || null, to: sums[sums.length - 1]?.date || null,
+    firstAvg: n ? avgOf(complete.slice(0, n)) : null, recentAvg: n ? avgOf(complete.slice(-n)) : null, compareN: n,
+    firstHandicap: handicapTrend(sums)[0]?.handicap ?? null, handicap: handicapEstimate(sums),
+  };
+}

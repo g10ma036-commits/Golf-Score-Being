@@ -453,3 +453,44 @@ tr.drop-target td { box-shadow: inset 0 2px 0 var(--accent); }
 /* 文字の大きさ（設定）：画面全体を拡大する。320px 幅のスマホでも横にはみ出さないことを確認済み */
 html[data-text="large"] { zoom: 1.1; }
 html[data-text="xlarge"] { zoom: 1.2; }
+
+/* ---------- 背景のデザイン（設定）----------
+   画面に固定した下敷きの層として描く（カードは不透明なので、文字の読みやすさは変わらない）。
+   見出しなどカードの外の文字も読めるよう、ライトでは明るい色、ダークでは暗い色だけを使う */
+:root {
+  --bgx-sky: #e1efff; --bgx-sky2: #eef6ff; --bgx-cloud: rgba(255, 255, 255, .9);
+  --bgx-sun: #ffe9d6; --bgx-sun2: #fff4ea;
+  --bgx-grass: rgba(46, 125, 50, .085); --bgx-grass2: rgba(46, 125, 50, .025); --bgx-grass-top: rgba(76, 175, 80, .12);
+  --bgx-dot: rgba(0, 0, 0, .06);
+}
+:root[data-theme="dark"] {
+  --bgx-sky: #0f2238; --bgx-sky2: #0e1622; --bgx-cloud: rgba(255, 255, 255, .045);
+  --bgx-sun: #3a1f2c; --bgx-sun2: #1c1317;
+  --bgx-grass: rgba(102, 187, 106, .085); --bgx-grass2: rgba(102, 187, 106, .025); --bgx-grass-top: rgba(102, 187, 106, .1);
+  --bgx-dot: rgba(255, 255, 255, .065);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --bgx-sky: #0f2238; --bgx-sky2: #0e1622; --bgx-cloud: rgba(255, 255, 255, .045);
+    --bgx-sun: #3a1f2c; --bgx-sun2: #1c1317;
+    --bgx-grass: rgba(102, 187, 106, .085); --bgx-grass2: rgba(102, 187, 106, .025); --bgx-grass-top: rgba(102, 187, 106, .1);
+    --bgx-dot: rgba(255, 255, 255, .065);
+  }
+}
+html[data-bg] body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+html[data-bg="accent"] body::before, .bgx-accent { background: linear-gradient(180deg, var(--accent-soft) 0%, var(--page) 60%); }
+html[data-bg="fairway"] body::before, .bgx-fairway {
+  background: linear-gradient(180deg, var(--bgx-grass-top), transparent 55%),
+    repeating-linear-gradient(135deg, var(--bgx-grass) 0 56px, var(--bgx-grass2) 56px 112px), var(--page);
+}
+html[data-bg="sky"] body::before, .bgx-sky {
+  background: radial-gradient(ellipse 38% 9% at 22% 10%, var(--bgx-cloud), transparent 70%),
+    radial-gradient(ellipse 30% 7% at 78% 20%, var(--bgx-cloud), transparent 70%),
+    linear-gradient(180deg, var(--bgx-sky) 0%, var(--bgx-sky2) 32%, var(--page) 68%);
+}
+html[data-bg="sunset"] body::before, .bgx-sunset { background: linear-gradient(180deg, var(--bgx-sun) 0%, var(--bgx-sun2) 30%, var(--page) 66%); }
+html[data-bg="dimple"] body::before, .bgx-dimple {
+  background: radial-gradient(circle, var(--bgx-dot) 0 3px, transparent 3.5px) 0 0 / 16px 16px,
+    radial-gradient(circle, var(--bgx-dot) 0 3px, transparent 3.5px) 8px 8px / 16px 16px, var(--page);
+}
+.bgx-plain { background: var(--page); }

@@ -6,4 +6,6 @@ try {
   if (a && a !== 'green') document.documentElement.dataset.accent = a;
   const z = localStorage.getItem('golf-text-size');
   if (z === 'large' || z === 'xlarge') document.documentElement.dataset.text = z;
+  const g = localStorage.getItem('golf-bg');
+  if (g && g !== 'plain' && /^[a-z]+$/.test(g)) document.documentElement.dataset.bg = g;
 } catch (e) { /* 保存領域が使えない環境では自動のまま */ }

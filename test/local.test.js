@@ -116,6 +116,8 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('PUT', '/api/settings', { accent: 'rainbow' });
   await S('PUT', '/api/settings', { text_size: 'xlarge' });
   await S('PUT', '/api/settings', { text_size: 'huge' });
+  await S('PUT', '/api/settings', { background: 'sky' });
+  await S('PUT', '/api/settings', { background: 'rainbow' });
   await S('PUT', '/api/settings', { home_layout: JSON.stringify({ order: ['goal', 'next', 'evil', 'goal'], hidden: ['photos', 'x'] }) });
   await S('PUT', '/api/settings', { home_layout: '{壊れた' });
   await S('PUT', '/api/settings', { home_layout: { order: ['next', 'summary', 'goal', 'links', 'trend', 'recent', 'memory', 'photos'], hidden: [] } });
