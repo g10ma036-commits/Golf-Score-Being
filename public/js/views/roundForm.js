@@ -726,6 +726,10 @@ export async function render(root, params) {
     const bad = holes.find((h) => played(h) && Number.isFinite(h.putts) && h.putts >= h.strokes);
     if (bad) { errorToast(`${bad.hole_no}番: パット数がスコア以上になっています`); return; }
     if (!holes.some(played) && !window.confirm('スコアが1ホールも入力されていません。このまま保存しますか？')) return;
+    // 同じ日・同じコースのラウンドがすでにあれば、二重に保存していないか確認する
+    const dup = allRounds.find((r) => r.id !== editId && r.date === fd.get('date')
+      && (meta.course_id ? r.course_id === meta.course_id : !r.course_id && r.course_name === meta.course_name));
+    if (dup && !(await confirmDialog(`${dup.date.replace(/-/g, '/')} の「${dup.course_name}」のラウンドは、すでに記録されています。\n二重に保存していないか確認してください。このまま保存しますか？`, { okText: '保存する' }))) return;
     const c = courses.find((x) => x.id === meta.course_id);
     const body = {
       date: fd.get('date'),

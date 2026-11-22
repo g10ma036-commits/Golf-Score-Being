@@ -254,6 +254,9 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
       if (trend.length) add('## 最近の傾向（直近5ラウンドとそれ以前の比較）', ...trend.map((t) => `- ${t.text}`), '');
       const impact = shotImpact(scope);
       if (impact.length) add('## ミスの影響（ホールあたりのパー比の平均）', ...impact.map((it) => `- ${it.title}：${[it.good, ...it.bads].map((g) => `${g.label} ${sign(g.avg, 2)}（${g.n}ホール）`).join('、')}${it.perRound != null ? `。1ラウンドあたり約 ${f1(it.perRound)} 打の差` : ''}`), '');
+      const byCourse = new Map();
+      for (const s of scope.map(summarize)) { const k = s.courseId ? `c${s.courseId}` : `n${s.course}`; if (!byCourse.has(k)) byCourse.set(k, { name: s.course || '不明', list: [] }); byCourse.get(k).list.push(s); }
+      if (byCourse.size >= 2) add('## コース別の成績', 'コース,ラウンド数,平均スコア,ベスト,ホールあたりのパー比', ...[...byCourse.values()].map((c) => { const a = aggregate(c.list); return [c.name, c.list.length, f1(a.avgScore), a.best?.strokes ?? '—', a.holes ? sign(c.list.reduce((t, s) => t + s.toPar, 0) / a.holes, 2) : '—'].join(','); }), '');
       add(`# ラウンド一覧（新しい順${scope.length > MAX_LIST ? `・最新 ${MAX_LIST} 件` : ''}）`, ...roundListLines(scope.slice(0, MAX_LIST)), '');
       if (opts.holes) {
         add(`# ホールごとの記録（新しい順・最大 ${MAX_HOLE_ROUNDS} ラウンド）`);
