@@ -325,7 +325,8 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
   function exportAll() {
     const out = { app: 'golf-enjoy-manager', version: 1, exported_at: new Date().toISOString() };
     for (const [t, cols] of Object.entries(TABLES)) out[t] = db.all(`SELECT ${cols.join(', ')} FROM ${t}`);
-    out.settings = out.settings.filter((r) => SETTING_KEYS.includes(r.key)); // スマホ接続の秘密キーなどは含めない
+    // スマホ接続の秘密キーなどは含めない。並びは項目の定義順にそろえる（スマホ単独版と同じ）
+    out.settings = out.settings.filter((r) => SETTING_KEYS.includes(r.key)).sort((a, b) => SETTING_KEYS.indexOf(a.key) - SETTING_KEYS.indexOf(b.key));
     return out;
   }
   // 写真込みのバックアップ（ZIP）

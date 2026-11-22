@@ -112,6 +112,8 @@ test('スマホ単独版の API は PC版サーバーと同じ結果を返す（
   await S('PUT', '/api/settings', { goal: 'abc' });
   await S('PUT', '/api/settings', { goal: 300 });
   await S('PUT', '/api/settings', { goal: 90 });
+  await S('PUT', '/api/settings', { accent: 'blue' });
+  await S('PUT', '/api/settings', { accent: 'rainbow' });
   await S('PUT', '/api/settings', { next_round: { date: '2026-12-01', course_id: 1 } });
   await S('PUT', '/api/settings', { next_round: '{"date":"2026-02-30"}' });
   await S('PUT', '/api/settings', { next_round: 'abc' });

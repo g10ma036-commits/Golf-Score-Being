@@ -430,3 +430,22 @@ tr.drop-target td { box-shadow: inset 0 2px 0 var(--accent); }
   .hero .hero-value { font-size: 44px; }
   .compare-row { grid-template-columns: 90px 1fr 56px 56px 50px; }
 }
+
+/* テーマカラー（設定で選ぶ。標準は緑） */
+:root[data-accent="blue"] { --accent: #1f5fbf; --accent-hover: #184c99; --accent-soft: #e4ecf8; --accent-ink: #ffffff; }
+:root[data-accent="navy"] { --accent: #24366b; --accent-hover: #1b2a55; --accent-soft: #e5e8f2; --accent-ink: #ffffff; }
+:root[data-accent="red"] { --accent: #b3261e; --accent-hover: #911e18; --accent-soft: #f9e5e3; --accent-ink: #ffffff; }
+:root[data-accent="orange"] { --accent: #b85309; --accent-hover: #944207; --accent-soft: #fbeadd; --accent-ink: #ffffff; }
+:root[data-accent="purple"] { --accent: #6b3fa0; --accent-hover: #563282; --accent-soft: #eee6f6; --accent-ink: #ffffff; }
+:root[data-theme="dark"][data-accent="blue"] { --accent: #5b9cf0; --accent-hover: #78afff; --accent-soft: #17283f; --accent-ink: #0b0b0b; }
+:root[data-theme="dark"][data-accent="navy"] { --accent: #8ea4e6; --accent-hover: #a8baf0; --accent-soft: #1c2238; --accent-ink: #0b0b0b; }
+:root[data-theme="dark"][data-accent="red"] { --accent: #f07a70; --accent-hover: #f6958d; --accent-soft: #3a1a18; --accent-ink: #0b0b0b; }
+:root[data-theme="dark"][data-accent="orange"] { --accent: #f0a060; --accent-hover: #f5b47e; --accent-soft: #3a2614; --accent-ink: #0b0b0b; }
+:root[data-theme="dark"][data-accent="purple"] { --accent: #b38ae6; --accent-hover: #c4a3ee; --accent-soft: #2a1f3a; --accent-ink: #0b0b0b; }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"]))[data-accent="blue"] { --accent: #5b9cf0; --accent-hover: #78afff; --accent-soft: #17283f; --accent-ink: #0b0b0b; }
+  :root:where(:not([data-theme="light"]))[data-accent="navy"] { --accent: #8ea4e6; --accent-hover: #a8baf0; --accent-soft: #1c2238; --accent-ink: #0b0b0b; }
+  :root:where(:not([data-theme="light"]))[data-accent="red"] { --accent: #f07a70; --accent-hover: #f6958d; --accent-soft: #3a1a18; --accent-ink: #0b0b0b; }
+  :root:where(:not([data-theme="light"]))[data-accent="orange"] { --accent: #f0a060; --accent-hover: #f5b47e; --accent-soft: #3a2614; --accent-ink: #0b0b0b; }
+  :root:where(:not([data-theme="light"]))[data-accent="purple"] { --accent: #b38ae6; --accent-hover: #c4a3ee; --accent-soft: #2a1f3a; --accent-ink: #0b0b0b; }
+}

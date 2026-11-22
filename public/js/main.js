@@ -58,6 +58,17 @@ export function applyTheme(theme) {
   else delete document.documentElement.dataset.theme;
   try { localStorage.setItem('golf-theme', theme || 'auto'); } catch { /* ignore */ }
 }
+// テーマカラー（標準は緑）。ブラウザの上部の色（theme-color）も合わせる
+export function applyAccent(accent) {
+  const a = accent && accent !== 'green' ? accent : null;
+  if (a) document.documentElement.dataset.accent = a;
+  else delete document.documentElement.dataset.accent;
+  try { localStorage.setItem('golf-accent', a || 'green'); } catch { /* ignore */ }
+  requestAnimationFrame(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#17663f';
+  });
+}
 
 const isActive = (p, path) => (p === '/' ? path === '/' : path === p || (path.startsWith(p + '/') && !(p === '/rounds' && path === '/rounds/new')));
 
@@ -162,6 +173,7 @@ function hideTabbarWhileTyping() {
   try {
     const s = await getSettings();
     applyTheme(s.theme);
+    applyAccent(s.accent);
   } catch (e) {
     errorToast(e);
   }

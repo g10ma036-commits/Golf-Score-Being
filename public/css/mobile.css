@@ -516,3 +516,17 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 .sh-memo > span { display: block; }
 .sh-club { color: var(--text-secondary); }
 @media print { .sheet-grid { grid-template-columns: 1fr 1fr; } .sheet-card { break-inside: avoid; } }
+
+/* テーマカラーの選択（設定） */
+.accent-pick { display: flex; flex-wrap: wrap; gap: 10px; }
+.ac-sw { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; min-width: 56px; }
+.ac-sw input { position: absolute; opacity: 0; pointer-events: none; }
+.ac-sw .sw { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--surface-1); box-shadow: 0 0 0 1px var(--border-strong); }
+.ac-sw input:checked + .sw { box-shadow: 0 0 0 3px var(--text-primary); }
+.ac-sw input:focus-visible + .sw { outline: 2px solid var(--focus); outline-offset: 3px; }
+.ac-sw[data-ac="green"] .sw { background: #17663f; }
+.ac-sw[data-ac="blue"] .sw { background: #1f5fbf; }
+.ac-sw[data-ac="navy"] .sw { background: #24366b; }
+.ac-sw[data-ac="red"] .sw { background: #b3261e; }
+.ac-sw[data-ac="orange"] .sw { background: #b85309; }
+.ac-sw[data-ac="purple"] .sw { background: #6b3fa0; }
