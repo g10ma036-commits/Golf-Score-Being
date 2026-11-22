@@ -94,6 +94,23 @@ export function photoGridHtml(photos) {
     <img src="${photoUrl(p)}" alt="${p.caption || ''}" loading="lazy">${p.caption ? html`<span class="cap">${p.caption}</span>` : ''}</button>`)}</div>`;
 }
 
+// 共有に使う写真のファイル（表示中の画像を描き直して JPEG に。スマホ単独版でも外部に通信せずに作れる）
+const canSharePhotos = (() => {
+  try { return typeof navigator !== 'undefined' && Boolean(navigator.canShare?.({ files: [new File([''], 'a.jpg', { type: 'image/jpeg' })] })); } catch { return false; }
+})();
+async function photoFile(p) {
+  const img = new Image();
+  img.src = photoUrl(p, false);
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.getContext('2d').drawImage(img, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  if (!blob) throw new Error('画像を用意できませんでした');
+  return new File([blob], `${(p.original_name || 'golf-photo').replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' });
+}
+
 // ライトボックス（拡大表示 + キャプション・アルバム・ラウンドの編集）
 export async function openLightbox(photos, index, { onChanged = () => {} } = {}) {
   const [albums, rounds] = await Promise.all([api.get('/api/albums'), api.get('/api/rounds')]);
@@ -131,6 +148,7 @@ export async function openLightbox(photos, index, { onChanged = () => {} } = {})
         <div class="lb-top">
           <span class="lb-count">${i + 1} / ${photos.length}</span>
           <span class="lb-cap">${p.caption || ''}</span>
+          ${canSharePhotos ? html`<button class="lb-btn" data-share-photo disabled>共有</button>` : ''}
           <button class="lb-btn lb-info" data-info aria-expanded="${box.classList.contains('side-open')}">情報・編集</button>
           <button class="lb-btn" data-close aria-label="閉じる">✕</button>
         </div>
@@ -155,6 +173,17 @@ export async function openLightbox(photos, index, { onChanged = () => {} } = {})
           <button class="btn btn-danger" data-del>削除</button>
         </div>
       </div>`);
+    // 共有（LINE・AirDrop など）：ボタンを押した直後に共有を始められるよう、表示した写真のファイルを先に用意しておく
+    const shareBtn = box.querySelector('[data-share-photo]');
+    if (shareBtn) {
+      let file = null;
+      const my = p;
+      photoFile(p).then((f) => { if (photos[i] === my) { file = f; shareBtn.disabled = false; } }).catch(() => { shareBtn.hidden = true; });
+      shareBtn.addEventListener('click', async () => {
+        if (!file) return;
+        try { await navigator.share({ files: [file] }); } catch (e) { if (e?.name !== 'AbortError') errorToast('共有できませんでした'); }
+      });
+    }
     box.querySelector('.lb-prev')?.addEventListener('click', () => go(-1));
     box.querySelector('.lb-next')?.addEventListener('click', () => go(1));
     box.querySelector('[data-close]').addEventListener('click', close);

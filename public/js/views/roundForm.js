@@ -375,7 +375,7 @@ export async function render(root, params) {
     const pace = plan && s.holes ? holes.filter(played).reduce((a, x) => a + x.strokes - (plan.get(x.hole_no) ?? x.par), 0) : null;
     mount(holeEl, html`
       <div class="he-total" aria-live="polite">${s.holes
-        ? html`合計 <strong>${s.strokes}</strong><span class="he-topar">${toPar(s.toPar)}</span><span class="he-tsub">${s.holes}ホール${s.puttHoles ? `・パット ${s.putts}` : ''}</span>
+        ? html`合計 <strong>${s.strokes}</strong><span class="he-topar">${toPar(s.toPar)}</span><span class="he-tsub">${s.back.holes ? `OUT ${s.front.holes ? s.front.strokes : '—'}・IN ${s.back.strokes}（${s.back.holes}H）` : `${s.holes}ホール`}${s.puttHoles ? `・パット ${s.putts}` : ''}</span>
           ${pace != null ? html`<span class="he-pace ${pace <= 0 ? 'ok' : 'over'}">${goal}切りペース ${pace === 0 ? '±0' : pace > 0 ? `+${pace}` : `−${-pace}`}</span>` : ''}`
         : html`<span class="he-tsub">まだ入力がありません${goal ? `（目標：${goal}切り）` : ''}</span>`}</div>
       <div class="hole-strip">${holes.map((x) => html`<button type="button" class="hs ${x.hole_no === cur ? 'on' : ''} ${played(x) ? `res-${resultKey(x.strokes, x.par)}` : ''}" data-go="${x.hole_no}" aria-label="${x.hole_no}番ホール">
@@ -395,7 +395,8 @@ export async function render(root, params) {
         <div class="he-line"><div class="chips">${[h.par - 1, h.par, h.par + 1, h.par + 2, h.par + 3].map((v) => chip('strokes', v, h.strokes === v, v))}</div>
         ${stepper('strokes', h.strokes, 'スコア')}</div></div>
       <div class="he-row"><div class="he-label">パット</div>
-        <div class="chips">${[0, 1, 2, 3, 4].map((v) => chip('putts', v, h.putts === v, v))}</div></div>
+        <div class="chips">${[0, 1, 2, 3, 4].map((v) => chip('putts', v, h.putts === v, v))}</div>
+        ${played(h) && Number.isFinite(h.putts) && h.putts >= h.strokes ? html`<div class="he-warn" role="alert">⚠ パット数がスコア以上になっています（このままでは保存できません）</div>` : ''}</div>
       <div class="he-row"><div class="he-label">ティーショット</div>
         <div class="chips fw">${h.par === 3 ? html`<span class="muted small">パー3は対象外</span>`
           : [['left', '← 左'], ['hit', raw('○ FW<wbr>キープ')], ['right', '右 →']].map(([v, l]) => chip('fairway', v, h.fairway === v, l))}</div></div>

@@ -487,3 +487,15 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 .same-last .small { overflow-wrap: anywhere; }
 .wake-toggle { margin: -4px 0 10px; font-size: 13px; flex-wrap: wrap; }
 .wake-toggle .muted { margin-left: 4px; }
+.he-warn { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #fde8e6; color: #b3261e; font-size: 13px; font-weight: 600; }
+:root[data-theme="dark"] .he-warn { background: #3a1a18; color: #f4a29a; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .he-warn { background: #3a1a18; color: #f4a29a; } }
+
+/* 印刷（PC でラウンド詳細などを印刷するとき） */
+@media print {
+  .sidebar, .tabbar, .more-sheet, .app-banner, #toast-root, .page-header .actions, .danger-zone, .viz-toggle, .notice, .cel-actions, .dropzone, .quick-links { display: none !important; }
+  body, .view { background: #fff !important; }
+  .view { padding: 0 !important; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+  a { color: inherit; text-decoration: none; }
+}

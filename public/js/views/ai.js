@@ -26,6 +26,13 @@ export async function render(root) {
     length: 'normal',
     ...DEFAULTS,
   };
+  // 前回選んだ目的・答えの長さを覚えておく（ほかの画面のボタンから目的を指定して開いたときはそちらを優先）
+  const MEMO_KEY = 'golf-ai-last';
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(MEMO_KEY) || 'null'); } catch { /* ignore */ }
+  if (last && !query.get('purpose') && !query.get('round') && !query.get('course') && AI_PURPOSES.some((p) => p.key === last.purpose)) state.purpose = last.purpose;
+  if (last && AI_LENGTHS.some(([k]) => k === last.length)) state.length = last.length;
+  const remember = () => { try { localStorage.setItem(MEMO_KEY, JSON.stringify({ purpose: state.purpose, length: state.length })); } catch { /* ignore */ } };
   const purposeOf = () => AI_PURPOSES.find((p) => p.key === state.purpose);
   // 目的に合わせて、含めるデータの初期値を変える（クラブの飛距離はコース攻略・クラブ相談・練習で役に立つ）
   const applyPurposeDefaults = () => {
@@ -58,7 +65,7 @@ export async function render(root) {
             <select name="round">${sorted.slice(0, 100).map((r) => html`<option value="${r.id}" ${r.id === state.roundId ? 'selected' : ''}>${roundLabel(r)}</option>`)}</select></label>
           <label class="field" data-show="course" style="grid-column:span 2"><span>攻略するコース</span>
             <select name="course">${playedCourses.map((c) => html`<option value="${c.id}" ${c.id === state.courseId ? 'selected' : ''}>${c.name}</option>`)}</select></label>
-          <label class="field"><span>答えの長さ</span><select name="length">${AI_LENGTHS.map(([k, l]) => html`<option value="${k}" ${k === 'normal' ? 'selected' : ''}>${l}</option>`)}</select></label>
+          <label class="field"><span>答えの長さ</span><select name="length">${AI_LENGTHS.map(([k, l]) => html`<option value="${k}" ${k === state.length ? 'selected' : ''}>${l}</option>`)}</select></label>
         </div>
         <div class="ai-checks">
           <label class="check"><input type="checkbox" name="holes"> ホールごとの記録（スコア・パット・FW など）</label>
@@ -108,6 +115,7 @@ export async function render(root) {
       errorToast(e);
     }
     text.value = prompt;
+    remember();
     $('#ai-count', root).textContent = `${prompt.length.toLocaleString()} 文字${prompt.length > 20000 ? '（長いので、AIによっては「ホールごとの記録」を外すか期間を短くしてください）' : ''}`;
   };
   $$('[name=purpose]', form).forEach((r) => r.addEventListener('change', () => { state.purpose = r.value; applyPurposeDefaults(); sync(); }));
