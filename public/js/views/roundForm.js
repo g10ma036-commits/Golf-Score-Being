@@ -205,6 +205,7 @@ export async function render(root, params) {
             <button type="button" data-mode="hole">1ホールずつ</button><button type="button" data-mode="card">スコアカード</button>
           </div>
         </div>
+        ${'wakeLock' in navigator ? html`<label class="check wake-toggle"><input type="checkbox" id="wake-lock"> 🔆 入力中は画面を消さない<span class="small muted">（電池を多く使います）</span></label>` : ''}
         <div id="hole-entry" class="hole-entry"></div>
         <div id="card-entry">
           <div class="table-wrap">${half(0)}</div>
@@ -776,8 +777,33 @@ export async function render(root, params) {
 
   // PC（スコアカード入力）のときだけ最初の欄にフォーカス（スマホでキーボードが勝手に出ないように）
   if (!editId && !resumed && holeEl.hidden) setTimeout(() => (meta.course_id ? $('[data-h="1"][data-k="strokes"]', form) : courseSel).focus(), 0);
+  // 入力中は画面を消さない（選んだときだけ。アプリを離れると自動で解除されるので、戻ったときに取り直す）
+  let wake = null;
+  const wakeBox = $('#wake-lock', root);
+  const WAKE_KEY = 'golf-wake-lock';
+  const acquireWake = async () => {
+    if (!wakeBox?.checked || wake || document.visibilityState !== 'visible') return;
+    try {
+      wake = await navigator.wakeLock.request('screen');
+      wake.addEventListener('release', () => { wake = null; });
+    } catch { /* 省電力モードなどで使えないときは何もしない */ }
+  };
+  const releaseWake = () => { wake?.release().catch(() => {}); wake = null; };
+  const onWakeVisible = () => { if (document.visibilityState === 'visible') acquireWake(); };
+  if (wakeBox) {
+    try { wakeBox.checked = localStorage.getItem(WAKE_KEY) === '1'; } catch { /* ignore */ }
+    wakeBox.addEventListener('change', () => {
+      try { localStorage.setItem(WAKE_KEY, wakeBox.checked ? '1' : '0'); } catch { /* ignore */ }
+      if (wakeBox.checked) acquireWake(); else releaseWake();
+    });
+    document.addEventListener('visibilitychange', onWakeVisible);
+    acquireWake();
+  }
+
   return () => {
     document.removeEventListener('visibilitychange', onHide);
+    document.removeEventListener('visibilitychange', onWakeVisible);
+    releaseWake();
     window.removeEventListener('pagehide', flushDraft);
     flushDraft();
     if (dirty && draftOk) toast('入力途中の内容は下書きに保存しました。「入力」かホームから続きを入力できます');
