@@ -483,3 +483,5 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 .imp-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
 .imp-loss { font-size: 13px; margin-top: 2px; }
 .imp-loss strong { color: var(--score-double); }
+.same-last { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); }
+.same-last .small { overflow-wrap: anywhere; }

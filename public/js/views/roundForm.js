@@ -185,6 +185,7 @@ export async function render(root, params) {
           <div class="field" id="nine-field" style="grid-column:span 2" hidden><label for="front-nine">回ったコース（前半 → 後半）</label>
             <div class="nine-pick"><select id="front-nine" aria-label="前半のコース"></select><span aria-hidden="true">→</span><select id="back-nine" aria-label="後半のコース"></select></div></div>
         </div>
+        <div id="same-as-last" class="same-last" hidden></div>
         <details class="more-fields" ${moreOpen ? 'open' : ''}>
           <summary><span>ティー・天気・同伴者・メモ</span><span class="small muted" id="more-summary">${moreSummary()}</span></summary>
           <div class="form-grid">
@@ -628,6 +629,32 @@ export async function render(root, params) {
     if (!holeEl.hidden) drawHole();
   };
   drawNinePick();
+  // 「前回と同じ」：同じコースの前回（なければ直近）のラウンドのティー・同伴者（同伴者のスコア欄の名前も）を入れる
+  const sameBox = $('#same-as-last', form);
+  let sameUsed = false;
+  const drawSameAsLast = () => {
+    if (editId || resumed || sameUsed || !sameBox) { if (sameBox) sameBox.hidden = true; return; }
+    const prev = [...allRounds].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+    const last = (meta.course_id && prev.find((r) => r.course_id === meta.course_id)) || prev[0];
+    const names = (last?.party || []).map((p) => p.name);
+    if (!last || !(last.tee || last.companions || names.length)) { sameBox.hidden = true; return; }
+    const what = [last.tee && `${last.tee}ティー`, last.companions && `同伴：${last.companions}`, !last.companions && names.length && `同伴：${names.join('、')}`].filter(Boolean).join('・');
+    mount(sameBox, html`<button type="button" class="link-btn" data-same>前回（${fmtShort(last.date)}${last.course_id === meta.course_id ? '' : ` ${last.course_name || ''}`}）と同じにする</button><span class="small muted">${what}</span>`);
+    sameBox.hidden = false;
+    $('[data-same]', sameBox).addEventListener('click', () => {
+      if (last.tee) form.tee.value = last.tee;
+      if (last.companions) form.companions.value = last.companions;
+      if (!party.length && names.length) party = names.slice(0, MAX_PARTY).map((name) => ({ name, strokes: Array(18).fill(null) }));
+      form.dispatchEvent(new Event('change')); // まとめ表示の更新と下書きの保存
+      sameUsed = true;
+      sameBox.hidden = true;
+      drawPartyTable();
+      if (!holeEl.hidden) drawHole();
+      toast('前回と同じティー・同伴者を入れました');
+    });
+  };
+  const fmtShort = (iso) => { const [, m, d] = iso.split('-').map(Number); return `${m}/${d}`; };
+  drawSameAsLast();
   courseSel.addEventListener('change', () => {
     meta.course_id = courseSel.value ? Number(courseSel.value) : null;
     meta.front_nine = 1;
@@ -635,6 +662,7 @@ export async function render(root, params) {
     const c = currentCourse();
     if (c) { meta.course_name = c.name; applyCourse(c); }
     syncCourseInputs();
+    drawSameAsLast();
   });
   for (const [sel, key] of [[frontSel, 'front_nine'], [backSel, 'back_nine']]) {
     sel.addEventListener('change', () => {

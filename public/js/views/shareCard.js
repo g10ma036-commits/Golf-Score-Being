@@ -1,5 +1,5 @@
 // ラウンドのスコアカードを 1 枚の画像にして共有する（LINE・写真に保存など）
-import { html, mount, $, $$, openModal, errorToast, fmtDate, toPar, pct } from '../util.js';
+import { html, mount, $, $$, openModal, toast, errorToast, fmtDate, toPar, pct } from '../util.js';
 import { photoUrl } from '../api.js';
 import { summarize, resultKey, played } from '../stats.js';
 import { canShareFile, shareFile, downloadFile } from '../share.js';
@@ -282,6 +282,24 @@ async function drawCard(round, { photo, badge, companions, party = false }) {
   return new File([blob], `golf-score-${round.date.replace(/-/g, '')}.${photo ? 'jpg' : 'png'}`, { type });
 }
 
+// LINE などにそのまま貼れる文章（例：⛳ 11/22(日) 出島ゴルフクラブ／スコア 88（+16）…）
+export function roundText(round, { companions = false, party = false, badge = '' } = {}) {
+  const s = summarize(round);
+  const lines = [`⛳ ${fmtDate(round.date)} ${round.course_name || ''}${round.nines_label ? `（${round.nines_label}）` : ''}`];
+  if (badge) lines.push(badge);
+  lines.push(`スコア ${s.holes ? `${s.strokes}（${toPar(s.toPar)}）` : '—'}${s.front.holes && s.back.holes ? `　OUT ${s.front.strokes}・IN ${s.back.strokes}` : ''}${s.complete ? '' : `（${s.holes}ホール）`}`);
+  const parts = [s.puttHoles && `パット ${s.putts}`, s.fwTotal && `FWキープ ${pct(s.fwHit / s.fwTotal)}`, s.girKnown && `パーオン ${pct(s.gir / s.girKnown)}`, s.holes && `OB・ペナ ${s.penalties}`].filter(Boolean);
+  if (parts.length) lines.push(parts.join('・'));
+  if (companions && round.companions) lines.push(`同伴：${round.companions}`);
+  if (party && round.party?.length) {
+    const sum = (arr) => arr.reduce((a, v) => a + (v || 0), 0);
+    const players = [{ name: '自分', strokes: round.holes.filter(played).map((h) => h.strokes), n: s.holes }, ...round.party.map((p) => ({ name: p.name, strokes: p.strokes, n: p.strokes.filter((v) => v != null).length }))]
+      .map((p) => ({ ...p, total: sum(p.strokes) })).sort((a, b) => (b.n === 18) - (a.n === 18) || a.total - b.total);
+    lines.push('', '【ランキング】', ...players.map((p, i) => `${i + 1}. ${p.name} ${p.total || '—'}${p.n && p.n < 18 ? `（${p.n}H）` : ''}`));
+  }
+  return lines.join('\n');
+}
+
 // 共有用の画像を作って、プレビュー → 共有／保存
 export function openShareCard(round, photos, { badge = '' } = {}) {
   const shareable = canShareFile(new File([''], 'a.png', { type: 'image/png' }));
@@ -304,7 +322,7 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
       ${round.party?.length ? html`<label class="check share-opt"><input type="checkbox" data-party> 同伴者のスコア（ランキング）を入れる</label>` : ''}
       <p class="small muted">${shareable ? '「共有する」から LINE で送ったり、「画像を保存」で写真アプリに保存したりできます。' : '「画像を保存」でダウンロードできます。'}</p>
     </div>`,
-    footer: html`<button class="btn" data-dl disabled>画像を保存</button>${shareable ? html`<button class="btn btn-primary" data-share disabled>共有する…</button>` : ''}`,
+    footer: html`<button class="btn" data-copy-text>テキストをコピー</button><button class="btn" data-dl disabled>画像を保存</button>${shareable ? html`<button class="btn btn-primary" data-share disabled>共有する…</button>` : ''}`,
     onClose: () => { gen++; if (url) URL.revokeObjectURL(url); },
   });
   const preview = $('.share-preview', m.el);
@@ -334,6 +352,14 @@ export function openShareCard(round, photos, { badge = '' } = {}) {
   $$('[data-photo]', m.el).forEach((b) => b.addEventListener('click', () => { photoIdx = Number(b.dataset.photo); render(); }));
   $('[data-companions]', m.el)?.addEventListener('change', (e) => { withCompanions = e.target.checked; render(); });
   $('[data-party]', m.el)?.addEventListener('change', (e) => { withParty = e.target.checked; render(); });
+  $('[data-copy-text]', m.el).addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(roundText(round, { companions: withCompanions, party: withParty, badge }));
+      toast('コピーしました。LINE などに貼り付けて送れます');
+    } catch {
+      errorToast('コピーできませんでした');
+    }
+  });
   // 共有は、ボタンを押した直後に呼ぶ必要がある（iPhone）ので、画像は先に作っておく
   $('[data-share]', m.el)?.addEventListener('click', async () => { if (file && (await shareFile(file, 'スコアカード'))) m.close(); });
   $('[data-dl]', m.el).addEventListener('click', () => { if (file) downloadFile(file); });

@@ -316,3 +316,16 @@ test('ミスの影響：良い場合とミスの場合のパー比の差、1ラ�
   assert.equal(im.some((x) => x.key === 'bunker'), false); // データが少ない項目は出さない
   for (let i = 1; i < im.length; i++) assert.ok(im[i - 1].perRound >= im[i].perRound);
 });
+
+test('ラウンドを文章にする（LINE などに貼る用）', async () => {
+  const { roundText } = await load('public/js/views/shareCard.js');
+  const r = { ...round(1, '2026-11-22', [1]), course_name: 'テストGC', companions: '山田さん', party: [{ name: '田中', strokes: Array(18).fill(4) }] };
+  const plain = roundText(r);
+  assert.match(plain, /^⛳ 2026\/11\/22\(日\) テストGC/);
+  assert.match(plain, /スコア 90（\+18）　OUT 45・IN 45/);
+  assert.equal(plain.includes('山田'), false); // 同伴者は選んだときだけ
+  assert.equal(plain.includes('ランキング'), false);
+  const full = roundText(r, { companions: true, party: true });
+  assert.match(full, /同伴：山田さん/);
+  assert.match(full, /1\. 田中 72\n2\. 自分 90/);
+});
