@@ -32,6 +32,28 @@ function impactCard(items) {
   </div>`;
 }
 
+// コース別の成績（2 コース以上のとき）。ホールあたりのパー比で、コースの難しさも比べられる
+function courseTable(sums) {
+  const by = new Map();
+  for (const s of sums) {
+    const k = s.courseId ? `c${s.courseId}` : `n${s.course}`;
+    if (!by.has(k)) by.set(k, { name: s.course || '不明', courseId: s.courseId, list: [] });
+    by.get(k).list.push(s);
+  }
+  if (by.size < 2) return '';
+  const rows = [...by.values()].map((c) => {
+    const a = aggregate(c.list);
+    const toParPerHole = a.holes ? c.list.reduce((t, s) => t + s.toPar, 0) / a.holes : null;
+    return { ...c, n: c.list.length, avg: a.avgScore, best: a.best?.strokes ?? null, putts: a.puttsPerRound, tph: toParPerHole };
+  }).sort((x, y) => y.n - x.n || (x.avg ?? 999) - (y.avg ?? 999));
+  return html`<div class="card section">
+    <div class="card-header"><div><h2>コース別の成績</h2><div class="sub">「パー比/H」はホールあたりのパー比（小さいほど相性が良い）</div></div></div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>コース</th><th class="r">回数</th><th class="r">平均</th><th class="r">ベスト</th><th class="r hide-sm">平均パット</th><th class="r">パー比/H</th></tr></thead>
+      <tbody>${rows.map((r) => html`<tr ${r.courseId ? html`class="link" data-course="${r.courseId}"` : ''}><td class="wrap">${r.name}</td><td class="r">${r.n}</td><td class="r">${fmt(r.avg, 1)}</td><td class="r">${r.best ?? '—'}</td>
+        <td class="r hide-sm">${fmt(r.putts, 1)}</td><td class="r">${r.tph != null ? sgn(r.tph, 2) : '—'}</td></tr>`)}</tbody></table></div>
+  </div>`;
+}
+
 export async function render(root) {
   const rounds = await api.get('/api/rounds');
   const courses = [...new Map(rounds.filter((r) => r.course_id).map((r) => [r.course_id, r.course_name])).entries()]
@@ -108,6 +130,7 @@ export async function render(root) {
       </div>
 
       ${impactCard(shotImpact(list))}
+      ${courseTable(sums)}
 
       <div class="grid grid-2 section">
         <div class="card">
@@ -130,6 +153,7 @@ export async function render(root) {
       </div>
     `);
     $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
+    $$('tr[data-course]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/courses/${tr.dataset.course}`)));
 
     setupChart(body, 'trend', (el) => lineChart(el, {
       labels: complete.map((s) => shortDate(s.date)),
