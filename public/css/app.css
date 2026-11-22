@@ -170,7 +170,7 @@ p { margin: 0 0 8px; }
 .grid > .card + .card { margin-top: 0; }
 .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid-auto { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.grid-auto { grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); }
 .span-2 { grid-column: span 2; }
 @media (max-width: 1100px) { .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); } .span-2 { grid-column: auto; } }
@@ -178,7 +178,7 @@ p { margin: 0 0 8px; }
 .section { margin-top: 16px; }
 
 /* ---------- 数値タイル ---------- */
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 12px; }
 .tile {
   background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 12px 14px; min-width: 0;
@@ -212,7 +212,7 @@ p { margin: 0 0 8px; }
 .btn-icon { width: 34px; padding: 0; }
 .btn-sm.btn-icon { width: 28px; }
 
-.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 16px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 12px 16px; }
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field.wide { grid-column: 1 / -1; }
 .field > span, .field > label { font-size: 12px; color: var(--text-secondary); font-weight: 550; }
@@ -350,7 +350,7 @@ table.data tbody tr:last-child td { border-bottom: 0; }
 .compare-row.head { color: var(--text-muted); font-size: 11px; }
 
 /* ---------- アルバム ---------- */
-.album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 16px; }
 .album-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; color: inherit; display: block; }
 .album-card:hover { text-decoration: none; border-color: var(--border-strong); }
 .album-card .cover { aspect-ratio: 4 / 3; background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
@@ -358,7 +358,7 @@ table.data tbody tr:last-child td { border-bottom: 0; }
 .album-card .cover svg { width: 40px; height: 40px; }
 .album-card .meta { padding: 10px 12px; }
 .album-card .meta h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 8px; }
 .photo-grid .ph { aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--surface-2); cursor: pointer; position: relative; border: 0; padding: 0; }
 .photo-grid .ph img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
 .photo-grid .ph:hover img { transform: scale(1.03); }
@@ -449,3 +449,7 @@ tr.drop-target td { box-shadow: inset 0 2px 0 var(--accent); }
   :root:where(:not([data-theme="light"]))[data-accent="orange"] { --accent: #f0a060; --accent-hover: #f5b47e; --accent-soft: #3a2614; --accent-ink: #0b0b0b; }
   :root:where(:not([data-theme="light"]))[data-accent="purple"] { --accent: #b38ae6; --accent-hover: #c4a3ee; --accent-soft: #2a1f3a; --accent-ink: #0b0b0b; }
 }
+
+/* 文字の大きさ（設定）：画面全体を拡大する。320px 幅のスマホでも横にはみ出さないことを確認済み */
+html[data-text="large"] { zoom: 1.1; }
+html[data-text="xlarge"] { zoom: 1.2; }

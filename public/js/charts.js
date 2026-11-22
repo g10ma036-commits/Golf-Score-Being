@@ -75,16 +75,22 @@ export function showTooltip(x, y, { title, rows }) {
     el.appendChild(row);
   }
   el.hidden = false;
+  // 画面上の位置で計算してから CSS の値に換算する（設定の「文字の大きさ」で画面全体を拡大していても指の位置に出す）
+  el.style.left = '0px';
+  el.style.top = '0px';
+  const o = el.getBoundingClientRect();
+  el.style.left = '100px';
+  const scale = (el.getBoundingClientRect().left - o.left) / 100 || 1;
   const pad = 14;
-  const w = el.offsetWidth;
-  const h = el.offsetHeight;
+  const w = o.width;
+  const h = o.height;
   let left = x + pad;
   let top = y - h - pad;
   if (left + w > window.innerWidth - 8) left = x - w - pad;
   if (left < 8) left = 8;
   if (top < 8) top = y + pad;
-  el.style.left = `${left}px`;
-  el.style.top = `${top}px`;
+  el.style.left = `${(left - o.left) / scale}px`;
+  el.style.top = `${(top - o.top) / scale}px`;
 }
 export function hideTooltip() {
   const el = document.getElementById('viz-tooltip');

@@ -1,13 +1,14 @@
 // 設定・データ管理
 import { html, mount, $, openModal, confirmDialog, toast, errorToast, fmtDate, localDateTime, icon } from '../util.js';
 import { api, getSettings, saveSettings, STANDALONE, inspectBackup, restoreBackup, localMeta } from '../api.js';
-import { applyTheme, applyAccent } from '../main.js';
+import { applyTheme, applyAccent, applyTextSize } from '../main.js';
 import { PHONE_APP_URL, APP_VERSION } from '../config.js';
 import { sampleCountText, loadSample, deleteSampleFlow } from './sampleTools.js';
 import { GOAL_CHOICES } from '../stats.js';
-import { ACCENTS } from '../shared/model.js';
+import { ACCENTS, TEXT_SIZES } from '../shared/model.js';
 
 const ACCENT_LABELS = { green: '緑（標準）', blue: '青', navy: '紺', red: '赤', orange: 'オレンジ', purple: '紫' };
+const TEXT_SIZE_LABELS = { normal: '標準', large: '大きめ', xlarge: '大きい' };
 
 export async function render(root) {
   const [s, rounds, clubs, courses, sample] = await Promise.all([getSettings(true), api.get('/api/rounds'), api.get('/api/clubs'), api.get('/api/courses'), api.get('/api/sample').catch(() => null)]);
@@ -72,6 +73,7 @@ export async function render(root) {
             <option value="light" ${s.theme === 'light' ? 'selected' : ''}>ライト</option>
             <option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>ダーク</option></select></label>
           <div class="field wide"><span>テーマカラー（押すとすぐ変わります）</span><div class="accent-pick" role="radiogroup" aria-label="テーマカラー">${ACCENTS.map((a) => html`<label class="ac-sw" data-ac="${a}"><input type="radio" name="accent" value="${a}" ${(s.accent || 'green') === a ? 'checked' : ''}><span class="sw" aria-hidden="true"></span><span class="small">${ACCENT_LABELS[a]}</span></label>`)}</div></div>
+          <div class="field wide"><span>文字の大きさ（押すとすぐ変わります）</span><div class="ts-pick" role="radiogroup" aria-label="文字の大きさ">${TEXT_SIZES.map((z) => html`<label><input type="radio" name="text_size" value="${z}" ${(s.text_size || 'normal') === z ? 'checked' : ''}><span class="ts-${z}">${TEXT_SIZE_LABELS[z]}</span></label>`)}</div></div>
           <label class="field"><span>目標スコア</span><select name="goal">
             <option value="">目標なし</option>
             ${GOAL_CHOICES.map((g) => html`<option value="${g}" ${String(g) === s.goal ? 'selected' : ''}>${g}切り</option>`)}</select></label>
@@ -124,6 +126,10 @@ export async function render(root) {
     applyAccent(r.value);
     try { await saveSettings({ accent: r.value }); toast('テーマカラーを変更しました'); } catch (err) { errorToast(err); }
   }));
+  form.querySelectorAll('[name=text_size]').forEach((r) => r.addEventListener('change', async () => {
+    applyTextSize(r.value);
+    try { await saveSettings({ text_size: r.value }); toast('文字の大きさを変更しました'); } catch (err) { errorToast(err); }
+  }));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -162,6 +168,8 @@ export async function render(root) {
       busy.close();
       const s2 = await getSettings(true);
       applyTheme(s2.theme);
+      applyAccent(s2.accent);
+      applyTextSize(s2.text_size);
       toast('バックアップから復元しました');
       render(root);
     } catch (err) { busy.close(); errorToast(err); }

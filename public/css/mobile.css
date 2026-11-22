@@ -201,7 +201,7 @@ details.help ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direc
 .paste-import[open] > summary { border-bottom: 1px solid var(--border); }
 .paste-body { padding: 10px 12px 12px; }
 .paste-body textarea { width: 100%; margin-top: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
-.paste-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.paste-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 8px; margin-bottom: 8px; }
 .scorecard.paste-preview td, .scorecard.paste-preview th { font-size: 12px; padding: 3px 4px; text-align: center; }
 .scorecard input.filled { background: var(--accent-soft); transition: background .3s; }
 .paste-block { margin-top: 10px; }
@@ -284,7 +284,7 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 /* AI に分析してもらう */
 .ai-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
 @media (max-width: 960px) { .ai-layout { grid-template-columns: minmax(0, 1fr); } }
-.ai-purposes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.ai-purposes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 8px; }
 .ai-purpose { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 10px 38px; border: 1px solid var(--border-strong); border-radius: 10px; cursor: pointer; background: var(--surface-1); }
 .ai-purpose input { position: absolute; left: 12px; top: 13px; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .ai-purpose.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -319,7 +319,7 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 .hole-memos { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; }
 .hole-memos > summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
 .hole-memos[open] { padding-bottom: 12px; }
-.memo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; margin-top: 8px; }
+.memo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 6px 14px; margin-top: 8px; }
 .memo-row { display: flex; align-items: center; gap: 8px; }
 .memo-row > span { flex: none; min-width: 52px; font-size: 13px; color: var(--text-secondary); font-weight: 600; }
 .memo-row input { flex: 1; min-width: 0; }
@@ -435,12 +435,12 @@ li.done .gs-no { background: var(--accent); color: var(--accent-ink, #fff); }
 .nr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .nr-actions:empty { display: none; }
 button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100%; }
-.quick-links { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.quick-links { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
 
 /* 実績 */
 .ach-progress { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin-bottom: 16px; }
 .ach-progress > div { height: 100%; background: var(--accent); border-radius: 4px; }
-.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 10px; }
 .ach { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius); border: 1px dashed var(--border-strong); background: var(--surface-1); color: var(--text-secondary); }
 .ach:hover { text-decoration: none; }
 .ach .ach-ico { flex: none; width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; background: var(--surface-2); filter: grayscale(1); opacity: .55; }
@@ -461,7 +461,7 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 /* クラブ：コピー・まとめて設定 */
 .club-copy { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
 .club-copy select { width: 100%; }
-.bulk-clubs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; max-height: 40vh; overflow-y: auto; padding: 2px; }
+.bulk-clubs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 6px; max-height: 40vh; overflow-y: auto; padding: 2px; }
 .bulk-club { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
 .bulk-club:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .bulk-club input { width: 18px; height: 18px; flex: none; }
@@ -472,7 +472,7 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 .brand-pick select, .brand-pick input { width: 100%; }
 
 /* ミスの影響（統計分析） */
-.impact { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.impact { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 .imp-item { padding: 12px; border-radius: 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
 .imp-title { font-weight: 700; }
 .imp-bar { display: grid; grid-template-columns: 9.5em 1fr 3.6em; align-items: center; gap: 8px; font-size: 12px; }
@@ -500,14 +500,14 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
   .card { box-shadow: none !important; break-inside: avoid; }
   a { color: inherit; text-decoration: none; }
 }
-.year-ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.year-ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 8px; }
 .ya-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); color: var(--text-primary); }
 .ya-item:hover { text-decoration: none; background: var(--accent-soft); }
 .ya-item > span:first-child { font-size: 22px; }
 .ya-item > span:last-child { display: flex; flex-direction: column; min-width: 0; }
 
 /* コースの攻略シート */
-.sheet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.sheet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 16px; }
 @media (max-width: 760px) { .sheet-grid { grid-template-columns: minmax(0, 1fr); } }
 .sheet-grid > .card + .card { margin-top: 0; }
 table.sheet td, table.sheet th { padding: 6px 6px; }
@@ -555,3 +555,16 @@ table.sheet td, table.sheet th { padding: 6px 6px; }
 .cond-seg { display: flex; margin-bottom: 10px; width: fit-content; max-width: 100%; }
 .cond-seg button { min-height: 36px; white-space: nowrap; }
 @media (max-width: 480px) { .cond-seg { width: 100%; } .cond-seg button { flex: 1 1 0; padding: 5px 2px; min-width: 0; } }
+/* 「写真を選ぶ（撮影・写真ライブラリ）」：狭い画面や文字を大きくしたときは折り返す */
+.photo-pick { white-space: normal; height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; max-width: 100%; text-align: center; line-height: 1.3; }
+/* 設定：文字の大きさ */
+.ts-pick { display: inline-flex; width: fit-content; max-width: 100%; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; }
+.ts-pick label { position: relative; cursor: pointer; }
+.ts-pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ts-pick span { display: flex; align-items: center; min-height: 44px; padding: 0 16px; background: var(--surface-1); color: var(--text-secondary); white-space: nowrap; }
+.ts-pick label + label span { border-left: 1px solid var(--border); }
+.ts-pick input:checked + span { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.ts-pick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -3px; }
+.ts-pick .ts-normal { font-size: 14px; }
+.ts-pick .ts-large { font-size: 15.5px; }
+.ts-pick .ts-xlarge { font-size: 17px; }

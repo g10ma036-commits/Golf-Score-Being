@@ -153,7 +153,7 @@ export async function render(root, [idStr]) {
         ${isBest ? html`<p style="margin-top:8px"><span class="badge accent">🏆 ベストスコア</span></p>` : ''}
         <div class="small secondary" style="margin-top:8px">OUT ${sum.front.holes ? sum.front.strokes : '—'} ／ IN ${sum.back.holes ? sum.back.strokes : '—'}</div>
       </div>
-      <div class="tiles span-2" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+      <div class="tiles span-2" style="grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr))">
         ${tile('パット', sum.puttHoles ? sum.putts : '—', sum.puttHoles ? `1パット ${sum.onePutts}・3パット ${sum.threePutts}` : '')}
         ${tile('FWキープ率', sum.fwTotal ? pct(sum.fwHit / sum.fwTotal) : '—', sum.fwTotal ? `${sum.fwHit}/${sum.fwTotal}（左${sum.fwLeft}・右${sum.fwRight}）` : '')}
         ${tile('パーオン率', sum.girKnown ? pct(sum.gir / sum.girKnown) : '—', sum.girKnown ? `${sum.gir}/${sum.girKnown}` : '')}

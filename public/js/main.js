@@ -70,6 +70,14 @@ export function applyAccent(accent) {
   });
 }
 
+// 文字の大きさ（画面全体を少し拡大する）。iPhone のホーム画面のアプリには文字サイズを変えるメニューが無いので、アプリの設定で選べるようにする
+export function applyTextSize(size) {
+  const v = size === 'large' || size === 'xlarge' ? size : null;
+  if (v) document.documentElement.dataset.text = v;
+  else delete document.documentElement.dataset.text;
+  try { localStorage.setItem('golf-text-size', v || 'normal'); } catch { /* ignore */ }
+}
+
 const isActive = (p, path) => (p === '/' ? path === '/' : path === p || (path.startsWith(p + '/') && !(p === '/rounds' && path === '/rounds/new')));
 
 function renderNav(path) {
@@ -174,6 +182,7 @@ function hideTabbarWhileTyping() {
     const s = await getSettings();
     applyTheme(s.theme);
     applyAccent(s.accent);
+    applyTextSize(s.text_size);
   } catch (e) {
     errorToast(e);
   }

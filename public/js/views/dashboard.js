@@ -99,7 +99,7 @@ export async function render(root) {
           ${heroDelta != null ? html`全期間平均 ${fmt(all.avgScore, 1)} より <strong class="${heroDelta <= 0 ? 'good' : 'bad'}">${heroDelta <= 0 ? '▼' : '▲'} ${Math.abs(heroDelta).toFixed(1)}</strong>` : ''}
         </div>
       </div>
-      <div class="tiles span-2" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+      <div class="tiles span-2" style="grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr))">
         ${tile('ベストスコア', all.best ? all.best.strokes : '—', all.best ? `${shortDate(all.best.date)} ${all.best.course}` : '')}
         ${tile('推定ハンディキャップ', all.handicap != null ? all.handicap.toFixed(1) : '—', all.handicap != null ? '簡易計算' : '18Hを3R以上で算出')}
         ${tile('平均パット', fmt(all.puttsPerRound, 1), '18ホール換算')}

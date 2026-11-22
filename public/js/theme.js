@@ -4,4 +4,6 @@ try {
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   const a = localStorage.getItem('golf-accent');
   if (a && a !== 'green') document.documentElement.dataset.accent = a;
+  const z = localStorage.getItem('golf-text-size');
+  if (z === 'large' || z === 'xlarge') document.documentElement.dataset.text = z;
 } catch (e) { /* 保存領域が使えない環境では自動のまま */ }

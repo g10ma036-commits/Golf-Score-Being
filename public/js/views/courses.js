@@ -47,7 +47,7 @@ export async function render(root) {
       ${courses.length > 6 ? html`<input id="course-q" type="search" placeholder="コース名・所在地で検索" aria-label="コースを検索">` : ''}
       <div class="seg" role="group" aria-label="並び順">${COURSE_SORTS.map(([k, l]) => html`<button type="button" data-csort="${k}">${l}</button>`)}</div>
       <span class="small muted" id="course-count"></span></div>` : ''}
-    ${courses.length ? html`<div class="album-grid" id="course-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+    ${courses.length ? html`<div class="album-grid" id="course-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))">
       ${courses.map((c) => {
         const sums = (byCourse.get(c.id) || []).filter((s) => s.complete);
         const best = sums.length ? Math.min(...sums.map((s) => s.strokes)) : null;
