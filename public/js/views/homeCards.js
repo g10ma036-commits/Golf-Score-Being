@@ -80,7 +80,7 @@ export function nextRoundHtml(settings, courses) {
     </div>
     <div class="nr-actions">
       ${days === 0 ? html`<a class="btn btn-sm btn-primary" href="#/rounds/new${c ? `?course=${c.id}` : ''}">スコアを入力</a>` : ''}
-      ${c ? html`<a class="btn btn-sm" href="#/ai?purpose=course&amp;course=${c.id}">AIにコース攻略を聞く</a><a class="btn btn-sm" href="#/courses/${c.id}">コースの情報</a>
+      ${c ? html`<a class="btn btn-sm" href="#/ai?purpose=course&amp;course=${c.id}">AIにコース攻略を聞く</a><a class="btn btn-sm" href="#/courses/${c.id}/sheet">📋 攻略シート</a>
         ${days <= 10 ? html`<a class="btn btn-sm" href="${weatherUrl(c.name, c.location)}" target="_blank" rel="noopener noreferrer">☀️ 天気予報</a>` : ''}
         <a class="btn btn-sm" href="${mapUrl(c.name, c.location)}" target="_blank" rel="noopener noreferrer">📍 地図</a>` : ''}
     </div>

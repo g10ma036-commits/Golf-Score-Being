@@ -504,3 +504,15 @@ button.quick-link { font: inherit; text-align: left; cursor: pointer; width: 100
 .ya-item:hover { text-decoration: none; background: var(--accent-soft); }
 .ya-item > span:first-child { font-size: 22px; }
 .ya-item > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+
+/* コースの攻略シート */
+.sheet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+@media (max-width: 760px) { .sheet-grid { grid-template-columns: minmax(0, 1fr); } }
+.sheet-grid > .card + .card { margin-top: 0; }
+table.sheet td, table.sheet th { padding: 6px 6px; }
+.sh-no { font-weight: 700; white-space: nowrap; }
+.sh-target { font-weight: 800; color: var(--accent); }
+.sh-memo { white-space: normal !important; min-width: 9em; font-size: 12px; }
+.sh-memo > span { display: block; }
+.sh-club { color: var(--text-secondary); }
+@media print { .sheet-grid { grid-template-columns: 1fr 1fr; } .sheet-card { break-inside: avoid; } }

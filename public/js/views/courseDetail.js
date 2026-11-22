@@ -41,6 +41,7 @@ export async function render(root, [idStr]) {
       <div class="actions act-grid">
         <a class="btn" href="#/rounds/new?course=${id}">${icon('plus')}スコア入力</a>
         <a class="btn" href="#/ai?purpose=course&amp;course=${id}">${icon('ai')}AIに作戦を聞く</a>
+        <a class="btn" href="#/courses/${id}/sheet">📋 攻略シート</a>
         <button class="btn" id="edit">${icon('edit')}編集</button>
       </div>
     </div>

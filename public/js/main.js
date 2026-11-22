@@ -32,6 +32,7 @@ const ROUTES = [
   [/^\/achievements$/, () => import('./views/achievements.js')],
   [/^\/courses$/, () => import('./views/courses.js')],
   [/^\/courses\/(\d+)$/, () => import('./views/courseDetail.js')],
+  [/^\/courses\/(\d+)\/sheet$/, () => import('./views/courseSheet.js')],
   [/^\/clubs$/, () => import('./views/clubs.js')],
   [/^\/distances$/, () => import('./views/distances.js')],
   [/^\/album$/, () => import('./views/album.js')],
