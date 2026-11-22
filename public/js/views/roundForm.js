@@ -418,8 +418,8 @@ export async function render(root, params) {
         })}
         ${party.length < MAX_PARTY ? html`<button type="button" class="link-btn" data-party-add>＋ 同伴者を追加</button>` : ''}
       </div>
-      <div class="he-row"><div class="he-label">パー（コース未登録のとき）</div>
-        <div class="chips">${[3, 4, 5].map((p) => chip('par', p, h.par === p, `Par ${p}`))}</div></div>
+      ${c ? '' : html`<div class="he-row"><div class="he-label">パー（コース未登録のとき）</div>
+        <div class="chips">${[3, 4, 5].map((p) => chip('par', p, h.par === p, `Par ${p}`))}</div></div>`}
       <button type="button" class="btn btn-primary he-nextbig" ${cur === 18 ? 'data-done' : 'data-next'}>${cur < 18 ? `次へ（${cur + 1}番ホール） ›` : '18ホール入力完了 ✓'}</button>
     `);
     holeEl.querySelector('.hs.on')?.scrollIntoView({ block: 'nearest', inline: 'center' });
