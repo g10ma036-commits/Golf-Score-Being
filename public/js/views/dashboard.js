@@ -148,7 +148,7 @@ export async function render(root) {
       </div>
     </div>
     ${draftNotice}
-    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しい機能が追加されました（バージョン ${APP_VERSION}）：Garmin Golf からの取り込み</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
+    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しくなりました（バージョン ${APP_VERSION}）：IKScoreCard のインスタートのラウンドの前半・後半を直せます</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
     ${sampleNoticeHtml(sample)}
     ${guide}
     ${reminder ? html`<div class="notice" id="backup-notice">

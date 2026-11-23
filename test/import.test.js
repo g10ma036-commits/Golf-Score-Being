@@ -84,16 +84,23 @@ function ikBackup({ withNames = true } = {}) {
     };
     const holes = (pfx, arr) => Object.fromEntries(arr.map((v, j) => [`${pfx}${p2(j + 1)}`, v]));
     // 1: 18 ホール・同伴者 2 人・OB と池
-    put({ sc_seria: 681, sc_place: 1000272, sc_weath: 3, sc_p1_no: 1000202, sc_p2_no: 98, sc_p3_no: 99, sc_p4_no: 0, sc_pdate: '2014.08.13', sc_total: 90,
+    put({ sc_seria: 681, sc_place: 1000272, sc_weath: 3, sc_p1_no: 1000202, sc_p2_no: 98, sc_p3_no: 99, sc_p4_no: 0, sc_pdate: '2014.08.13', sc_compe: 1000102, sc_total: 90,
       ...holes('sc_p1_', Array(18).fill(5)), ...holes('sc_p2_', Array(18).fill(4)), ...holes('sc_p3_', Array(18).fill(6)), ...holes('sc_p4_', Array(18).fill(0)),
       ...holes('sc_p1p', [2, 3, 0, ...Array(15).fill(2)]), ...holes('sc_ob_', [1, ...Array(17).fill(0)]), ...holes('sc_wh_', [0, 1, ...Array(16).fill(0)]),
       ...holes('sc_lb_', Array(18).fill(0)), ...holes('sc_ot_', Array(18).fill(0)) });
     // 2: 36 ホールのゴルフ場で 3 つ目 → 4 つ目、パットの記録なし
-    put({ sc_seria: 682, sc_place: 1000254, sc_weath: 1, sc_p1_no: 1000202, sc_p2_no: 0, sc_p3_no: 0, sc_p4_no: 0, sc_pdate: '2015.05.03', sc_total: 81,
+    put({ sc_seria: 682, sc_place: 1000254, sc_weath: 1, sc_p1_no: 1000202, sc_p2_no: 0, sc_p3_no: 0, sc_p4_no: 0, sc_pdate: '2015.05.03', sc_compe: 1000304, sc_total: 81,
       ...holes('sc_p1_', [...Array(9).fill(4), ...Array(9).fill(5)]), ...holes('sc_p2_', Array(18).fill(0)), ...holes('sc_p3_', Array(18).fill(0)), ...holes('sc_p4_', Array(18).fill(0)),
       ...holes('sc_p1p', Array(18).fill(0)) });
     // 3: 知らないゴルフ場
     put({ sc_seria: 683, sc_place: 5555, sc_p1_no: 1, sc_pdate: '2016.01.01', ...holes('sc_p1_', Array(18).fill(5)) });
+    // 4: インスタート（2 つ目 → 1 つ目）。記録は回った順（IN の 9 ホール → OUT の 9 ホール）
+    put({ sc_seria: 684, sc_place: 1000272, sc_p1_no: 1, sc_p2_no: 98, sc_pdate: '2015.06.01', sc_compe: 1000201,
+      ...holes('sc_p1_', [...Array(9).fill(6), ...Array(9).fill(4)]), ...holes('sc_p2_', [...Array(9).fill(3), ...Array(9).fill(5)]),
+      ...holes('sc_p1p', [1, ...Array(8).fill(2), 3, ...Array(8).fill(2)]) });
+    // 5: 36 ホールのゴルフ場で「森岳 IN → 森岳 OUT」（4 → 3）＝ インスタート
+    put({ sc_seria: 685, sc_place: 1000254, sc_p1_no: 1, sc_pdate: '2015.07.01', sc_compe: 1000403,
+      ...holes('sc_p1_', [...Array(9).fill(5), ...Array(9).fill(4)]) });
     db.exec('INSERT INTO DB_s3 (s3_scseri, s3_htype1, s3_htype2, s3_pena05) VALUES (681, 1, 2, 1), (682, 3, 4, 0)');
     db.exec("INSERT INTO DB_cp (cp_scseri, cp_text01, cp_text02) VALUES (681, 'よく晴れた', ''), (682, '', NULL)");
   });
@@ -132,7 +139,7 @@ test('IKScoreCard：ラウンド・パット・ペナルティ・同伴者・メ
   assert.equal(ik.isIkScoreCardFiles(files), true);
   assert.equal(ik.isIkScoreCardFiles([{ name: 'other.sqlite3' }]), false);
   const r = ik.parseIkScoreCard(files);
-  assert.equal(r.rounds.length, 3);
+  assert.equal(r.rounds.length, 5);
   assert.deepEqual([r.from, r.to], ['2014-08-13', '2016-01-01']);
   const [a, b] = r.rounds;
   assert.equal(a.date, '2014-08-13');
@@ -159,4 +166,48 @@ test('IKScoreCard：ラウンド・パット・ペナルティ・同伴者・メ
   assert.deepEqual(noNames.rounds[0].party.map((p) => p.name), ['同伴者1', '同伴者2']);
   // スコアのファイルが無い
   assert.throws(() => ik.parseIkScoreCard(files.slice(1)), /IKScoreCard_sc\.sqlite3/);
+});
+
+test('IKScoreCard：回ったコースの順番（インスタート・27/36 ホールの組み合わせ）と、以前の版で取り込んだラウンドの直し', () => {
+  assert.deepEqual([ik.nineOrder(1000201), ik.nineOrder(1000304), ik.nineOrder(1000102), ik.nineOrder(null), ik.nineOrder(1000000)], [[2, 1], [3, 4], [1, 2], null, null]);
+  assert.equal(ik.isInStart([2, 1], [{ name: 'OUT' }, { name: 'IN' }]), true);
+  assert.equal(ik.isInStart([2, 1], [{ name: '東' }, { name: '西' }, { name: '北' }]), false); // 27 ホールで「西 → 東」はそのままの順番
+  assert.equal(ik.isInStart([4, 3], [{ name: '秋田 OUT' }, { name: '秋田 IN' }, { name: '森岳 OUT' }, { name: '森岳 IN' }]), true);
+  assert.equal(ik.isInStart([3, 2], [{ name: 'A OUT' }, { name: 'A IN' }, { name: 'B OUT' }]), false);
+  const r = ik.parseIkScoreCard(ikBackup());
+  const at = (d) => r.rounds.find((x) => x.date === d);
+  assert.deepEqual([at('2015-05-03').front, at('2015-05-03').back, at('2015-05-03').inStart], [3, 4, false]);
+  // インスタート：1〜9 番 ＝ OUT（記録の後ろ半分）、10〜18 番 ＝ IN（記録の前半分）。パット・同伴者のスコアも同じように並べ替える
+  const c = at('2015-06-01');
+  assert.deepEqual([c.front, c.back, c.inStart], [1, 2, true]);
+  assert.deepEqual(c.holes.map((h) => h.strokes), [...Array(9).fill(4), ...Array(9).fill(6)]);
+  assert.deepEqual([c.holes[0].putts, c.holes[9].putts], [3, 1]);
+  assert.deepEqual(c.party[0].strokes, [...Array(9).fill(5), ...Array(9).fill(3)]);
+  const d = at('2015-07-01');
+  assert.deepEqual([d.front, d.back, d.inStart], [3, 4, true]);
+  assert.deepEqual(d.holes.map((h) => h.strokes), [...Array(9).fill(4), ...Array(9).fill(5)]);
+
+  // 以前の版で取り込んだまま（前半 1・後半 2・記録の並びのまま）のラウンドを見つける
+  const old = (x, id, date = x.date) => ({
+    id, date, course_id: 7, front_nine: 1, back_nine: 2, weather: '晴れ', memo: 'メモ', companions: '田中',
+    party: x.party.map((p) => ({ name: p.name, strokes: x.inStart ? [...p.strokes.slice(9), ...p.strokes.slice(0, 9)] : p.strokes })),
+    holes: x.slotStrokes.map((v, i) => ({ hole_no: i + 1, par: 4, strokes: v, putts: 1, note: i === 0 ? '最初に回ったホール' : null })).filter((h) => h.strokes),
+  });
+  const app = [old(c, 1), old(d, 2), old(r.rounds[0], 3), old(c, 4, '2020-01-01'),
+    { ...old(c, 5), id: 5, date: '2015-06-01', holes: c.holes.map((h) => ({ ...h, par: 4 })) }]; // すでに正しい並びのものは直さない
+  const fixes = ik.ikFixes(r, app);
+  assert.deepEqual(fixes.map((x) => x.a.id), [1, 2]);
+  const course = { nines: ['OUT', 'IN'], holes: Array.from({ length: 18 }, (_, i) => ({ hole_no: i + 1, par: i === 0 ? 5 : i === 9 ? 3 : 4, yards: 300 + i })) };
+  const body = ik.ikFixBody(fixes[0], course);
+  assert.deepEqual([body.front_nine, body.back_nine, body.weather, body.memo, body.companions], [1, 2, '晴れ', 'メモ', '田中']);
+  assert.deepEqual(body.holes.map((h) => h.strokes), c.holes.map((h) => h.strokes));
+  assert.equal(body.holes[9].note, '最初に回ったホール'); // 最初に回ったのは 10 番
+  assert.deepEqual([body.holes[0].par, body.holes[0].yards, body.holes[9].par], [5, 300, 3]);
+  assert.deepEqual(body.party[0].strokes, c.party[0].strokes);
+  // 36 ホール：4 → 3 のインスタートは「3 → 4」に直り、パーもそのコースのものになる
+  const c36 = { nines: ['秋田 OUT', '秋田 IN', '森岳 OUT', '森岳 IN'], holes: Array.from({ length: 36 }, (_, i) => ({ hole_no: i + 1, par: i >= 27 ? 5 : 4, yards: null })) };
+  const b36 = ik.ikFixBody(fixes[1], c36);
+  assert.deepEqual([b36.front_nine, b36.back_nine], [3, 4]);
+  assert.deepEqual(b36.holes.map((h) => h.par), [...Array(9).fill(4), ...Array(9).fill(5)]);
+  assert.deepEqual(b36.holes.map((h) => h.strokes), d.holes.map((h) => h.strokes));
 });

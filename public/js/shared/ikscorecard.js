@@ -1,7 +1,7 @@
 // IKScoreCard（スコア管理アプリ）のバックアップを、このアプリのコース・ラウンドの形に変換する。
 // バックアップは SQLite のファイルの集まり（ZIP）：
 //   IKScoreCard_sc.sqlite3 … DB_sc（ラウンド：4 人 × 18 ホールのスコア、1 人目のパット・OB など）、DB_nm（同伴者の名前）、
-//                             DB_s3（前半・後半に回った 9 ホール、ペナルティ）、DB_cp（メモ）
+//                             DB_s3（ペナルティ）、DB_cp（メモ）。sc_compe の下 3 桁が回った 9 ホールの順番（例: 201 = 2 つ目 → 1 つ目）
 //   IKScoreCard_g2(_update).sqlite3 … DB_gc（ゴルフ場：9 ホールのまとまりの名前とパー）
 //   IKScoreCard_g3(_update).sqlite3 … DB_g3（9 ホールごとの距離。ティーは最大 7 つ。1 つ目がバック、2 つ目がレギュラーのことが多い）
 //   IKScoreCard_gc.sqlite3 … DB_gc（自分で登録したゴルフ場：18 ホールのパー、バック・レギュラーの距離）
@@ -16,6 +16,26 @@ const int = (v) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : 0);
 
 const baseName = (n) => String(n).split(/[\\/]/).pop();
 export const isIkScoreCardFiles = (files) => files.some((f) => /^IKScoreCard_sc\.sqlite3$/i.test(baseName(f.name)));
+
+// 回った 9 ホールの順番：sc_compe の下 3 桁 =「最初に回ったまとまり × 100 + 次に回ったまとまり」
+// （例: 1000102 → 1 → 2、1000201 → 2 → 1 = インスタート、1000203 → 2 → 3）。分からなければ null
+export function nineOrder(compe) {
+  const n = int(compe) % 1000;
+  const a = Math.floor(n / 100);
+  const b = n % 100;
+  return a >= 1 && a <= 7 && b >= 1 && b <= 7 ? [a, b] : null;
+}
+const OUT_RE = /out|アウト|前半/i;
+const IN_RE = /\bin\b|イン|後半/i;
+// 同じ 18 ホールの後半 → 前半の順に回った（インスタート）か。スコアは回った順に並んでいるので、
+// このアプリでは前半（1〜9 番）＝ OUT、後半（10〜18 番）＝ IN に並べ替える
+export function isInStart(order, nines) {
+  const [a, b] = order;
+  if (a !== b + 1 || b % 2 !== 1) return false;
+  if (nines.length <= 2) return true;
+  return OUT_RE.test(nines[b - 1]?.name || '') && IN_RE.test(nines[a - 1]?.name || '');
+}
+const turn = (arr) => [...arr.slice(9), ...arr.slice(0, 9)]; // 回った順（IN → OUT）→ OUT → IN
 
 // files: [{ name, bytes: Uint8Array }]
 export function parseIkScoreCard(files) {
@@ -95,16 +115,22 @@ export function parseIkScoreCard(files) {
       party.push({ name: (names.get(r[`sc_p${n}_no`]) || `同伴者${party.length + 1}`).slice(0, 30), strokes: strokes.map((v) => (v > 0 && v <= 20 ? v : null)) });
     }
     usedPlaces.set(r.sc_place, (usedPlaces.get(r.sc_place) || 0) + 1);
+    const order = nineOrder(r.sc_compe) || [int(x?.s3_htype1) || 1, int(x?.s3_htype2) || 2];
+    const inStart = isInStart(order, courseRows.get(r.sc_place)?.nines || []);
+    const noOf = (i) => (inStart ? (i <= 9 ? i + 9 : i - 9) : i); // 記録の並び（回った順）→ ホール番号
     rounds.push({
       key: r.sc_seria, date, place: r.sc_place,
-      front: int(x?.s3_htype1) || 1, back: int(x?.s3_htype2) || 2,
+      front: inStart ? order[1] : order[0], back: inStart ? order[0] : order[1], inStart,
       // このアプリで保存できる範囲に収める（スコア 1〜20、パットはスコア未満、ペナルティ 10 まで）
       holes: seq(18).map((i) => {
         const s = mine[i - 1] > 0 ? Math.min(20, mine[i - 1]) : null;
         const pt = hasPutts && s != null && putts[i - 1] >= 0 && putts[i - 1] < s && putts[i - 1] <= 10 ? putts[i - 1] : null;
-        return { hole_no: i, strokes: s, putts: pt, penalties: s != null ? Math.min(10, pen(i)) : null };
-      }),
-      party, memo: memos.get(r.sc_seria) || '',
+        return { hole_no: noOf(i), strokes: s, putts: pt, penalties: s != null ? Math.min(10, pen(i)) : null };
+      }).sort((p, q) => p.hole_no - q.hole_no),
+      // 以前の版で取り込んだラウンドを見分けるための、記録の並びのままのスコア
+      slotStrokes: mine.map((v) => (v > 0 ? Math.min(20, v) : null)),
+      party: inStart ? party.map((p) => ({ ...p, strokes: turn(p.strokes) })) : party,
+      memo: memos.get(r.sc_seria) || '',
     });
   }
   rounds.sort((a, b) => a.date.localeCompare(b.date) || a.key - b.key);
@@ -151,5 +177,49 @@ export function parseIkScoreCard(files) {
     places: [...usedPlaces].map(([place, n]) => ({ place, n, name: courseRows.get(place)?.name || null })),
     courseFor,
     from: rounds[0]?.date || null, to: rounds[rounds.length - 1]?.date || null,
+  };
+}
+
+// ---------- 以前の版（1.5〜1.7）で取り込んだラウンドを直す ----------
+// 以前の版は回ったコースの順番を読まず、いつも「前半 1 つ目・後半 2 つ目」、スコアは記録の並び（回った順）のまま 1〜18 番にしていた。
+// そのまま残っているラウンド（同じ日・前半 1・後半 2・記録の並びとスコアがすべて同じ）を探す
+export function ikFixes(parsed, appRounds) {
+  const used = new Set();
+  const out = [];
+  for (const r of parsed.rounds) {
+    if (!r.inStart && r.front === 1 && r.back === 2) continue;
+    const raw = r.slotStrokes;
+    const a = appRounds.find((x) => !used.has(x.id) && x.date === r.date && (x.front_nine ?? 1) === 1 && (x.back_nine ?? 2) === 2
+      && (x.holes || []).filter((h) => h.strokes > 0).length === raw.filter((v) => v != null).length
+      && raw.every((v, i) => v == null || (x.holes || []).find((h) => h.hole_no === i + 1)?.strokes === v));
+    if (!a) continue;
+    used.add(a.id);
+    out.push({ r, a });
+  }
+  return out;
+}
+
+// 直したラウンド（PUT /api/rounds/:id の中身）。course: そのラウンドのコース（holes・nines 付き）。
+// 天気・同伴者・メモ・ホールのメモなどはそのまま（インスタートなら同伴者のスコアとホールのメモも並べ替える）
+export function ikFixBody({ r, a }, course) {
+  const nineCount = Math.max(1, course?.nines?.length || 2);
+  const front = Math.min(r.front, nineCount);
+  const back = Math.min(r.back, nineCount);
+  const noOf = (i) => (r.inStart ? (i <= 9 ? i + 9 : i - 9) : i);
+  const ch = (no) => (course?.holes || []).find((h) => h.hole_no === ((no <= 9 ? front : back) - 1) * 9 + ((no - 1) % 9) + 1);
+  const holes = (a.holes || []).map((h) => {
+    const no = noOf(h.hole_no);
+    const c = ch(no);
+    const par = c?.par ?? h.par;
+    return {
+      hole_no: no, par, yards: c ? c.yards ?? null : h.yards ?? null, strokes: h.strokes, putts: h.putts, penalties: h.penalties,
+      fairway: par === 3 ? null : h.fairway, bunker: h.bunker, note: h.note, tee_club: par === 3 ? null : h.tee_club,
+    };
+  }).sort((p, q) => p.hole_no - q.hole_no);
+  return {
+    date: a.date, course_id: a.course_id, course_name: a.course_name, front_nine: front, back_nine: back,
+    tee: a.tee, weather: a.weather, companions: a.companions, memo: a.memo, rating: a.rating, slope: a.slope,
+    party: (a.party || []).map((p) => ({ name: p.name, strokes: r.inStart ? turn(p.strokes || []) : p.strokes })),
+    holes,
   };
 }

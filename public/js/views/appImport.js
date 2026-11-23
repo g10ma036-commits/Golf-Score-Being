@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import { navigate } from '../main.js';
 import { isZip, readZip } from '../shared/zip.js';
 import { isSqlite } from '../shared/sqlite.js';
-import { parseIkScoreCard, isIkScoreCardFiles } from '../shared/ikscorecard.js';
+import { parseIkScoreCard, isIkScoreCardFiles, ikFixes, ikFixBody } from '../shared/ikscorecard.js';
 import { readGarminFiles, parseGarmin, planGarmin, mapNines, roundBody, mergeBody, changes, isGarminJsonName, norm, totalOf } from '../shared/garmin.js';
 import { courseHoleNo } from '../stats.js';
 
@@ -43,24 +43,31 @@ function makePlan(parsed, rounds, courses) {
   }
   const places = [...new Set(add.map((r) => r.place))];
   const reuse = places.filter((p) => courseByName.has(norm(nameOf.get(p))));
-  return { add, dup, unknown, places, reuse, newPlaces: places.filter((p) => !reuse.includes(p)), courseByName, nameOf };
+  // 以前の版で取り込んだまま、前半・後半の並び（インスタート）や回ったコースがずれているラウンド
+  const fixes = ikFixes(parsed, rounds);
+  return { add, dup, unknown, places, reuse, newPlaces: places.filter((p) => !reuse.includes(p)), courseByName, nameOf, fixes };
 }
 
 export async function openIkImport(files, onDone) {
   let parsed;
   let plan;
+  let courses;
   try {
     const dbs = await collect(files);
     if (!isIkScoreCardFiles(dbs)) throw new Error('IKScoreCard のバックアップが見つかりませんでした。バックアップの ZIP（または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。');
     if (!dbs.some((f) => /IKScoreCard_g2\.sqlite3$/i.test(f.name))) throw new Error('コースのデータ（IKScoreCard_g2.sqlite3）が見つかりません。バックアップの ZIP をそのまま選ぶか、すべての .sqlite3 ファイルを選んでください。');
     parsed = parseIkScoreCard(dbs);
-    const [rounds, courses] = await Promise.all([api.get('/api/rounds'), api.get('/api/courses')]);
+    let rounds;
+    [rounds, courses] = await Promise.all([api.get('/api/rounds'), api.get('/api/courses')]);
     plan = makePlan(parsed, rounds, courses);
   } catch (err) { errorToast(err); return; }
 
   const tees = parsed.tees;
   const defTee = (tees.find((t) => t.tee === 2) || tees[0])?.tee ?? 2;
   const withParty = parsed.rounds.some((r) => r.party.length);
+  const fixN = plan.fixes.length;
+  const work = plan.add.length + fixN;
+  const goLabel = plan.add.length && fixN ? `取り込む・${fixN} ラウンドを直す` : plan.add.length ? `${plan.add.length} ラウンドを取り込む` : `${fixN} ラウンドを直す`;
   const m = openModal({
     title: 'IKScoreCard から取り込む',
     body: html`<div class="ik-summary">
@@ -69,15 +76,17 @@ export async function openIkImport(files, onDone) {
           <li>追加するラウンド：<strong>${plan.add.length}</strong></li>
           ${plan.dup ? html`<li>すでにあるので飛ばす：${plan.dup}（同じ日でスコアもほぼ同じ）</li>` : ''}
           ${plan.unknown ? html`<li>コースが分からないので飛ばす：${plan.unknown}</li>` : ''}
-          <li>コース：新しく登録 ${plan.newPlaces.length}${plan.reuse.length ? `・登録済みのコースを使う ${plan.reuse.length}` : ''}</li>
+          ${plan.add.length ? html`<li>コース：新しく登録 ${plan.newPlaces.length}${plan.reuse.length ? `・登録済みのコースを使う ${plan.reuse.length}` : ''}</li>` : ''}
+          ${fixN ? html`<li>前半・後半の並び（インスタート）や回ったコースを直す：<strong>${fixN}</strong>（以前の版で取り込んだラウンド）</li>` : ''}
         </ul></div>
       ${plan.add.length ? html`
         ${tees.length && plan.newPlaces.length ? html`<label class="field" style="margin-top:12px"><span>コースの距離に使うティー</span><select id="ik-tee">${tees.map((t) => html`<option value="${t.tee}" ${t.tee === defTee ? 'selected' : ''}>${t.label || `ティー${t.tee}`}${t.total ? `（よく行くコースで ${t.total.toLocaleString()}y）` : ''}</option>`)}</select></label>` : ''}
         ${withParty ? html`<label class="check" style="margin-top:10px"><input type="checkbox" id="ik-party" checked> 同伴者のスコアと名前も取り込む</label>` : ''}
-        <p class="small muted" style="margin-top:10px">天気は取り込みません。27・36ホールのゴルフ場で別の 9 ホールを回ったラウンドは、取り込んだあとにラウンドの編集で「回ったコース」を直せます。</p>`
+        <p class="small muted" style="margin-top:10px">天気は取り込みません。インスタート（10 番から回った）や、27・36 ホールのゴルフ場で回ったコースの組み合わせも読み取ります。</p>`
         : html`<p class="small muted" style="margin-top:10px">追加するラウンドはありません。</p>`}
+      ${fixN ? html`<p class="small muted" style="margin-top:6px">以前の版では、10 番から回ったラウンドの前半と後半が逆に、27・36 ホールのゴルフ場ではいつも 1 つ目・2 つ目のコースになっていました。直すと、ホールの並び・パー・距離が正しくなります（天気・同伴者・メモ・写真はそのまま）。</p>` : ''}
       <div class="ik-progress small" aria-live="polite"></div>`,
-    footer: html`<button class="btn" data-ik-cancel>${plan.add.length ? 'キャンセル' : '閉じる'}</button>${plan.add.length ? html`<button class="btn btn-primary" data-ik-go>${plan.add.length} ラウンドを取り込む</button>` : ''}`,
+    footer: html`<button class="btn" data-ik-cancel>${work ? 'キャンセル' : '閉じる'}</button>${work ? html`<button class="btn btn-primary" data-ik-go>${goLabel}</button>` : ''}`,
   });
   let busy = false;
   $('[data-ik-cancel]', m.el).addEventListener('click', () => { if (!busy) m.close(); });
@@ -90,6 +99,7 @@ export async function openIkImport(files, onDone) {
     const progress = $('.ik-progress', m.el);
     const say = (t) => { progress.textContent = t; };
     let done = 0;
+    let fixed = 0;
     try {
       // コース（同じ名前の登録済みコースがあれば、それを使う）
       const info = new Map();
@@ -116,14 +126,19 @@ export async function openIkImport(files, onDone) {
         });
         done++;
       }
+      for (const fx of plan.fixes) {
+        say(`前半・後半の並びを直しています…（${fixed + 1} / ${fixN}）`);
+        await api.put(`/api/rounds/${fx.a.id}`, ikFixBody(fx, courses.find((c) => c.id === fx.a.course_id)));
+        fixed++;
+      }
       m.close();
-      toast(`${done} ラウンドを取り込みました`);
+      toast([done ? `${done} ラウンドを取り込みました` : '', fixed ? `${fixed} ラウンドを直しました` : ''].filter(Boolean).join('・'));
       onDone?.();
       navigate('/rounds');
     } catch (err) {
       busy = false;
       $('[data-ik-cancel]', m.el).disabled = false;
-      say(`途中で止まりました（${done} ラウンドは取り込み済み）。もう一度取り込むと、残りだけが追加されます。`);
+      say(`途中で止まりました（取り込み ${done}・直した ${fixed}）。もう一度取り込むと、残りだけが反映されます。`);
       errorToast(err);
     }
   });
