@@ -66,9 +66,11 @@ export async function render(root) {
 
       <div class="card">
         <h2 style="margin-bottom:8px">ほかのアプリから取り込む</h2>
-        <p class="small muted" style="margin-bottom:10px">いまの記録は消えずに、まだ無いラウンドだけが追加されます（同じ日・同じコース・同じスコアのラウンドは飛ばします）。</p>
-        <label class="btn btn-wrap">⛳ IKScoreCard のバックアップから取り込む<input type="file" id="import-ik" multiple hidden></label>
-        <p class="small muted" style="margin-top:8px">IKScoreCard のバックアップ（ZIP、または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。スコア・パット・OB などのペナルティ・同伴者のスコア・コース（パーと距離）を取り込みます。</p>
+        <p class="small muted" style="margin-bottom:10px">いまの記録は消えません。取り込む前に、追加・置き換えの件数を確認できます。</p>
+        <label class="btn btn-wrap">⌚ Garmin Golf のデータから取り込む<input type="file" id="import-garmin" multiple accept=".zip,.json,application/zip,application/json" hidden></label>
+        <p class="small muted" style="margin-top:8px">Garmin Connect の「データのエクスポート」で届いた ZIP、または その中の DI_CONNECT/DI-GOLF フォルダの Golf-*.json（SCORECARD・COURSE・SHOT・CLUB・CLUB_TYPES）を選んでください。スコア・パット・ペナルティ・フェアウェイ・ティーショットのクラブ・ゴルフ場を取り込みます。同じ日のラウンドがあれば Garmin のデータを優先します（手入力したラウンドは、どちらを優先するか選べます）。</p>
+        <label class="btn btn-wrap" style="margin-top:12px">⛳ IKScoreCard のバックアップから取り込む<input type="file" id="import-ik" multiple hidden></label>
+        <p class="small muted" style="margin-top:8px">IKScoreCard のバックアップ（ZIP、または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。スコア・パット・OB などのペナルティ・同伴者のスコア・コース（パーと距離）を取り込みます。まだ無いラウンドだけを追加します（同じ日でスコアもほぼ同じラウンドは飛ばします）。</p>
       </div>
 
       <div class="card">
@@ -171,6 +173,12 @@ export async function render(root) {
     e.target.value = '';
     if (!files.length) return;
     (await import('./appImport.js')).openIkImport(files, () => render(root));
+  });
+  $('#import-garmin', root).addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (!files.length) return;
+    (await import('./appImport.js')).openGarminImport(files, () => render(root));
   });
 
   $('#import', root).addEventListener('change', async (e) => {

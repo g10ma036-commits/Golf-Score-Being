@@ -3,4 +3,4 @@
 export const PHONE_APP_URL = 'https://g10ma036-commits.github.io/Golf-Score-Being/';
 
 // アプリの版（設定の「このアプリについて」と、新しくなったことのお知らせに使う）
-export const APP_VERSION = '1.6';
+export const APP_VERSION = '1.7';
