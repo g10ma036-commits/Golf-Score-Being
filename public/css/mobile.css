@@ -585,6 +585,11 @@ table.data tr.par-first td { border-top: 2px solid var(--border-strong); }
 .flow-line { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--text-secondary); line-height: 1.6; }
 .flow-line strong { color: var(--text-primary); }
 /* スコアのシミュレーター */
+.sim-range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 4px; }
+.sim-seg { display: flex; max-width: 100%; }
+.sim-seg button { min-height: 36px; white-space: nowrap; }
+@media (max-width: 480px) { .sim-seg { width: 100%; } .sim-seg button { flex: 1 1 0; padding: 5px 2px; min-width: 0; white-space: normal; line-height: 1.2; } }
+.sim-note { margin: 0 0 10px; }
 .sim-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); margin-bottom: 12px; }
 .sim-result strong { font-size: 20px; font-variant-numeric: tabular-nums; }
 .sim-result .sim-proj { font-size: 28px; color: var(--accent); }

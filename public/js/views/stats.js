@@ -3,7 +3,7 @@ import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '.
 import { api, getSettings } from '../api.js';
 import {
   summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, teeClubStats, PERIODS,
-  conditionStats, CONDITIONS, distanceStats, flowStats, flowInsights, simItems, simulate, simPlan,
+  conditionStats, CONDITIONS, distanceStats, flowStats, flowInsights, simItems, simulate, simPlan, missCounts,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
@@ -111,15 +111,40 @@ function distanceCard(rows) {
   </div>`;
 }
 
-// スコアのシミュレーター：3パット・OB などの回数を動かすと、予想の平均スコアがすぐ変わる
-function drawSim(box, base, items, goal) {
-  if (base == null || !items.length) { box.innerHTML = ''; return; }
+// 試算のもとにするラウンド：直近 5・10・20 ラウンド（18 ホール）か、上で絞り込んだすべて。選んだものはこの端末に覚えておく
+const SIM_RANGES = [[5, '直近5R'], [10, '直近10R'], [20, '直近20R'], [0, 'すべて']];
+const SIM_KEY = 'golf-sim-range';
+let simRange = null; // 選んでいる範囲（初めはこの端末に覚えた値。無ければ、ホームの「直近5ラウンドの平均」とそろえて直近 5）
+const savedSimRange = () => {
+  if (simRange == null) { try { const v = localStorage.getItem(SIM_KEY); simRange = SIM_RANGES.some(([n]) => String(n) === v) ? Number(v) : 5; } catch { simRange = 5; } }
+  return simRange;
+};
+
+// スコアのシミュレーター：3パット・OB などの回数を動かすと、予想の平均スコアがすぐ変わる。
+// 平均と今の回数は「試算のもと」のラウンドから、1 回あたりの効き目は上の「ミスの影響」と同じ（絞り込んだすべてのラウンド）から
+function drawSim(box, { list, sums, impact, avg, goal }) {
+  const allItems = simItems(impact);
+  if (avg == null || !allItems.length) { box.innerHTML = ''; return; }
+  const done = sums.map((s, i) => ({ s, r: list[i] })).filter((x) => x.s.complete); // 新しい順（filterRounds の並び）
+  const ranges = SIM_RANGES.filter(([n]) => n === 0 || n < done.length);
+  const saved = savedSimRange();
+  const range = ranges.some(([n]) => n === saved) ? saved : 0;
+  const use = range ? done.slice(0, range) : done;
+  const base = range ? use.reduce((a, x) => a + x.s.strokes, 0) / use.length : avg;
+  const items = range ? simItems(impact, missCounts(use.map((x) => x.r))) : allItems;
+  const from = use[use.length - 1]?.s.date, to = use[0]?.s.date;
   const values = Object.fromEntries(items.map((it) => [it.key, it.current]));
   const v1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
-  const plan = simPlan(base, items, goal);
+  const plan = items.length ? simPlan(base, items, goal) : null;
   mount(box, html`<div class="card section sim-card" id="simulator">
     <div class="card-header"><div><h2>🧮 スコアのシミュレーター</h2><div class="sub">1ラウンドあたりの回数を動かすと、予想の平均スコアが変わります（あなたの記録から計算した目安）</div></div></div>
-    <div class="sim-result" aria-live="polite"></div>
+    ${ranges.length > 1 ? html`<div class="sim-range"><span class="small secondary">試算のもと</span>
+      <div class="seg sim-seg" role="group" aria-label="試算のもとにするラウンド">${ranges.map(([n, l]) => html`<button type="button" data-sim-range="${n}" class="${n === range ? 'on' : ''}" aria-pressed="${n === range}">${l}</button>`)}</div></div>` : ''}
+    <p class="small muted sim-note">${range
+      ? html`直近 ${use.length} ラウンド（${shortDate(from)}〜${shortDate(to)}）の平均と回数で計算（「1回減らすと」の打数は、ぶれないよう表示中の全ラウンドから）`
+      : html`表示中の 18 ホールのラウンド ${done.length} 件${from ? `（${shortDate(from)}〜${shortDate(to)}）` : ''}の平均と回数で計算`}</p>
+    ${items.length ? '' : html`<p class="muted">この範囲では、減らせるミスの記録がありません。「すべて」を選ぶか、範囲を広げてください。</p>`}
+    <div class="sim-result" aria-live="polite" ${items.length ? '' : 'hidden'}></div>
     <div class="sim-rows">${items.map((it) => html`<div class="sim-row" data-key="${it.key}">
       <div class="sim-head"><label for="sim-${it.key}"><strong>${it.label}</strong></label><span class="small muted">1回${it.dir === 'up' ? '増やす' : '減らす'}と −${it.loss.toFixed(1)}打</span></div>
       <div class="sim-ctl"><button type="button" class="btn btn-icon btn-sm" data-step="-1" aria-label="${it.label}を減らす">−</button>
@@ -127,14 +152,22 @@ function drawSim(box, base, items, goal) {
         <button type="button" class="btn btn-icon btn-sm" data-step="1" aria-label="${it.label}を増やす">＋</button>
         <span class="sim-val"></span></div>
     </div>`)}</div>
-    <div class="sim-actions">${plan ? html`<button type="button" class="btn btn-sm btn-primary" data-plan ${plan.reached ? '' : 'disabled'}>${plan.reached ? `${goal}切りに届く例を見る` : `${goal}切りは、この方法だけでは遠いです`}</button>` : ''}
+    ${items.length ? html`<div class="sim-actions">${plan ? html`<button type="button" class="btn btn-sm btn-primary" data-plan ${plan.reached ? '' : 'disabled'}>${plan.reached ? `${goal}切りに届く例を見る` : `${goal}切りは、この方法だけでは遠いです`}</button>` : ''}
       <button type="button" class="btn btn-sm" data-reset>元に戻す</button></div>
-    <p class="small muted" style="margin-top:8px">ミスどうしは重なることがある（OB のあとに3パットなど）ので、たくさん動かすと実際より良く出ます。</p>
+    <p class="small muted" style="margin-top:8px">ミスどうしは重なることがある（OB のあとに3パットなど）ので、たくさん動かすと実際より良く出ます。</p>` : ''}
   </div>`);
+  $$('[data-sim-range]', box).forEach((b) => b.addEventListener('click', () => {
+    simRange = Number(b.dataset.simRange);
+    try { localStorage.setItem(SIM_KEY, String(simRange)); } catch { /* 覚えられなくても、この画面では切り替える */ }
+    drawSim(box, { list, sums, impact, avg, goal });
+    $(`[data-sim-range="${simRange}"]`, box)?.focus();
+  }));
+  if (!items.length) return;
+  const baseLabel = range ? `直近${use.length}Rの平均` : '平均';
   const update = () => {
     const r = simulate(base, items, values);
     const goalLine = goal ? (Math.round(r.projected * 10) / 10 < goal ? html`<span class="good">🎯 ${goal}切りペース</span>` : html`<span class="muted">${goal}切りまで あと ${Math.max(0.1, r.projected - goal + 0.1).toFixed(1)} 打</span>`) : '';
-    mount($('.sim-result', box), html`<div><span class="muted small">いまの平均</span> <strong>${base.toFixed(1)}</strong></div><div class="sim-arrow">→</div>
+    mount($('.sim-result', box), html`<div><span class="muted small">${baseLabel}</span> <strong>${base.toFixed(1)}</strong></div><div class="sim-arrow">→</div>
       <div><span class="muted small">予想</span> <strong class="sim-proj">${r.projected.toFixed(1)}</strong> <span class="${r.total < -0.05 ? 'good' : 'muted'}">（${r.total < -0.05 ? '−' : '±'}${Math.abs(r.total).toFixed(1)}）</span></div>
       <div class="sim-goal">${goalLine}</div>`);
     for (const it of items) {
@@ -301,7 +334,7 @@ export async function render(root) {
     $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
     $$('tr[data-course]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/courses/${tr.dataset.course}`)));
     drawConditions($('#cond-box', body), list);
-    drawSim($('#sim-box', body), a.avgScore, simItems(impact), Number(settings.goal) || null);
+    drawSim($('#sim-box', body), { list, sums, impact, avg: a.avgScore, goal: Number(settings.goal) || null });
 
     setupChart(body, 'trend', (el) => lineChart(el, {
       labels: complete.map((s) => shortDate(s.date)),

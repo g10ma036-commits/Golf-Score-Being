@@ -469,6 +469,38 @@ test('スコアのシミュレーター：ミスを減らしたときの予想�
   assert.equal(stats.simPlan(130, items, 100).reached, false); // 無理のない範囲では届かない
 });
 
+test('スコアのシミュレーター：直近のラウンドの回数で試算する（効き目は全体のまま）', () => {
+  // パー4 だけの 18 ホール。putts を省くとパットの記録なし
+  const mk = (id, { putt3 = 0, ob = 0, gir = 0, putts = true } = {}) => ({ id, date: `2026-0${id}-01`, holes: Array.from({ length: 18 }, (_, i) => {
+    const kind = i < putt3 ? 'p3' : i < putt3 + ob ? 'ob' : i < putt3 + ob + gir ? 'gir' : 'bogey';
+    const h = { hole_no: i + 1, par: 4, strokes: kind === 'gir' ? 4 : kind === 'ob' ? 7 : kind === 'p3' ? 6 : 5, penalties: kind === 'ob' ? 1 : 0, fairway: 'hit' };
+    if (putts) h.putts = kind === 'p3' ? 3 : kind === 'gir' ? 2 : kind === 'ob' ? 2 : 2;
+    return h;
+  }) });
+  // 古いラウンドは 3パット 4 回・OB 3 回、直近は 3パット 1 回・OB 0 回
+  const old = [mk(1, { putt3: 4, ob: 3, gir: 2 }), mk(2, { putt3: 4, ob: 3, gir: 2 })];
+  const recent = [mk(3, { putt3: 1, gir: 5 }), mk(4, { putt3: 1, gir: 5 })];
+  const all = [...recent, ...old];
+  const c = stats.missCounts(recent);
+  assert.equal(c.putt3, 1);
+  assert.equal(c.penalty, 0);
+  assert.equal(c.gir, 5);
+  const impact = stats.shotImpact(all);
+  const whole = stats.simItems(impact);
+  const near = stats.simItems(impact, c);
+  assert.equal(whole.find((i) => i.key === 'putt3').current, 2.5);
+  assert.equal(near.find((i) => i.key === 'putt3').current, 1);
+  assert.equal(near.find((i) => i.key === 'putt3').loss, whole.find((i) => i.key === 'putt3').loss); // 1 回あたりの効き目は全体から
+  assert.equal(near.some((i) => i.key === 'penalty'), false); // 直近は OB 0 回なので減らせない
+  assert.equal(near.find((i) => i.key === 'gir').current, 5);
+  // パットを記録していないラウンドは、3パット・パーオンの回数の分母に入れない
+  const mixed = [mk(5, { putt3: 2 }), mk(6, { putts: false })];
+  const m = stats.missCounts(mixed);
+  assert.equal(m.putt3, 2);
+  assert.equal(stats.missCounts([mk(7, { putts: false })]).putt3, undefined); // パットの記録が無ければ出さない
+  assert.equal(stats.shotImpact([...mixed, ...old]).find((x) => x.key === 'putt3').perRoundCount, (2 + 8) / 3);
+});
+
 test('上達の履歴：年ごとの成績・ベスト更新・初めての○○切り・最初と直近の比較', () => {
   const rs = [
     round(1, '2020-05-01', [2]), // 108

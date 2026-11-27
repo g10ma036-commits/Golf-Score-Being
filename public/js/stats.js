@@ -512,39 +512,63 @@ export function achievements(rounds) {
 // ---------- ミスの影響（ホールあたりの打数の差） ----------
 // rounds: ホールつきのラウンド。それぞれの項目で「良い場合」と「ミスの場合」のホールのパー比の平均と、その差（ミス 1 回の損失）を出す
 const MIN_N = 5;
-export function shotImpact(rounds) {
+// 項目ごとの「良い場合」と「ミスの場合」のホール。unit は 1 ラウンドあたりの回数の単位（パーオンは出さない）、per は回数を割るラウンド数の種類
+function impactGroups(holes) {
+  const fw = holes.filter((h) => h.par >= 4 && h.fairway);
+  const withPutts = holes.filter((h) => Number.isFinite(h.putts));
+  return [
+    { key: 'fw', title: 'ティーショット（パー4・5）', unit: '回', per: 'fw', good: { label: 'FWキープ', list: fw.filter((h) => h.fairway === 'hit') },
+      bads: [{ label: '左に外す', list: fw.filter((h) => h.fairway === 'left') }, { label: '右に外す', list: fw.filter((h) => h.fairway === 'right') }] },
+    { key: 'gir', title: 'パーオン', unit: null, per: 'putts', good: { label: 'パーオンした', list: withPutts.filter(isGir) }, bads: [{ label: 'パーオンしない', list: withPutts.filter((h) => !isGir(h)) }] }, // パーオンしないのが普通なので 1 ラウンドの合計は出さない
+    { key: 'penalty', title: 'OB・ペナルティ', unit: 'ホール', per: 'all', good: { label: 'なし', list: holes.filter((h) => !(h.penalties > 0)) }, bads: [{ label: 'あり', list: holes.filter((h) => h.penalties > 0) }] },
+    { key: 'bunker', title: 'バンカー', unit: 'ホール', per: 'all', good: { label: '入らない', list: holes.filter((h) => !(h.bunker > 0)) }, bads: [{ label: '入った', list: holes.filter((h) => h.bunker > 0) }] },
+    { key: 'putt3', title: '3パット', unit: 'ホール', per: 'putts', good: { label: '2パット以下', list: withPutts.filter((h) => h.putts <= 2) }, bads: [{ label: '3パット以上', list: withPutts.filter((h) => h.putts >= 3) }] },
+  ];
+}
+// 回数を割るラウンド数（9 ホールは 0.5 ラウンド）。パットは記録したホールだけ、FW はパー4・5 で FW を記録したラウンドだけを数える
+// （記録していないラウンドまで数えると、1 ラウンドあたりの回数が少なく出るため）
+function playedHoles(rounds) {
   const holes = [];
-  let roundCount = 0;
+  const per = { all: 0, putts: 0, fw: 0 };
   for (const r of rounds) {
     const hs = (r.holes || []).filter(played);
-    if (hs.length) roundCount += hs.length / 18;
+    if (!hs.length) continue;
     holes.push(...hs);
+    per.all += hs.length / 18;
+    per.putts += hs.filter((h) => Number.isFinite(h.putts)).length / 18;
+    if (hs.some((h) => h.par >= 4 && h.fairway)) per.fw += hs.length / 18;
   }
+  return { holes, per };
+}
+export function shotImpact(rounds) {
+  const { holes, per } = playedHoles(rounds);
   const avg = (list) => (list.length ? list.reduce((a, h) => a + h.strokes - h.par, 0) / list.length : null);
   const group = (label, list) => ({ label, n: list.length, avg: avg(list) });
-  const item = (key, title, good, bads, perRoundOf) => {
+  const out = impactGroups(holes).map(({ key, title, unit, per: perKey, good, bads }) => {
     const bad = bads.flatMap((b) => b.list);
     if (good.list.length < MIN_N || bad.length < MIN_N) return null;
     const g = group(good.label, good.list);
     const loss = avg(bad) - g.avg;
+    const n = per[perKey];
     return {
       key, title, good: g, bads: bads.filter((b) => b.list.length).map((b) => group(b.label, b.list)),
-      loss, perRound: roundCount && perRoundOf ? (bad.length / roundCount) * loss : null, count: bad.length,
-      perRoundCount: roundCount ? bad.length / roundCount : null, unit: perRoundOf,
+      loss, perRound: n && unit ? (bad.length / n) * loss : null, count: bad.length,
+      perRoundCount: n ? bad.length / n : null, unit,
     };
-  };
-  const fw = holes.filter((h) => h.par >= 4 && h.fairway);
-  const withPutts = holes.filter((h) => Number.isFinite(h.putts));
-  const out = [
-    item('fw', 'ティーショット（パー4・5）', { label: 'FWキープ', list: fw.filter((h) => h.fairway === 'hit') },
-      [{ label: '左に外す', list: fw.filter((h) => h.fairway === 'left') }, { label: '右に外す', list: fw.filter((h) => h.fairway === 'right') }], '回'),
-    item('gir', 'パーオン', { label: 'パーオンした', list: withPutts.filter(isGir) }, [{ label: 'パーオンしない', list: withPutts.filter((h) => !isGir(h)) }], null), // パーオンしないのが普通なので 1 ラウンドの合計は出さない
-    item('penalty', 'OB・ペナルティ', { label: 'なし', list: holes.filter((h) => !(h.penalties > 0)) }, [{ label: 'あり', list: holes.filter((h) => h.penalties > 0) }], 'ホール'),
-    item('bunker', 'バンカー', { label: '入らない', list: holes.filter((h) => !(h.bunker > 0)) }, [{ label: '入った', list: holes.filter((h) => h.bunker > 0) }], 'ホール'),
-    item('putt3', '3パット', { label: '2パット以下', list: withPutts.filter((h) => h.putts <= 2) }, [{ label: '3パット以上', list: withPutts.filter((h) => h.putts >= 3) }], 'ホール'),
-  ].filter(Boolean);
+  }).filter(Boolean);
   // 1 ラウンドあたりの損失が大きい順（パーオンは最後）
   return out.sort((a, b) => (b.perRound ?? -Infinity) - (a.perRound ?? -Infinity));
+}
+// 1 ラウンドあたりの回数（ミスの回数。パーオンはパーオンした回数）。シミュレーターで「直近 5 ラウンド」などの今の回数に使う。
+// 記録のない項目は入れない（例: パットを記録していなければ 3パット・パーオンは無し）
+export function missCounts(rounds) {
+  const { holes, per } = playedHoles(rounds);
+  const out = {};
+  for (const { key, per: perKey, good, bads } of impactGroups(holes)) {
+    const n = per[perKey];
+    if (n) out[key] = (key === 'gir' ? good.list.length : bads.reduce((a, b) => a + b.list.length, 0)) / n;
+  }
+  return out;
 }
 
 // ---------- ティーショットのクラブ別（パー4・5） ----------
@@ -726,14 +750,17 @@ export function flowInsights(f) {
 // dir: 'down' は減らすと良くなる（3パット・OB など）、'up' は増やすと良くなる（パーオン）
 const r1 = (x) => Math.round(x * 10) / 10;
 const SIM_LABELS = { putt3: '3パット', penalty: 'OB・ペナルティ', bunker: 'バンカー', fw: 'フェアウェイを外す', gir: 'パーオン' };
-export function simItems(impact) {
+// counts（missCounts の結果）を渡すと、今の回数はそこから取る（直近 5 ラウンドなど）。1 回あたりの効き目（loss）は impact のまま
+export function simItems(impact, counts = null) {
   return (impact || []).filter((it) => SIM_LABELS[it.key] && it.loss > 0.05 && it.perRoundCount > 0).map((it) => {
-    if (it.key === 'gir') {
-      const cur = (it.good.n * it.perRoundCount) / it.count; // 1 ラウンドあたりのパーオンの回数
-      return { key: it.key, label: SIM_LABELS[it.key], dir: 'up', current: cur, min: cur, max: Math.min(18, cur + 6), loss: it.loss };
-    }
-    return { key: it.key, label: SIM_LABELS[it.key], dir: 'down', current: it.perRoundCount, min: 0, max: it.perRoundCount, loss: it.loss };
-  }).map((it) => ({ ...it, current: r1(it.current), min: r1(it.min), max: r1(it.max) })) // 表示と同じく 0.1 回単位にそろえる
+    const gir = it.key === 'gir';
+    const cur = counts ? counts[it.key] : gir ? (it.good.n * it.perRoundCount) / it.count : it.perRoundCount; // パーオンは 1 ラウンドあたりのパーオンした回数
+    if (cur == null) return null;
+    if (gir) return { key: it.key, label: SIM_LABELS[it.key], dir: 'up', current: cur, min: cur, max: Math.min(18, cur + 6), loss: it.loss };
+    return { key: it.key, label: SIM_LABELS[it.key], dir: 'down', current: cur, min: 0, max: cur, loss: it.loss };
+  }).filter(Boolean)
+    .map((it) => ({ ...it, current: r1(it.current), min: r1(it.min), max: r1(it.max) })) // 表示と同じく 0.1 回単位にそろえる
+    .filter((it) => it.dir === 'up' || it.current > 0) // 減らせる回数がない項目（直近は 0 回など）は出さない
     .sort((a, b) => (a.dir === b.dir ? b.loss - a.loss : a.dir === 'down' ? -1 : 1)); // ミスを減らす項目を先に、パーオンは最後
 }
 // values: { key: 1 ラウンドあたりの回数 }。返り値の effects は項目ごとの打数の変化（マイナスほど良い）
