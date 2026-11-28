@@ -1,7 +1,7 @@
 // ラウンドの新規入力・編集（スコアカード形式）
 import { html, raw, mount, $, $$, pct, toPar, today, icon, toast, errorToast, numOrNull, confirmDialog, openModal, WEATHERS } from '../util.js';
 import { api, photoUrl, getSettings } from '../api.js';
-import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, suggestClub, splitNames, RESULT_LABELS } from '../stats.js';
+import { summarize, resultKey, played, courseHoleNo, holeAnalysis, onCourseHoles, goalPlan, planLabel, suggestClub, splitNames, entryGaps, RESULT_LABELS } from '../stats.js';
 import { navigate, setLeaveGuard, refreshView } from '../main.js';
 import { openCourseEditor, DEFAULT_PARS, ninesOf } from './courses.js';
 import { uploadPhotos, isImageFile } from './photoTools.js';
@@ -236,6 +236,7 @@ export async function render(root, params) {
           </div>
         </div>
         ${'wakeLock' in navigator ? html`<label class="check wake-toggle"><input type="checkbox" id="wake-lock"> 🔆 入力中は画面を消さない<span class="small muted">（電池を多く使います）</span></label>` : ''}
+        <label class="check wake-toggle" id="auto-next-row"><input type="checkbox" id="auto-next"> ⏭ 入れ終わったら次のホールへ進む<span class="small muted">（スコア・パットと、記録している項目がそろったとき）</span></label>
         <div id="hole-entry" class="hole-entry"></div>
         <div id="card-entry">
           <div class="table-wrap">${half(0)}</div>
@@ -484,6 +485,7 @@ export async function render(root, params) {
     const b = e.target.closest('button');
     if (!b || b.disabled) return;
     const h = holes[cur - 1];
+    const wasDone = holeDone(h);
     if (b.dataset.go) { cur = Number(b.dataset.go); drawHole(); return; }
     if (b.hasAttribute('data-prev')) { cur = Math.max(1, cur - 1); drawHole(); return; }
     if (b.hasAttribute('data-next')) { cur = Math.min(18, cur + 1); drawHole(); holeEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
@@ -502,6 +504,7 @@ export async function render(root, params) {
       markDirty();
       drawPartyTable();
       drawHole();
+      maybeAutoNext(h, wasDone);
       return;
     }
     navigator.vibrate?.(8); // 押した手応え（対応している Android のみ）
@@ -522,6 +525,52 @@ export async function render(root, params) {
     syncInputs(h.hole_no);
     updateTotals();
     drawHole();
+    maybeAutoNext(h, wasDone);
+  });
+
+  // ---- 入れ終わったら次のホールへ（選んだときだけ） ----
+  // 入れ終わり：スコアとパット。ほかのホールでティーショットを記録していればそれも、同伴者がいれば全員のスコアも
+  const holeDone = (h) => played(h) && Number.isFinite(h.putts) && h.putts < h.strokes
+    && (h.par < 4 || Boolean(h.fairway) || !holes.some((x) => x !== h && x.par >= 4 && x.fairway))
+    && party.every((p) => p.strokes[h.hole_no - 1] != null);
+  const AUTO_MS = 1600;
+  let autoTimer = 0;
+  let autoBar = null;
+  const cancelAuto = () => {
+    clearTimeout(autoTimer);
+    autoTimer = 0;
+    autoBar?.remove();
+    autoBar = null;
+  };
+  const goNextHole = () => {
+    cancelAuto();
+    if (cur >= 18 || holeEl.hidden) return;
+    cur += 1;
+    drawHole();
+    holeEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  const maybeAutoNext = (h, wasDone) => {
+    if (!$('#auto-next', root)?.checked || wasDone || cur >= 18 || h.hole_no !== cur || !holeDone(h)) return;
+    cancelAuto();
+    // 少し待ってから進む。そのあいだに入力欄を触ったら、進まずにとどまる
+    autoBar = document.createElement('div');
+    autoBar.className = 'auto-next-bar';
+    autoBar.setAttribute('role', 'status');
+    mount(autoBar, html`<span>${cur + 1}番ホールへ進みます</span>
+      <button type="button" class="btn btn-sm" data-auto-stay>とどまる</button>
+      <button type="button" class="btn btn-sm btn-primary" data-auto-go>今すぐ ›</button>
+      <i class="anb-progress" style="animation-duration:${AUTO_MS}ms" aria-hidden="true"></i>`);
+    document.body.appendChild(autoBar);
+    $('[data-auto-stay]', autoBar).addEventListener('click', cancelAuto);
+    $('[data-auto-go]', autoBar).addEventListener('click', goNextHole);
+    autoTimer = setTimeout(goNextHole, AUTO_MS);
+  };
+  holeEl.addEventListener('pointerdown', () => { if (autoTimer) cancelAuto(); }, true);
+  const autoBox = $('#auto-next', root);
+  try { autoBox.checked = localStorage.getItem('golf-auto-next') === '1'; } catch { /* ignore */ }
+  autoBox.addEventListener('change', () => {
+    try { localStorage.setItem('golf-auto-next', autoBox.checked ? '1' : '0'); } catch { /* ignore */ }
+    if (!autoBox.checked) cancelAuto();
   });
 
   // 左右にスワイプしてホールを移動（上のホール番号の列は横にスクロールするので除く）
@@ -669,6 +718,8 @@ export async function render(root, params) {
     $$('[data-mode]', form).forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
     holeEl.hidden = mode !== 'hole';
     $('#card-entry', form).hidden = mode !== 'card';
+    $('#auto-next-row', form).hidden = mode !== 'hole';
+    cancelAuto();
     $('#mode-help', form).textContent = mode === 'hole'
       ? 'タップで入力（もう一度タップで解除）。左右にスワイプするか、上の数字でホールを移動できます。'
       : 'スコア入力後に Enter でパット → 次のホールへ移動。FW は押すたびに ○(キープ) → ←(左) → →(右) → 未記録 と切り替わります。';
@@ -794,6 +845,35 @@ export async function render(root, params) {
     if (pending.length) markDirty();
   });
 
+  // 入れ忘れていそうなホールを見せる。ホールを押すとその入力に戻る（true：このまま保存）
+  const jumpToHole = (no, k) => {
+    if (!holeEl.hidden) {
+      cur = no;
+      drawHole();
+      holeEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      return;
+    }
+    const inp = $(`[data-h="${no}"][data-k="${k === 'fairway' ? 'strokes' : k}"]`, form);
+    inp?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    inp?.focus({ preventScroll: true });
+  };
+  const reviewGaps = (gaps) => new Promise((resolve) => {
+    let done = false;
+    const m = openModal({
+      title: '保存する前の確認',
+      body: html`<p class="small secondary">入れ忘れがないか確認してください。ホールを押すと、そのホールの入力に戻ります。</p>
+        ${gaps.map(([label, nos, k]) => html`<div class="gap-row"><div class="gap-label">${label}<span class="muted small">（${nos.length}ホール）</span></div>
+          <div class="gap-holes">${nos.map((no) => html`<button type="button" class="chip" data-gap-hole="${no}" data-gap-k="${k}">${no}番</button>`)}</div></div>`)}
+        <p class="small muted" style="margin-top:12px">わざと入れていないときは、このまま保存して大丈夫です（入っているホールだけで分析します）。</p>`,
+      footer: html`<button class="btn" data-gap-back>戻って入力する</button><button class="btn btn-primary" data-gap-save>このまま保存</button>`,
+      onClose: () => { if (!done) resolve(false); },
+    });
+    $$('[data-gap-hole]', m.el).forEach((b) => b.addEventListener('click', () => { m.close(); jumpToHole(Number(b.dataset.gapHole), b.dataset.gapK); }));
+    $('[data-gap-back]', m.el).addEventListener('click', () => { m.close(); jumpToHole(gaps[0][1][0], gaps[0][2]); });
+    $('[data-gap-save]', m.el).addEventListener('click', () => { done = true; resolve(true); m.close(); });
+    setTimeout(() => $('[data-gap-save]', m.el).focus(), 0);
+  });
+
   const save = async () => {
     const fd = new FormData(form);
     if (!fd.get('date')) { errorToast('日付を入力してください'); return; }
@@ -801,6 +881,8 @@ export async function render(root, params) {
     const bad = holes.find((h) => played(h) && Number.isFinite(h.putts) && h.putts >= h.strokes);
     if (bad) { errorToast(`${bad.hole_no}番: パット数がスコア以上になっています`); return; }
     if (!holes.some(played) && !window.confirm('スコアが1ホールも入力されていません。このまま保存しますか？')) return;
+    const gaps = entryGaps(holes);
+    if (gaps.length && !(await reviewGaps(gaps))) return;
     // 同じ日・同じコースのラウンドがすでにあれば、二重に保存していないか確認する
     const dup = allRounds.find((r) => r.id !== editId && r.date === fd.get('date')
       && (meta.course_id ? r.course_id === meta.course_id : !r.course_id && r.course_name === meta.course_name));
@@ -883,6 +965,7 @@ export async function render(root, params) {
     document.removeEventListener('visibilitychange', onHide);
     document.removeEventListener('visibilitychange', onWakeVisible);
     releaseWake();
+    cancelAuto();
     window.removeEventListener('pagehide', flushDraft);
     flushDraft();
     if (dirty && draftOk) toast('入力途中の内容は下書きに保存しました。「入力」かホームから続きを入力できます');

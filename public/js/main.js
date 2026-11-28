@@ -47,6 +47,9 @@ const ROUTES = [
 // 未保存の変更があるときに画面遷移を確認する
 let leaveGuard = null;
 let currentHash = location.hash || '#/';
+// ひとつ前の画面（一覧に戻ったときに、見ていたラウンドの行へ戻すため）
+let prevHash = '';
+export const previousPath = () => (prevHash.replace(/^#/, '') || '/').split('?')[0];
 export function setLeaveGuard(fn) { leaveGuard = fn; }
 window.addEventListener('beforeunload', (e) => {
   if (leaveGuard && leaveGuard()) { e.preventDefault(); e.returnValue = ''; }
@@ -125,6 +128,7 @@ async function route() {
     return;
   }
   leaveGuard = null;
+  prevHash = currentHash;
   currentHash = location.hash || '#/';
   const path = (location.hash.replace(/^#/, '') || '/').split('?')[0];
   const my = ++token;

@@ -8,6 +8,7 @@ import {
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
 import { navigate } from '../main.js';
+import { termLabel } from '../glossary.js';
 
 const state = { period: 'all', course: '', cond: 'weather', tab: 'summary' };
 // 画面をタブで分ける（期間とコースの絞り込みはどのタブにも効く）。選んだタブはアプリを開いている間は覚えておく
@@ -316,7 +317,8 @@ export async function render(root) {
     const months = [...byMonth.entries()].sort((x, y) => x[0].localeCompare(y[0])).slice(-12)
       .map(([k, v]) => ({ k, n: v.length, avg: v.reduce((p, c) => p + c, 0) / v.length }));
 
-    const t = (label, value, sub = '') => html`<div class="tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+    // key があれば、名前を押すと言葉の説明が開く
+    const t = (label, value, sub = '', key = '') => html`<div class="tile"><div class="label">${key ? termLabel(label, key) : label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
     const halves = html`<div class="card section" id="st-halves">
       <h2 style="margin-bottom:12px">前半・後半</h2>
       <div class="tiles">
@@ -327,22 +329,22 @@ export async function render(root) {
       summary: () => html`
         <div class="tiles">
           ${t('ラウンド数', a.rounds, `18ホール ${a.completeRounds} R`)}
-          ${t('平均スコア', fmt(a.avgScore, 1), a.avgToPar != null ? `パー比 ${toPar(Math.round(a.avgToPar * 10) / 10)}` : '')}
-          ${t('ベストスコア', a.best ? a.best.strokes : '—', a.best ? `${shortDate(a.best.date)}` : '')}
-          ${t('推定ハンディキャップ', a.handicap != null ? a.handicap.toFixed(1) : '—', '簡易計算')}
-          ${t('平均パット', fmt(a.puttsPerRound, 1), `1ホール ${fmt(a.puttsPerHole, 2)}`)}
-          ${t('パーオン率', pct(a.girRate), a.puttsPerGir != null ? `パーオン時 ${fmt(a.puttsPerGir, 2)} パット` : '')}
+          ${t('平均スコア', fmt(a.avgScore, 1), a.avgToPar != null ? `パー比 ${toPar(Math.round(a.avgToPar * 10) / 10)}` : '', 'avg')}
+          ${t('ベストスコア', a.best ? a.best.strokes : '—', a.best ? `${shortDate(a.best.date)}` : '', 'best')}
+          ${t('推定ハンディキャップ', a.handicap != null ? a.handicap.toFixed(1) : '—', '簡易計算', 'hc')}
+          ${t('平均パット', fmt(a.puttsPerRound, 1), `1ホール ${fmt(a.puttsPerHole, 2)}`, 'putts')}
+          ${t('パーオン率', pct(a.girRate), a.puttsPerGir != null ? `パーオン時 ${fmt(a.puttsPerGir, 2)} パット` : '', 'gir')}
         </div>
         <details class="more-fields more-tiles" id="st-all-tiles"><summary>すべての数字を見る<span class="small muted">FWキープ率・3パット率・OB など、あと 8 つ</span></summary>
           <div class="tiles">
-            ${t('FWキープ率', pct(a.fwRate), a.fwTotal ? `${a.fwHit}/${a.fwTotal}` : '')}
-            ${t('3パット率', pct(a.threePuttRate, 1), `1R あたり ${fmt(a.threePuttsPerRound, 1)} 回`)}
-            ${t('OB・ペナ / R', fmt(a.penaltiesPerRound, 1))}
-            ${t('ボギーオン率', pct(a.bogeyOnRate), '規定打数-1 までにオン')}
-            ${t('1パット率', pct(a.onePuttRate), 'パットを記録したホール')}
-            ${t('リカバリー率', pct(a.scrambleRate), 'パーオンせずパー以上')}
-            ${t('サンドセーブ率', pct(a.sandSaveRate), a.sandChances ? `バンカー ${a.sandChances} ホール` : '簡易：バンカー後パー以上')}
-            ${t('バーディ / R', fmt(a.birdiesPerRound, 2), `パー以上率 ${pct(a.parOrBetterRate)}`)}
+            ${t('FWキープ率', pct(a.fwRate), a.fwTotal ? `${a.fwHit}/${a.fwTotal}` : '', 'fw')}
+            ${t('3パット率', pct(a.threePuttRate, 1), `1R あたり ${fmt(a.threePuttsPerRound, 1)} 回`, 'threePutt')}
+            ${t('OB・ペナ / R', fmt(a.penaltiesPerRound, 1), '', 'ob')}
+            ${t('ボギーオン率', pct(a.bogeyOnRate), '規定打数-1 までにオン', 'bogeyOn')}
+            ${t('1パット率', pct(a.onePuttRate), 'パットを記録したホール', 'onePutt')}
+            ${t('リカバリー率', pct(a.scrambleRate), 'パーオンせずパー以上', 'scramble')}
+            ${t('サンドセーブ率', pct(a.sandSaveRate), a.sandChances ? `バンカー ${a.sandChances} ホール` : '簡易：バンカー後パー以上', 'sand')}
+            ${t('バーディ / R', fmt(a.birdiesPerRound, 2), `パー以上率 ${pct(a.parOrBetterRate)}`, 'birdie')}
           </div>
         </details>
         ${chartCard('trend', 'スコアの推移', `18ホールのラウンド ${complete.length} 件・点をタップで詳細`, 'section')}

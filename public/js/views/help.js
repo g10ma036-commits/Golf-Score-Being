@@ -2,11 +2,20 @@
 import { html, mount, icon } from '../util.js';
 import { STANDALONE } from '../api.js';
 import { APP_VERSION } from '../config.js';
+import { TERMS } from '../glossary.js';
 
 const SECTIONS = [
   {
     id: 'news', title: `新しくなったこと（バージョン ${APP_VERSION}）`, open: false,
     body: () => html`<ul>
+      <li><strong>入れ終わったら次のホールへ</strong>：スコア入力の「1ホールずつ」で「⏭ 入れ終わったら次のホールへ進む」を選ぶと、スコアとパット（ティーショットや同伴者のスコアを記録しているときはそれも）がそろったところで、自動で次のホールへ進みます。進む前に画面を触れば、そのホールにとどまります</li>
+      <li><strong>保存する前の確認</strong>：パットやティーショットを入れ忘れたホール、スコアが入っていないホールがあると、保存の前に知らせます。ホールを押すとその入力に戻れます</li>
+      <li><strong>スコア一覧に戻ったら元の場所</strong>：ラウンドを開いて戻っても、絞り込み（年・コース・検索）と並び順、見ていた場所がそのままです。「✕ 絞り込みを解除」で元に戻せます</li>
+      <li><strong>前後のラウンドへ</strong>：ラウンドの画面の上の「‹ ›」か、左右のスワイプで、一覧に戻らずに前後のラウンドを見られます（一覧で絞り込んでいたら、その中で）</li>
+      <li><strong>言葉の説明</strong>：分析やラウンドの画面で、「パーオン率 ?」のように「?」の付いた名前を押すと、意味と数え方、目安の数字が出ます。この使い方の「分析の言葉」にもまとめました</li>
+    </ul>
+    <h3 class="small muted" style="margin:12px 0 4px">バージョン 1.11 で追加したこと</h3>
+    <ul>
       <li><strong>メニューを目的別に</strong>：「その他」（PC は左のメニュー）を「振り返る・記録・準備・道具・アプリ」に分けました。年間のまとめと実績もメニューから開けます。画面の名前もメニューと同じにしました（統計分析 → 分析、スコア・ラウンド → スコア、AIに分析してもらう → AI分析、クラブセッティング → クラブ）</li>
       <li><strong>分析をタブで分ける</strong>：「まとめ・ミスと練習・コース・条件・グラフ」のタブで切り替えます（期間とコースの絞り込みはどのタブにも効きます）。シミュレーターは「ミスと練習」にあります。まとめの数字は大事な 6 つだけを出し、残りは「すべての数字を見る」で開きます</li>
       <li><strong>ホームの上をすっきり</strong>：このお知らせは 1 行に、「はじめに」の案内はスコアを記録したあとは残りのステップだけを小さく出します</li>
@@ -136,6 +145,12 @@ const SECTIONS = [
           <li>何度取り込んでも重複しません（変わらないラウンドはそのままです）。</li>
         </ul></li>
     </ul>`,
+  },
+  {
+    id: 'terms', title: '分析の言葉（パーオン率など）',
+    body: () => html`<p class="small secondary">分析やラウンドの画面では、「?」の付いた名前を押しても、同じ説明が出ます。</p>
+      <dl class="faq">${Object.values(TERMS).map(([title, text, how, guide]) => html`<dt>${title}</dt><dd>${text}${how ? html`<div class="small muted" style="margin-top:4px">数え方：${how}</div>` : ''}${guide ? html`<div class="small muted" style="margin-top:2px">目安：${guide.map(([who, v]) => `${who} ${v}`).join('、')}</div>` : ''}</dd>`)}</dl>
+      <p class="small muted">目安は、計測器 Shot Scope の多くのラウンドデータをもとにした海外の集計によるおおよその値です。</p>`,
   },
   {
     id: 'faq', title: 'よくある質問',

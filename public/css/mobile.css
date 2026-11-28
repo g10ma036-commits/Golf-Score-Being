@@ -744,3 +744,45 @@ table.data tr.par-first td { border-top: 2px solid var(--border-strong); }
 
 /* 狭い画面で 2 行になるときは、言葉の切れ目（「上達の｜履歴」）で折り返す */
 .nb { display: inline-block; }
+
+/* 言葉の説明：数字の名前の横の「?」。押すと説明が開く */
+.term {
+  border: 0; background: none; padding: 4px 0; margin: -4px 0; font: inherit; color: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px; text-align: left;
+}
+.term-i {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; flex: none; border-radius: 50%;
+  border: 1px solid var(--border-strong); color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 1;
+}
+.term:hover .term-i, .term:focus-visible .term-i { border-color: var(--accent); color: var(--accent); }
+.term-guide { margin-top: 12px; }
+.term-guide caption { text-align: left; padding-bottom: 4px; }
+
+/* スコア一覧：絞り込みの解除、戻ってきたラウンドの行を少しのあいだ示す */
+@keyframes row-flash { 0%, 60% { background: var(--accent-soft); } 100% { background: transparent; } }
+tr.row-flash > td { animation: row-flash 2.2s ease-out; }
+
+/* ラウンド詳細：前後のラウンドへ */
+.round-nav { display: flex; align-items: center; gap: 8px; margin: -4px 0 14px; }
+.round-nav .btn { min-width: 0; }
+.round-nav .rn-pos { flex: 1; text-align: center; font-size: 12px; color: var(--text-muted); }
+.round-nav .rn-off { visibility: hidden; }
+
+/* 入れ終わったら次のホールへ：進む前の短い待ち時間の帯（押せばとどまる・今すぐ進む） */
+.auto-next-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 800; overflow: hidden;
+  display: flex; align-items: center; gap: 8px; width: min(440px, calc(100% - 24px)); padding: 10px 12px 12px;
+  background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+  font-size: 14px; font-weight: 600;
+}
+.auto-next-bar span { flex: 1; min-width: 0; }
+.auto-next-bar .anb-progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform-origin: left; animation: anb-shrink linear forwards; }
+@keyframes anb-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 760px) { .auto-next-bar { bottom: calc(80px + env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: reduce) { .auto-next-bar .anb-progress { animation: none; } }
+
+/* 保存する前の確認 */
+.gap-row { margin-top: 12px; }
+.gap-label { font-weight: 650; font-size: 14px; margin-bottom: 6px; }
+.gap-holes { display: flex; flex-wrap: wrap; gap: 6px; }
+.gap-holes .chip { min-width: 52px; }

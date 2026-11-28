@@ -869,3 +869,26 @@ export function progressHistory(rounds) {
     firstHandicap: handicapTrend(sums)[0]?.handicap ?? null, handicap: handicapEstimate(sums),
   };
 }
+
+// 保存する前の確認：入れ忘れていそうなホール（[見出し, ホール番号の一覧, 入力欄の種類]）
+// ・スコア：18 ホールのうち一部だけ（前半だけ・後半だけのハーフはそのまま）
+// ・パット・ティーショット：ほかのホールでは記録しているのに、入っていないホール
+export function entryGaps(holes) {
+  const done = holes.filter(played);
+  const out = [];
+  if (done.length && done.length < 18) {
+    const half = (from) => holes.filter((h) => h.hole_no > from && h.hole_no <= from + 9);
+    const cleanHalf = [0, 9].some((from) => half(from).every(played) && half(9 - from).every((h) => !played(h)));
+    if (!cleanHalf) out.push(['スコアが入っていないホール', holes.filter((h) => !played(h)).map((h) => h.hole_no), 'strokes']);
+  }
+  const putts = done.filter((h) => Number.isFinite(h.putts));
+  if (putts.length && putts.length < done.length) {
+    out.push(['パットが入っていないホール', done.filter((h) => !Number.isFinite(h.putts)).map((h) => h.hole_no), 'putts']);
+  }
+  const tee = done.filter((h) => h.par >= 4);
+  const fw = tee.filter((h) => h.fairway);
+  if (fw.length && fw.length < tee.length) {
+    out.push(['ティーショットが入っていないホール（パー4・5）', tee.filter((h) => !h.fairway).map((h) => h.hole_no), 'fairway']);
+  }
+  return out;
+}

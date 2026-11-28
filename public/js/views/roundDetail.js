@@ -7,6 +7,8 @@ import {
 } from '../stats.js';
 import { barChart, segmentedBar, chartCard, setupChart } from '../charts.js';
 import { navigate } from '../main.js';
+import { termLabel } from '../glossary.js';
+import { listContext } from './rounds.js';
 import { dropzoneHtml, bindDropzone, photoGridHtml, openLightbox } from './photoTools.js';
 
 const FW_MARK = { hit: '○', left: '←', right: '→' };
@@ -47,6 +49,20 @@ export async function render(root, [idStr]) {
   // 同じホールどうしで比べる（27 ホールのゴルフ場では、回った 9 ホールの組み合わせが違っても同じホールを集計）
   const courseAvg = sameCourse.length ? holeAnalysis(sameCourse.map(onCourseHoles), 54) : null;
   const holes = Array.from({ length: 18 }, (_, i) => round.holes.find((h) => h.hole_no === i + 1) || { hole_no: i + 1, par: null });
+  // 前後のラウンド（‹ 古い・新しい ›）。スコア一覧で絞り込んでいたら、その中で移動する
+  const ctx = listContext();
+  const inList = Boolean(ctx?.filtered && ctx.ids.includes(id));
+  const ids = inList ? new Set(ctx.ids) : null;
+  const pool = rounds.filter((r) => !ids || ids.has(r.id)).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const pos = pool.findIndex((r) => r.id === id);
+  const older = pos > 0 ? pool[pos - 1] : null;
+  const newer = pos >= 0 ? pool[pos + 1] || null : null;
+  const shortD = (r) => fmtDate(r.date, { weekday: false, year: false });
+  const roundNav = pool.length > 1 && pos >= 0 ? html`<nav class="round-nav" aria-label="前後のラウンド">
+      ${older ? html`<a class="btn btn-sm" href="#/rounds/${older.id}" data-rn="older" aria-label="前のラウンド：${fmtDate(older.date)} ${older.course_name}">‹ ${shortD(older)}</a>` : html`<span class="btn btn-sm rn-off" aria-hidden="true">‹</span>`}
+      <span class="rn-pos">${pos + 1} / ${pool.length}${inList ? '（絞り込み中）' : ''}</span>
+      ${newer ? html`<a class="btn btn-sm" href="#/rounds/${newer.id}" data-rn="newer" aria-label="次のラウンド：${fmtDate(newer.date)} ${newer.course_name}">${shortD(newer)} ›</a>` : html`<span class="btn btn-sm rn-off" aria-hidden="true">›</span>`}
+    </nav>` : '';
 
   const half = (from) => {
     const hs = holes.slice(from, from + 9);
@@ -107,13 +123,13 @@ export async function render(root, [idStr]) {
   const n18 = (v, h) => (h ? (v / h) * 18 : null);
   const cmpRows = [
     ['スコア', sum.complete ? sum.strokes : null, base.avgScore, 'lower', (v) => fmt(v, v % 1 ? 1 : 0)],
-    ['パット（18H換算）', sum.puttHoles ? n18(sum.putts, sum.puttHoles) : null, base.puttsPerRound, 'lower', (v) => fmt(v, 1)],
-    ['FWキープ率', sum.fwTotal ? sum.fwHit / sum.fwTotal : null, base.fwRate, 'higher', (v) => pct(v)],
-    ['パーオン率', sum.girKnown ? sum.gir / sum.girKnown : null, base.girRate, 'higher', (v) => pct(v)],
-    ['ボギーオン率', sum.girKnown ? sum.bogeyOn / sum.girKnown : null, base.bogeyOnRate, 'higher', (v) => pct(v)],
-    ['リカバリー率', sum.scrChances ? sum.scrSaves / sum.scrChances : null, base.scrambleRate, 'higher', (v) => pct(v)],
-    ['3パット（18H換算）', sum.puttHoles ? n18(sum.threePutts, sum.puttHoles) : null, base.threePuttsPerRound, 'lower', (v) => fmt(v, 1)],
-    ['OB・ペナ（18H換算）', sum.holes ? n18(sum.penalties, sum.holes) : null, base.penaltiesPerRound, 'lower', (v) => fmt(v, 1)],
+    ['パット（18H換算）', sum.puttHoles ? n18(sum.putts, sum.puttHoles) : null, base.puttsPerRound, 'lower', (v) => fmt(v, 1), 'putts'],
+    ['FWキープ率', sum.fwTotal ? sum.fwHit / sum.fwTotal : null, base.fwRate, 'higher', (v) => pct(v), 'fw'],
+    ['パーオン率', sum.girKnown ? sum.gir / sum.girKnown : null, base.girRate, 'higher', (v) => pct(v), 'gir'],
+    ['ボギーオン率', sum.girKnown ? sum.bogeyOn / sum.girKnown : null, base.bogeyOnRate, 'higher', (v) => pct(v), 'bogeyOn'],
+    ['リカバリー率', sum.scrChances ? sum.scrSaves / sum.scrChances : null, base.scrambleRate, 'higher', (v) => pct(v), 'scramble'],
+    ['3パット（18H換算）', sum.puttHoles ? n18(sum.threePutts, sum.puttHoles) : null, base.threePuttsPerRound, 'lower', (v) => fmt(v, 1), 'threePutt'],
+    ['OB・ペナ（18H換算）', sum.holes ? n18(sum.penalties, sum.holes) : null, base.penaltiesPerRound, 'lower', (v) => fmt(v, 1), 'ob'],
     ['前半', sum.front.holes === 9 ? sum.front.strokes : null, base.frontAvg, 'lower', (v) => fmt(v, v % 1 ? 1 : 0)],
     ['後半', sum.back.holes === 9 ? sum.back.strokes : null, base.backAvg, 'lower', (v) => fmt(v, v % 1 ? 1 : 0)],
   ];
@@ -141,6 +157,7 @@ export async function render(root, [idStr]) {
         <a class="btn" href="#/rounds/${id}/edit">${icon('edit')}編集</a>
       </div>
     </div>
+    ${roundNav}
 
     ${achievements.length ? html`<div class="celebrate" role="status">
       <div class="cel-items">${achievements.map((a) => html`<div class="cel-item"><span class="cel-ico" aria-hidden="true">${a.icon}</span><div><strong>${a.title}</strong>${a.text ? html`<div class="small">${a.text}</div>` : ''}${a.link ? html`<div class="small"><a href="${a.link}">実績を見る →</a></div>` : ''}</div></div>`)}</div>
@@ -158,11 +175,11 @@ export async function render(root, [idStr]) {
         <div class="small secondary" style="margin-top:8px">OUT ${sum.front.holes ? sum.front.strokes : '—'} ／ IN ${sum.back.holes ? sum.back.strokes : '—'}</div>
       </div>
       <div class="tiles span-2" style="grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr))">
-        ${tile('パット', sum.puttHoles ? sum.putts : '—', sum.puttHoles ? `1パット ${sum.onePutts}・3パット ${sum.threePutts}` : '')}
-        ${tile('FWキープ率', sum.fwTotal ? pct(sum.fwHit / sum.fwTotal) : '—', sum.fwTotal ? `${sum.fwHit}/${sum.fwTotal}（左${sum.fwLeft}・右${sum.fwRight}）` : '')}
-        ${tile('パーオン率', sum.girKnown ? pct(sum.gir / sum.girKnown) : '—', sum.girKnown ? `${sum.gir}/${sum.girKnown}` : '')}
-        ${tile('リカバリー率', sum.scrChances ? pct(sum.scrSaves / sum.scrChances) : '—', 'パーオンせずパー以上')}
-        ${tile('OB・ペナルティ', sum.holes ? sum.penalties : '—')}
+        ${tile('パット', sum.puttHoles ? sum.putts : '—', sum.puttHoles ? `1パット ${sum.onePutts}・3パット ${sum.threePutts}` : '', 'putts')}
+        ${tile('FWキープ率', sum.fwTotal ? pct(sum.fwHit / sum.fwTotal) : '—', sum.fwTotal ? `${sum.fwHit}/${sum.fwTotal}（左${sum.fwLeft}・右${sum.fwRight}）` : '', 'fw')}
+        ${tile('パーオン率', sum.girKnown ? pct(sum.gir / sum.girKnown) : '—', sum.girKnown ? `${sum.gir}/${sum.girKnown}` : '', 'gir')}
+        ${tile('リカバリー率', sum.scrChances ? pct(sum.scrSaves / sum.scrChances) : '—', 'パーオンせずパー以上', 'scramble')}
+        ${tile('OB・ペナルティ', sum.holes ? sum.penalties : '—', '', 'ob')}
         ${tile('バーディ以上', sum.results.eagle + sum.results.birdie, `パー ${sum.results.par}・ボギー ${sum.results.bogey}`)}
       </div>
     </div>
@@ -206,12 +223,12 @@ export async function render(root, [idStr]) {
         <div class="card-header"><div><h2>今回 vs いつもの自分</h2><div class="sub">他の ${others.length} ラウンドの平均と比較</div></div>
           ${others.length ? html`<a class="btn btn-sm" href="#/compare?a=${id}">ほかのラウンドと比べる</a>` : ''}</div>
         ${others.length ? html`<div class="table-wrap"><table class="data"><thead><tr><th></th><th class="r">今回</th><th class="r">平均</th><th class="r">差</th></tr></thead><tbody>
-          ${cmpRows.map(([label, cur, avg, better, f]) => {
+          ${cmpRows.map(([label, cur, avg, better, f, term]) => {
             const d = cur != null && avg != null ? cur - avg : null;
             const good = d != null && (better === 'lower' ? d < 0 : d > 0);
             const badv = d != null && (better === 'lower' ? d > 0 : d < 0);
             const ds = d == null ? '—' : isPct(label) ? `${d > 0 ? '+' : ''}${Math.round(d * 100)}pt` : signed(d, 1);
-            return html`<tr><td>${label}</td><td class="r"><strong>${cur != null ? f(cur) : '—'}</strong></td><td class="r">${avg != null ? f(avg) : '—'}</td>
+            return html`<tr><td>${term ? termLabel(label, term) : label}</td><td class="r"><strong>${cur != null ? f(cur) : '—'}</strong></td><td class="r">${avg != null ? f(avg) : '—'}</td>
               <td class="r ${Math.abs(d ?? 0) < 1e-9 ? '' : good ? 'good' : badv ? 'bad' : ''}">${ds}</td></tr>`;
           })}</tbody></table></div>` : html`<p class="muted small">比較できる他のラウンドがまだありません。</p>`}
       </div>
@@ -227,6 +244,30 @@ export async function render(root, [idStr]) {
 
     <div class="danger-zone"><button class="btn btn-sm btn-danger" id="del">${icon('trash')}このラウンドを削除</button></div>
   `);
+
+  // 前後のラウンドへは、画面の履歴を増やさずに移る（戻るで一覧へ戻れるように）。左右のスワイプでも
+  $$('[data-rn]', root).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); location.replace(a.getAttribute('href')); }));
+  if (!root.dataset.swipe) {
+    root.dataset.swipe = '1';
+    let touch = null;
+    root.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      const skip = e.touches.length !== 1 || t.clientX < 24 || t.clientX > window.innerWidth - 24
+        || e.target.closest('.table-wrap, .chart, .photo-grid, .dropzone, input, textarea, select, button, a');
+      touch = skip ? null : { x: t.clientX, y: t.clientY, at: Date.now() };
+    }, { passive: true });
+    root.addEventListener('touchend', (e) => {
+      if (!touch) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touch.x;
+      const dy = t.clientY - touch.y;
+      const quick = Date.now() - touch.at < 600;
+      touch = null;
+      if (!quick || Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
+      const a = $(`[data-rn="${dx < 0 ? 'newer' : 'older'}"]`, root);
+      if (a) location.replace(a.getAttribute('href'));
+    }, { passive: true });
+  }
 
   $('#del', root).addEventListener('click', async () => {
     const ok = await confirmDialog(`${fmtDate(round.date)} ${round.course_name} のラウンドを削除しますか？\n関連付けた写真は削除されず、アルバムに残ります。`, { danger: true, okText: '削除する' });
@@ -269,6 +310,6 @@ export async function render(root, [idStr]) {
   });
 }
 
-function tile(label, value, sub = '') {
-  return html`<div class="tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+function tile(label, value, sub = '', term = '') {
+  return html`<div class="tile"><div class="label">${term ? termLabel(label, term) : label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
 }

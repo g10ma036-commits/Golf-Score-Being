@@ -574,3 +574,35 @@ test('機能をさがす：ひらがな・カタカナ・全角を区別せず�
     if (tab) assert.ok(statsView.includes(`['${tab}', `), `${title}: タブがない ${tab}`);
   }
 });
+
+test('保存する前の確認：入れ忘れていそうなホールだけを知らせる（ハーフや、記録していない項目は知らせない）', async () => {
+  const { entryGaps } = await load('public/js/stats.js');
+  const pars = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5];
+  const make = (fn) => pars.map((par, i) => ({ hole_no: i + 1, par, ...fn(i + 1, par) }));
+  // すべて入っている・パットもFWも記録していない → 何も言わない
+  assert.deepEqual(entryGaps(make(() => ({ strokes: 5, putts: 2, fairway: 'hit' }))), []);
+  assert.deepEqual(entryGaps(make(() => ({ strokes: 5 }))), []);
+  // 前半だけのハーフ → スコアの抜けとは言わない
+  assert.deepEqual(entryGaps(make((no) => (no <= 9 ? { strokes: 5, putts: 2 } : {}))), []);
+  // 途中のホールの抜け
+  const g1 = entryGaps(make((no) => (no === 7 ? {} : { strokes: 5, putts: 2 })));
+  assert.deepEqual(g1.map((g) => [g[1], g[2]]), [[[7], 'strokes']]);
+  // パットの入れ忘れ・ティーショットの入れ忘れ（パー3 は対象外）
+  const g2 = entryGaps(make((no, par) => ({ strokes: 5, putts: no === 3 || no === 12 ? null : 2, fairway: no === 2 ? null : par >= 4 ? 'left' : null })));
+  assert.deepEqual(g2.map((g) => [g[1], g[2]]), [[[3, 12], 'putts'], [[2], 'fairway']]);
+  // 何も入っていない → 何も言わない（別の確認が出る）
+  assert.deepEqual(entryGaps(make(() => ({}))), []);
+});
+
+test('言葉の説明：画面で使っている言葉がすべて説明にある', async () => {
+  const { TERMS, termLabel } = await load('public/js/glossary.js');
+  const dir = path.join(__dirname, '..', 'public', 'js', 'views');
+  const src = ['stats.js', 'roundDetail.js'].map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+  // 数字のタイル t(…, 'key') / tile(…, 'key') と、今回 vs いつもの自分の行 [..., (v) => …, 'key']
+  const used = new Set([...src.matchAll(/(?:\bt|tile)\('[^']+',.*, '([a-zA-Z]+)'\)\}|\(v\) => [^\]]+, '([a-zA-Z]+)'\],/g)].map((m) => m[1] || m[2]));
+  assert.ok(used.size >= 10, `見つかった言葉 ${used.size}`);
+  for (const k of used) assert.ok(TERMS[k], `説明がない: ${k}`);
+  for (const [k, [title, text]] of Object.entries(TERMS)) assert.ok(title && text, k);
+  // 説明のない言葉は、ふつうの文字のまま
+  assert.equal(termLabel('ラウンド数', 'nope'), 'ラウンド数');
+});

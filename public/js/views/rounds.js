@@ -2,9 +2,15 @@
 import { html, mount, $, $$, pct, toPar, fmtDate, icon } from '../util.js';
 import { api, getSettings } from '../api.js';
 import { summarize } from '../stats.js';
-import { navigate } from '../main.js';
+import { navigate, previousPath } from '../main.js';
 
 const WEATHER_ICON = { 晴れ: '☀️', 曇り: '☁️', 雨: '☔', 雪: '❄️', 強風: '💨' };
+
+// 絞り込み・並び順とスクロールの位置は、アプリを開いている間は覚えておく（ラウンドを開いて戻っても同じ一覧）
+const state = { year: '', course: '', q: '', sort: 'date', scroll: 0, opened: null };
+// ラウンド詳細の「前・次」で使う：今の一覧（絞り込んだあと）のラウンド
+let shown = null;
+export const listContext = () => shown;
 
 export async function render(root) {
   const rounds = await api.get('/api/rounds');
@@ -15,7 +21,9 @@ export async function render(root) {
   const years = [...new Set(rounds.map((r) => r.date.slice(0, 4)))].sort().reverse();
   const courses = [...new Map(rounds.map((r) => [r.course_id ? String(r.course_id) : `n:${r.course_name}`, r.course_name])).entries()]
     .sort((a, b) => a[1].localeCompare(b[1], 'ja'));
-  const state = { year: '', course: '', q: '', sort: 'date' };
+  // 覚えていた年・コースのラウンドがなくなっていたら、絞り込みを外す
+  if (state.year && !years.includes(state.year)) state.year = '';
+  if (state.course && !courses.some(([k]) => k === state.course)) state.course = '';
 
   mount(root, html`
     <div class="page-header">
@@ -27,8 +35,9 @@ export async function render(root) {
         <select id="f-year" aria-label="年"><option value="">すべての年</option>${years.map((y) => html`<option value="${y}">${y}年</option>`)}</select>
         <select id="f-course" aria-label="コース"><option value="">すべてのコース</option>${courses.map(([k, n]) => html`<option value="${k}">${n}</option>`)}</select>
         <input id="f-q" type="search" placeholder="同伴者・メモで検索" aria-label="検索">
-        <div class="seg" role="group" aria-label="並び順"><button data-sort="date" class="on">日付順</button><button data-sort="score">スコア順</button></div>
+        <div class="seg" role="group" aria-label="並び順"><button data-sort="date">日付順</button><button data-sort="score">スコア順</button></div>
         <span id="count" class="muted small"></span>
+        <button type="button" class="btn btn-sm btn-ghost" id="f-clear" hidden>✕ 絞り込みを解除</button>
       </div>
       <div class="card" style="padding:0"><div class="table-wrap"><table class="data">
         <thead><tr>
@@ -54,6 +63,9 @@ export async function render(root) {
       }
       return true;
     });
+    const filtered = Boolean(state.year || state.course || state.q);
+    shown = { ids: list.map((r) => r.id), filtered };
+    $('#f-clear', root).hidden = !filtered;
     if (state.sort === 'score') {
       list = [...list].sort((a, b) => {
         const sa = sums.get(a.id); const sb = sums.get(b.id);
@@ -101,18 +113,47 @@ export async function render(root) {
         <td class="c hide-sm">${r.photo_count ? html`<span class="badge">📷 ${r.photo_count}</span>` : ''}</td>
       </tr>`;
     }));
+    const open = (id) => { state.scroll = window.scrollY; state.opened = Number(id); navigate(`/rounds/${id}`); };
     $$('#rows tr[data-id]', root).forEach((tr) => {
-      tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`));
-      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigate(`/rounds/${tr.dataset.id}`); });
+      tr.addEventListener('click', () => open(tr.dataset.id));
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(tr.dataset.id); });
     });
   };
-  $('#f-year', root).addEventListener('change', (e) => { state.year = e.target.value; draw(); });
-  $('#f-course', root).addEventListener('change', (e) => { state.course = e.target.value; draw(); });
-  $('#f-q', root).addEventListener('input', (e) => { state.q = e.target.value.trim(); draw(); });
+  const yearSel = $('#f-year', root);
+  const courseSel = $('#f-course', root);
+  const qInput = $('#f-q', root);
+  const syncControls = () => {
+    yearSel.value = state.year;
+    courseSel.value = state.course;
+    qInput.value = state.q;
+    $$('[data-sort]', root).forEach((x) => x.classList.toggle('on', x.dataset.sort === state.sort));
+  };
+  yearSel.addEventListener('change', (e) => { state.year = e.target.value; draw(); });
+  courseSel.addEventListener('change', (e) => { state.course = e.target.value; draw(); });
+  qInput.addEventListener('input', (e) => { state.q = e.target.value.trim(); draw(); });
   $$('[data-sort]', root).forEach((b) => b.addEventListener('click', () => {
     state.sort = b.dataset.sort;
-    $$('[data-sort]', root).forEach((x) => x.classList.toggle('on', x === b));
+    syncControls();
     draw();
   }));
+  $('#f-clear', root).addEventListener('click', () => {
+    Object.assign(state, { year: '', course: '', q: '' });
+    syncControls();
+    draw();
+  });
+  syncControls();
   draw();
+
+  // ラウンドの画面から戻ってきたら、見ていたラウンドの行を画面に入れて、少しのあいだ色で示す
+  const back = previousPath().match(/^\/rounds\/(\d+)(?:\/edit)?$/);
+  const row = back && $(`#rows tr[data-id="${back[1]}"]`, root);
+  if (row) {
+    requestAnimationFrame(() => {
+      if (Number(back[1]) === state.opened) window.scrollTo(0, state.scroll);
+      const r = row.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight - 90) row.scrollIntoView({ block: 'center' });
+      row.classList.add('row-flash');
+      setTimeout(() => row.classList.remove('row-flash'), 2400);
+    });
+  }
 }
