@@ -603,6 +603,13 @@ table.data tr.par-first td { border-top: 2px solid var(--border-strong); }
 .sim-ctl input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
 .sim-val { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; font-variant-numeric: tabular-nums; font-weight: 650; }
 .sim-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.sim-far { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; }
+.sim-far h3 { margin: 0 0 6px; font-size: 1.05em; }
+.sim-far p { margin: 0 0 8px; }
+.sim-pic { margin: 4px 0; }
+.sim-pic td, .sim-pic th { font-variant-numeric: tabular-nums; }
+.sim-tips { margin: 10px 0; padding-left: 1.2em; display: grid; gap: 8px; }
+.sim-far .actions { margin-top: 4px; }
 .flow-rows { margin-top: 12px; }
 .flow-rows .fr { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--border); }
 .flow-rows .fr strong { font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }

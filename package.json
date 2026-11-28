@@ -1,6 +1,6 @@
 {
   "name": "golf-enjoy-manager",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "ゴルフのスコア記録・統計分析・アルバム・クラブセッティング・飛距離記録ができるローカルアプリ",
   "private": true,
   "main": "server.js",

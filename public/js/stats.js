@@ -779,16 +779,45 @@ export function simulate(base, items, values = {}) {
 export function simPlan(base, items, goal) {
   if (!goal || base == null || base < goal) return null;
   const values = Object.fromEntries(items.map((it) => [it.key, it.current]));
-  const limit = (it) => (it.dir === 'up' ? Math.min(it.max, it.current + 3) : it.current / 2);
   for (const it of items) {
     while (simulate(base, items, values).projected >= goal - 0.05) { // 表示（小数 1 桁）でも目標未満になるまで
       const next = r1(it.dir === 'up' ? values[it.key] + 0.1 : values[it.key] - 0.1); // 0.1 回ずつ
-      if (it.dir === 'up' ? next > limit(it) + 1e-9 : next < limit(it) - 1e-9) break;
+      if (it.dir === 'up' ? next > limitOf(it) + 1e-9 : next < limitOf(it) - 1e-9) break;
       values[it.key] = next;
     }
   }
   const r = simulate(base, items, values);
-  return { values, reached: r.projected < goal - 0.05, projected: r.projected };
+  // limit：すべての項目を無理のない範囲いっぱいまで動かしたときの予想（届かないときに「あと何打足りないか」を出す）
+  const best = simulate(base, items, Object.fromEntries(items.map((it) => [it.key, limitOf(it)]))).projected;
+  return { values, reached: r.projected < goal - 0.05, projected: r.projected, limit: best };
+}
+const limitOf = (it) => (it.dir === 'up' ? Math.min(it.max, it.current + 3) : it.current / 2);
+// 目標に届かないときの手前の目標：目標より上の区切り（90・95・100 など）で、無理のない範囲で届くいちばん良いもの
+export function stepGoal(base, items, goal) {
+  for (const g of [...GOAL_CHOICES].sort((a, b) => a - b)) {
+    if (g <= goal) continue;
+    const p = simPlan(base, items, g);
+    if (!p) return null; // もう届いている区切りまで来た
+    if (p.reached) return { goal: g, values: p.values };
+  }
+  return null;
+}
+// 目標スコアのイメージ：1 ラウンドあたりの「パー以上・ボギー・ダボ以上」の回数を、今と目標の例で比べる。
+// 例は「ダボなしで、ボギーとパー」（ボギーだけで足りるときはダボも入れる）。overBogey はダボ以上をすべてボギーで止めたときに縮まる打数
+export function goalPicture(rounds, goal) {
+  const holes = rounds.flatMap((r) => (r.holes || []).filter(played));
+  const n = holes.length / 18;
+  if (!goal || n < 1) return null;
+  const par = Math.round(holes.reduce((a, h) => a + h.par, 0) / n);
+  const over = goal - 1 - par;
+  if (over < 0 || over > 36) return null;
+  const target = over <= 18 ? { good: 18 - over, bogey: over, double: 0 } : { good: 0, bogey: 36 - over, double: over - 18 };
+  const per = (f) => holes.filter(f).length / n;
+  return {
+    goal, par, score: goal - 1, target,
+    now: { good: per((h) => h.strokes <= h.par), bogey: per((h) => h.strokes === h.par + 1), double: per((h) => h.strokes >= h.par + 2) },
+    overBogey: holes.reduce((a, h) => a + Math.max(0, h.strokes - h.par - 1), 0) / n,
+  };
 }
 
 // ---------- 上達の履歴（全期間） ----------

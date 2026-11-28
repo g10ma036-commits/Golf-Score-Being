@@ -469,6 +469,31 @@ test('スコアのシミュレーター：ミスを減らしたときの予想�
   assert.equal(stats.simPlan(130, items, 100).reached, false); // 無理のない範囲では届かない
 });
 
+test('スコアのシミュレーター：目標に届かないときの手前の目標と、今と目標の例の比較', () => {
+  const items = stats.simItems([
+    { key: 'putt3', good: { n: 100 }, count: 40, perRoundCount: 2, loss: 1 },
+    { key: 'penalty', good: { n: 120 }, count: 20, perRoundCount: 1, loss: 2 },
+    { key: 'gir', good: { n: 30 }, count: 150, perRoundCount: 15, loss: 0.8 },
+  ]);
+  // 無理のない範囲いっぱい：OB 1→0.5（−1）・3パット 2→1（−1）・パーオン 3→6（−2.4）
+  assert.ok(Math.abs(stats.simPlan(101.5, items, 100).limit - 97.1) < 1e-9);
+  assert.equal(stats.simPlan(94, items, 85).reached, false);
+  assert.equal(stats.stepGoal(94, items, 85).goal, 90); // 94 → 89.6 まで縮められるので、まずは 90 切り
+  assert.ok(stats.simulate(94, items, stats.stepGoal(94, items, 85).values).projected < 89.95);
+  assert.equal(stats.stepGoal(98, items, 85).goal, 95); // 90 切りも遠いので 95 切り
+  assert.equal(stats.stepGoal(93, items, 90), null); // 手前の 95 切りはもう届いている
+  // パー4 だけの 18 ホール：パー 3・ボギー 7・ダボ 6・トリプル 2
+  const strokes = [4, 4, 4, ...Array(7).fill(5), ...Array(6).fill(6), 7, 7];
+  const r = { id: 1, date: '2026-01-01', holes: strokes.map((s, i) => ({ hole_no: i + 1, par: 4, strokes: s })) };
+  const pic = stats.goalPicture([r, { ...r, id: 2 }], 85);
+  assert.deepEqual(pic.target, { good: 6, bogey: 12, double: 0 }); // 84 = パー72 で +12
+  assert.deepEqual(pic.now, { good: 3, bogey: 7, double: 8 });
+  assert.equal(pic.overBogey, 6 * 1 + 2 * 2); // ダボ以上をボギーで止めると 10 打
+  assert.deepEqual(stats.goalPicture([r], 100).target, { good: 0, bogey: 9, double: 9 }); // 99 = +27
+  assert.equal(stats.goalPicture([r], 70), null); // パーより良い目標は出さない
+  assert.equal(stats.goalPicture([], 85), null);
+});
+
 test('スコアのシミュレーター：直近のラウンドの回数で試算する（効き目は全体のまま）', () => {
   // パー4 だけの 18 ホール。putts を省くとパットの記録なし
   const mk = (id, { putt3 = 0, ob = 0, gir = 0, putts = true } = {}) => ({ id, date: `2026-0${id}-01`, holes: Array.from({ length: 18 }, (_, i) => {

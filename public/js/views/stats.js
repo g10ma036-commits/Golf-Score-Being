@@ -3,7 +3,7 @@ import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '.
 import { api, getSettings } from '../api.js';
 import {
   summarize, aggregate, filterRounds, movingAverage, trendInsights, scoreDistribution, handicapTrend, shotImpact, teeClubStats, PERIODS,
-  conditionStats, CONDITIONS, distanceStats, flowStats, flowInsights, simItems, simulate, simPlan, missCounts,
+  conditionStats, CONDITIONS, distanceStats, flowStats, flowInsights, simItems, simulate, simPlan, missCounts, stepGoal, goalPicture,
   RESULT_KEYS, RESULT_LABELS, resultColor, resultInk,
 } from '../stats.js';
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
@@ -120,6 +120,32 @@ const savedSimRange = () => {
   return simRange;
 };
 
+// 目標に届かないとき：どれだけ足りないか、今と目標の例の比較（パー以上・ボギー・ダボ以上）、差の大きいところから縮め方のヒント
+function farAdvice({ goal, base, plan, step, pic, nowLabel }) {
+  const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  const need = base - goal + 0.1;
+  const can = base - plan.limit;
+  const tips = [];
+  if (pic) {
+    const dbl = pic.now.double - pic.target.double;
+    const good = pic.target.good - pic.now.good;
+    if (dbl >= 1) tips.push({ size: pic.overBogey, body: html`<strong>ダボ以上を減らす</strong>：1ラウンド ${f1(pic.now.double)} 回（例は ${pic.target.double} 回）。すべてボギーで止めると約 <strong>${f1(pic.overBogey)} 打</strong>縮まります（OB・3パットで叩いた分も含む）。林やバンカーからは狙わず、まず安全に出す。グリーンに乗らなくても「寄せて2パットのボギー」で十分です` });
+    if (good >= 1) tips.push({ size: good, body: html`<strong>パーを増やす</strong>：パー以上が 1ラウンド ${f1(pic.now.good)} 回（例は ${pic.target.good} 回）。パーオンを増やすか、外しても寄せて1パット（寄せワン）でパーを取る。100ヤード以内の距離感の練習が効きます` });
+    tips.sort((a, b) => b.size - a.size);
+  }
+  return html`<div class="sim-far">
+    <h3>${goal}切りに近づくには</h3>
+    <p class="small">${goal}切りまで平均で約 ${f1(need)} 打。上の項目を無理のない範囲（ミスは半分まで・パーオンは +3 回まで）で動かしても約 ${f1(can)} 打なので、${step ? html`まずは <strong>${step.goal}切り</strong>を目標にしながら、` : ''}ほかのところでも縮める必要があります。</p>
+    ${pic ? html`<div class="table-wrap"><table class="data sim-pic"><thead><tr><th>1ラウンドで</th><th class="r">${nowLabel}</th><th class="r">${goal}切りの例</th></tr></thead>
+      <tbody><tr><td>パー以上</td><td class="r">${f1(pic.now.good)}</td><td class="r"><strong>${pic.target.good}</strong></td></tr>
+        <tr><td>ボギー</td><td class="r">${f1(pic.now.bogey)}</td><td class="r"><strong>${pic.target.bogey}</strong></td></tr>
+        <tr><td>ダボ以上</td><td class="r">${f1(pic.now.double)}</td><td class="r"><strong>${pic.target.double}</strong></td></tr></tbody></table></div>
+      <p class="small muted">例はパー${pic.par}で ${pic.score}（+${pic.score - pic.par}）になる組み合わせのひとつです。</p>` : ''}
+    ${tips.length ? html`<ul class="sim-tips">${tips.map((t) => html`<li>${t.body}</li>`)}</ul>` : ''}
+    <div class="actions"><a class="btn btn-sm" href="#/ai?purpose=goal">${icon('ai')}AIに目標達成プランを相談</a></div>
+  </div>`;
+}
+
 // スコアのシミュレーター：3パット・OB などの回数を動かすと、予想の平均スコアがすぐ変わる。
 // 平均と今の回数は「試算のもと」のラウンドから、1 回あたりの効き目は上の「ミスの影響」と同じ（絞り込んだすべてのラウンド）から
 function drawSim(box, { list, sums, impact, avg, goal }) {
@@ -136,6 +162,10 @@ function drawSim(box, { list, sums, impact, avg, goal }) {
   const values = Object.fromEntries(items.map((it) => [it.key, it.current]));
   const v1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
   const plan = items.length ? simPlan(base, items, goal) : null;
+  const far = plan && !plan.reached; // 無理のない範囲では目標に届かない → 手前の目標と、ほかに縮めるところを出す
+  const step = far ? stepGoal(base, items, goal) : null;
+  const pic = far ? goalPicture(use.map((x) => x.r), goal) : null;
+  const nowLabel = range ? `直近${use.length}R` : '今';
   mount(box, html`<div class="card section sim-card" id="simulator">
     <div class="card-header"><div><h2>🧮 スコアのシミュレーター</h2><div class="sub">1ラウンドあたりの回数を動かすと、予想の平均スコアが変わります（あなたの記録から計算した目安）</div></div></div>
     ${ranges.length > 1 ? html`<div class="sim-range"><span class="small secondary">試算のもと</span>
@@ -152,8 +182,12 @@ function drawSim(box, { list, sums, impact, avg, goal }) {
         <button type="button" class="btn btn-icon btn-sm" data-step="1" aria-label="${it.label}を増やす">＋</button>
         <span class="sim-val"></span></div>
     </div>`)}</div>
-    ${items.length ? html`<div class="sim-actions">${plan ? html`<button type="button" class="btn btn-sm btn-primary" data-plan ${plan.reached ? '' : 'disabled'}>${plan.reached ? `${goal}切りに届く例を見る` : `${goal}切りは、この方法だけでは遠いです`}</button>` : ''}
+    ${items.length ? html`<div class="sim-actions">${plan ? (plan.reached
+        ? html`<button type="button" class="btn btn-sm btn-primary" data-plan>${goal}切りに届く例を見る</button>`
+        : step ? html`<button type="button" class="btn btn-sm btn-primary" data-step-plan>まずは ${step.goal}切りに届く例を見る</button>`
+          : html`<button type="button" class="btn btn-sm btn-primary" disabled>${goal}切りは、この方法だけでは遠いです</button>`) : ''}
       <button type="button" class="btn btn-sm" data-reset>元に戻す</button></div>
+    ${far ? farAdvice({ goal, base, plan, step, pic, nowLabel }) : ''}
     <p class="small muted" style="margin-top:8px">ミスどうしは重なることがある（OB のあとに3パットなど）ので、たくさん動かすと実際より良く出ます。</p>` : ''}
   </div>`);
   $$('[data-sim-range]', box).forEach((b) => b.addEventListener('click', () => {
@@ -166,7 +200,9 @@ function drawSim(box, { list, sums, impact, avg, goal }) {
   const baseLabel = range ? `直近${use.length}Rの平均` : '平均';
   const update = () => {
     const r = simulate(base, items, values);
-    const goalLine = goal ? (Math.round(r.projected * 10) / 10 < goal ? html`<span class="good">🎯 ${goal}切りペース</span>` : html`<span class="muted">${goal}切りまで あと ${Math.max(0.1, r.projected - goal + 0.1).toFixed(1)} 打</span>`) : '';
+    const shown = Math.round(r.projected * 10) / 10;
+    const goalLine = goal ? (shown < goal ? html`<span class="good">🎯 ${goal}切りペース</span>`
+      : html`<span class="muted">${goal}切りまで あと ${Math.max(0.1, r.projected - goal + 0.1).toFixed(1)} 打</span>${step && shown < step.goal ? html`<span class="good">・${step.goal}切りペース</span>` : ''}`) : '';
     mount($('.sim-result', box), html`<div><span class="muted small">${baseLabel}</span> <strong>${base.toFixed(1)}</strong></div><div class="sim-arrow">→</div>
       <div><span class="muted small">予想</span> <strong class="sim-proj">${r.projected.toFixed(1)}</strong> <span class="${r.total < -0.05 ? 'good' : 'muted'}">（${r.total < -0.05 ? '−' : '±'}${Math.abs(r.total).toFixed(1)}）</span></div>
       <div class="sim-goal">${goalLine}</div>`);
@@ -185,6 +221,7 @@ function drawSim(box, { list, sums, impact, avg, goal }) {
   }
   $('[data-reset]', box).addEventListener('click', () => { for (const it of items) values[it.key] = it.current; update(); });
   $('[data-plan]', box)?.addEventListener('click', () => { Object.assign(values, plan.values); update(); });
+  $('[data-step-plan]', box)?.addEventListener('click', () => { Object.assign(values, step.values); update(); });
   update();
 }
 
