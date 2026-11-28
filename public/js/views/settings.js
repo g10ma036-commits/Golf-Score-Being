@@ -71,6 +71,7 @@ export async function render(root) {
         <p class="small muted" style="margin-top:8px">Garmin Connect の「データのエクスポート」で届いた ZIP、または その中の DI_CONNECT/DI-GOLF フォルダの Golf-*.json（SCORECARD・COURSE・SHOT・CLUB・CLUB_TYPES）を選んでください。スコア・パット・ペナルティ・フェアウェイ・ティーショットのクラブ・ゴルフ場を取り込みます。同じ日のラウンドがあれば Garmin のデータを優先します（手入力したラウンドは、どちらを優先するか選べます）。</p>
         <label class="btn btn-wrap" style="margin-top:12px">⛳ IKScoreCard のバックアップから取り込む<input type="file" id="import-ik" multiple hidden></label>
         <p class="small muted" style="margin-top:8px">IKScoreCard のバックアップ（ZIP、または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。スコア・パット・OB などのペナルティ・同伴者のスコア・コース（パーと距離）を取り込みます。まだ無いラウンドだけを追加します（同じ日でスコアもほぼ同じラウンドは飛ばします）。</p>
+        <p class="small" style="margin-top:12px">🎯 スイングキャディの練習データ（CSV）は、<a href="#/distances?go=import-shots">「飛距離」の「練習データを取り込む」</a>から取り込めます。</p>
       </div>
 
       <div class="card" id="s-profile">

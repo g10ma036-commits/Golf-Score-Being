@@ -2,6 +2,7 @@
 // ここでは文章を作るだけで、どこにも送信しない（利用者が自分でコピーして貼り付ける）。
 // 名前・同伴者は含めない。メモは利用者が選んだときだけ含める。
 import { summarize, aggregate, holeAnalysis, onCourseHoles, courseHoleNo, filterRounds, played, trendInsights, shotImpact, goalPlan, teeClubStats, conditionStats, distanceStats, flowStats } from './stats.js';
+import { practiceStats, hasLaunch } from './practice.js';
 
 export const AI_PURPOSES = [
   { key: 'overall', label: '総合分析', desc: '強み・弱みと、スコアに一番影響していること', period: 'last20' },
@@ -188,9 +189,35 @@ function clubLines(clubs, unit) {
   return lines;
 }
 
+// 練習データ（弾道測定器）：クラブごとに、直近 90 日（30 球に満たなければすべて）のまとめ
+export function practiceLines(clubs, distances, unit, today = new Date().toISOString().slice(0, 10)) {
+  const u = unit === 'm' ? 'm' : 'yd';
+  const d90 = new Date(`${today}T00:00:00Z`);
+  d90.setUTCDate(d90.getUTCDate() - 90);
+  const cut = d90.toISOString().slice(0, 10);
+  const lines = [];
+  for (const c of clubs) {
+    const all = distances.filter((d) => d.club_id === c.id && hasLaunch(d));
+    if (!all.length) continue;
+    const recent = all.filter((d) => d.date > cut);
+    const use = recent.length >= 30 ? recent : all;
+    const st = practiceStats(use, { unit: u, today });
+    const a = st.avg;
+    const f = (v, d = 1) => (v == null ? '—' : v.toFixed(d));
+    const r = (v) => (v == null ? '—' : Math.round(v).toLocaleString());
+    const pct = (v) => (st.dir.n ? `${Math.round((v / st.dir.n) * 100)}%` : '—');
+    lines.push(`- ${c.name}：${use === recent ? '直近90日' : '全期間'} ${use.length}球（ミスショット${st.mishits}球を除く）`
+      + ` 平均キャリー ${r(a.carry)}${u}・トータル ${r(a.total)}${u}・スイングスピード ${f(a.club_speed)}m/s・ボールスピード ${f(a.ball_speed)}m/s・ミート率 ${f(a.smash, 2)}`
+      + `・打ち出し角 ${f(a.launch)}°・スピン ${r(a.spin)}rpm・最高到達点 ${f(a.apex)}m・キャリーのばらつき ±${f(st.spread.carry)}${u}`
+      + `・左右（±4°以内をまっすぐ）左 ${pct(st.dir.left)}・まっすぐ ${pct(st.dir.straight)}・右 ${pct(st.dir.right)}`);
+    for (const it of st.insights.filter((x) => x.key !== 'dir')) lines.push(`  - ${it.text}`);
+  }
+  return lines;
+}
+
 // ---------- 組み立て ----------
 // rounds / courses / clubs は API の値。opts: { purpose, period, roundId, courseId, holes, memo, clubs }
-export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, opts) {
+export function buildAiPrompt({ rounds, courses, clubs = [], distances = [], settings = {} }, opts) {
   const purpose = AI_PURPOSES.find((p) => p.key === opts.purpose) || AI_PURPOSES[0];
   const unit = settings.unit === 'm' ? 'm' : 'ヤード';
   const goal = Number(settings.goal) || null;
@@ -295,6 +322,8 @@ export function buildAiPrompt({ rounds, courses, clubs = [], settings = {} }, op
   if (opts.clubs) {
     const cl = clubLines(clubs, unit);
     add('# クラブと飛距離', ...(cl.length ? cl : ['（クラブが登録されていません）']), '');
+    const pl = practiceLines(clubs, distances, settings.unit);
+    if (pl.length) add('# 練習データ（弾道測定器で計測した練習の球）', ...pl, '');
   }
 
   add('# データの見方',

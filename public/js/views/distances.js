@@ -2,6 +2,7 @@
 import { html, mount, $, $$, fmt, fmtDate, shortDate, today, icon, openModal, confirmDialog, toast, errorToast, numOrNull, PLACES, placeLabel } from '../util.js';
 import { api, getSettings, unit } from '../api.js';
 import { rangeChart, lineChart, chartCard, setupChart, clearCharts } from '../charts.js';
+import { openShotImport, practiceListHtml, renderPractice } from './practiceView.js';
 
 const state = { club: '', place: '', period: 'all' };
 const PERIOD_OPTS = [['all', '全期間'], ['90', '直近90日'], ['30', '直近30日']];
@@ -33,7 +34,8 @@ export async function render(root) {
   const defaultClub = state.club || bag.find((c) => c.name === '7I')?.id || bag[0]?.id || clubs[0].id;
 
   mount(root, html`
-    <div class="page-header"><div><h1>飛距離</h1><div class="sub">練習場・コース・シミュレーターでの飛距離を記録して、番手ごとの実力を把握します</div></div></div>
+    <div class="page-header"><div><h1>飛距離</h1><div class="sub">練習場・コース・シミュレーターでの飛距離を記録して、番手ごとの実力を把握します</div></div>
+      <div class="actions"><button type="button" class="btn" id="import-shots">${icon('upload')}練習データを取り込む</button></div></div>
     <div class="card">
       <h2 style="margin-bottom:12px">飛距離を記録する</h2>
       <form id="dist-form" autocomplete="off"><div class="form-grid">
@@ -78,7 +80,7 @@ export async function render(root) {
       list = list.filter((r) => r.date >= iso);
     }
     if (!list.length) {
-      mount(body, html`<div class="card empty">${icon('distance')}<h2>記録がありません</h2><p>上のフォームから飛距離を記録してください。</p></div>`);
+      mount(body, html`<div class="card empty">${icon('distance')}<h2>記録がありません</h2><p>上のフォームから飛距離を記録するか、「練習データを取り込む」でスイングキャディの CSV を取り込んでください。</p></div>`);
       return;
     }
     const order = clubs.map((c) => c.id);
@@ -124,13 +126,14 @@ export async function render(root) {
           <p class="small muted" style="margin-top:8px">単位：${u}。ばらつき（標準偏差）が小さいほど距離が安定しています。</p>
         </div>
       </div>
+      <div id="practice"></div>
       ${trend && trend.length >= 2 ? chartCard('trend', `${clubs.find((c) => String(c.id) === state.club).name} の飛距離の推移`, '日ごとの平均', 'section') : ''}
       <div class="card section">
         <div class="card-header"><h2>記録一覧</h2><span class="muted small">${list.length} 件${list.length > limit ? `（最新 ${limit} 件を表示）` : ''}</span></div>
         <div class="table-wrap"><table class="data">
           <thead><tr><th>日付</th><th>クラブ</th><th class="r">キャリー</th><th class="r">トータル</th><th>場所</th><th>メモ</th><th></th></tr></thead>
           <tbody>${list.slice(0, limit).map((r) => html`<tr><td>${fmtDate(r.date)}</td><td>${r.club_name}</td><td class="r">${r.carry ?? '—'}</td><td class="r">${r.total ?? '—'}</td>
-            <td>${placeLabel(r.place)}</td><td class="secondary">${r.memo || ''}</td>
+            <td>${placeLabel(r.place)}</td><td class="secondary">${r.memo || (r.source === 'swingcaddie' ? 'スイングキャディ' : '')}</td>
             <td class="r nowrap"><button class="btn btn-sm" data-edit="${r.id}">編集</button>
             <button class="btn btn-sm btn-ghost btn-icon btn-danger" data-del="${r.id}" aria-label="削除">${icon('trash')}</button></td></tr>`)}</tbody>
         </table></div>
@@ -138,6 +141,17 @@ export async function render(root) {
       </div>
     `);
     $('#more', body)?.addEventListener('click', () => { limit += 100; draw(); });
+    // 練習データ（弾道測定器）：クラブを選んでいれば詳しい分析、選んでいなければ練習データのあるクラブの一覧
+    const practiceEl = $('#practice', body);
+    if (state.club) {
+      renderPractice(practiceEl, { club: clubs.find((c) => String(c.id) === state.club), shots: list, unit: u, redraw: draw, onDeleted: load });
+    } else {
+      mount(practiceEl, practiceListHtml(list, clubs));
+      $$('[data-practice-club]', practiceEl).forEach((b) => b.addEventListener('click', () => {
+        selectClub(b.dataset.practiceClub);
+        $('#practice', body)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }));
+    }
 
     setupChart(body, 'range', (el) => rangeChart(el, {
       rows: stats.filter((s) => s.carryN).map((s) => ({ label: s.club.name, min: s.min, max: s.max, avg: s.avg, n: s.carryN })),
@@ -219,11 +233,17 @@ export async function render(root) {
       load();
     } catch (err) { errorToast(err); }
   });
-  $('#f-club', root).addEventListener('change', (e) => {
-    state.club = e.target.value;
+  const selectClub = (cid) => {
+    state.club = cid ? String(cid) : '';
+    $('#f-club', root).value = state.club;
     if (state.club) form.club_id.value = state.club;
     draw();
-  });
+  };
+  $('#f-club', root).addEventListener('change', (e) => selectClub(e.target.value));
+  $('#import-shots', root).addEventListener('click', () => openShotImport({
+    clubs, unit: u,
+    onDone: async (cid) => { state.club = String(cid); $('#f-club', root).value = state.club; form.club_id.value = state.club; await load(); },
+  }));
   $('#f-place', root).addEventListener('change', (e) => { state.place = e.target.value; draw(); });
   $$('[data-period]', root).forEach((b) => b.addEventListener('click', () => {
     state.period = b.dataset.period;

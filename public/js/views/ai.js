@@ -13,7 +13,7 @@ const DEFAULTS = { holes: true, clubs: false, memo: false };
 
 export async function render(root) {
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
-  const [rounds, courses, clubs, settings] = await Promise.all([api.get('/api/rounds'), api.get('/api/courses'), api.get('/api/clubs'), getSettings()]);
+  const [rounds, courses, clubs, settings, distances] = await Promise.all([api.get('/api/rounds'), api.get('/api/courses'), api.get('/api/clubs'), getSettings(), api.get('/api/distances')]);
   const sorted = [...rounds].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
   const playedCourses = courses.filter((c) => c.holes?.length);
 
@@ -110,7 +110,7 @@ export async function render(root) {
     for (const k of ['holes', 'clubs', 'memo']) $(`[name=${k}]`, form).checked = state[k];
     let prompt = '';
     try {
-      prompt = buildAiPrompt({ rounds, courses, clubs, settings }, { ...state });
+      prompt = buildAiPrompt({ rounds, courses, clubs, distances, settings }, { ...state });
     } catch (e) {
       errorToast(e);
     }

@@ -77,6 +77,8 @@ function normalizer() {
     return k;
   };
   const walk = (x) => {
+    // 平均の足し算の順番による小数のごく小さな差（SQLite の AVG と JS の合計）は同じとみなす
+    if (typeof x === 'number' && !Number.isInteger(x)) return Math.round(x * 1e9) / 1e9;
     if (Array.isArray(x)) return x.map(walk);
     if (x && typeof x === 'object') {
       const o = {};
@@ -433,4 +435,43 @@ test('スマホ単独版のビルド：モードの印・CSP・オフライン�
   fs.writeFileSync(path.join(other, 'keep.txt'), 'x');
   assert.throws(() => execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'build-phone.js'), other], { stdio: 'pipe' }));
   assert.ok(fs.existsSync(path.join(other, 'keep.txt')));
+});
+
+test('練習データ（弾道測定器）の取り込み・重複・削除・バックアップが PC版とスマホ単独版で同じ', async () => {
+  const p = pair();
+  await p.ready;
+  const S = (m, u, b, h) => same(p, m, u, b, h);
+  const club = await S('POST', '/api/clubs', { category: 'driver', name: '1W', loft: 10.5 });
+  await S('POST', '/api/distances', { club_id: club.id, date: '2026-11-01', carry: 205, place: 'course', memo: '手で記録' });
+  const shots = [
+    { date: '2026-11-23', carry: 215.9, total: 238, club_speed: 41.2, ball_speed: 60.1, launch: 12.6, side: null, smash: 1.46, apex: 21.8, spin: 2710, equalizer: 0 },
+    { date: '2026-11-28', carry: 218.3, total: 239.5, club_speed: 42.6, ball_speed: 59.7, launch: 14.8, side: -1.6, smash: 1.4, apex: 27.4, spin: 3060, equalizer: 1 },
+    { date: '2026-11-28', carry: 193.2, total: 216.4, club_speed: 42.1, ball_speed: 58, launch: null, side: -6.9, smash: 1.38, apex: 14.9, spin: 4480, equalizer: 1 },
+  ];
+  await S('POST', '/api/distances/import', { club_id: club.id, shots, source: 'swingcaddie', place: 'range' });
+  await S('POST', '/api/distances/import', { club_id: club.id, shots: [...shots, { ...shots[0], date: '2026-11-30' }], source: 'swingcaddie' }); // 取り込み直し：新しい 1 球だけ
+  await S('POST', '/api/distances/import', { club_id: 999, shots });
+  await S('POST', '/api/distances/import', { club_id: club.id, shots: [] });
+  await S('POST', '/api/distances/import', { club_id: club.id, shots: [{ date: '2026-11-30' }] });
+  const list = await S('GET', '/api/distances');
+  assert.equal(list.length, 5);
+  assert.equal(list.filter((d) => d.source === 'swingcaddie').length, 4);
+  assert.equal(list.find((d) => d.carry === 218.3).spin, 3060);
+  await S('GET', '/api/clubs'); // 平均キャリーに取り込んだ球も入る
+  // バックアップ → 復元で弾道のデータも戻る
+  const [se, le] = [(await p.server('GET', '/api/export')).data, (await p.local('GET', '/api/export')).data];
+  assert.equal(se.distances.find((d) => d.carry === 218.3).launch, 14.8);
+  await S('POST', '/api/import', se);
+  await S('GET', '/api/distances');
+  await S('POST', '/api/import', le);
+  // 古いバックアップ（弾道の列がない）もそのまま復元できる
+  const old = JSON.parse(JSON.stringify(se));
+  for (const d of old.distances) for (const k of ['club_speed', 'ball_speed', 'launch', 'side', 'smash', 'apex', 'spin', 'equalizer', 'source']) delete d[k];
+  await S('POST', '/api/import', old);
+  assert.equal((await S('GET', '/api/distances')).length, 5);
+  await S('POST', '/api/import', se);
+  // 取り込んだ球だけまとめて削除（手で記録した球は残る）
+  await S('DELETE', `/api/distances/import?club_id=${club.id}`);
+  const rest = await S('GET', '/api/distances');
+  assert.deepEqual(rest.map((d) => d.memo), ['手で記録']);
 });

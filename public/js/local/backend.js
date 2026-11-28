@@ -4,6 +4,7 @@ import {
   ApiError, SCHEMA, TABLES, ID_TABLES, SETTING_KEYS, SETTING_DEFAULTS, localNow, uuid, num, id,
   normalizeSetting, normalizeCourse, normalizeRound, normalizeClub, normalizeDistance, normalizeAlbum, normalizeCover,
   photoLinks, imageExt, thumbExt, originalName, takenAt, text, cleanImport, isPhotoName, isThumbName, parseNines, ninesLabel, parseParty,
+  normalizeShot, planShotImport, SHOT_FIELDS, SHOT_SOURCES, SHOT_IMPORT_MAX,
 } from '../shared/model.js';
 import { generateSample, pickSample } from '../shared/sample.js';
 import { readBackup, backupParts, mimeOf } from '../shared/backup.js';
@@ -208,6 +209,28 @@ export function createLocalBackend(store, {
     const rows = records.map(validDistance);
     rows.forEach((r) => insert('distances', r));
     return { inserted: rows.length };
+  }
+  // 弾道測定器の練習データを取り込む（同じ球は二重に入れない）
+  function importShots(b) {
+    const clubId = id(b.club_id);
+    if (!exists('clubs', clubId)) throw new ApiError(404, 'クラブが見つかりません');
+    const source = SHOT_SOURCES.includes(b.source) ? b.source : 'swingcaddie';
+    const list = Array.isArray(b.shots) ? b.shots : [];
+    if (!list.length) throw new ApiError(400, '取り込む球がありません');
+    if (list.length > SHOT_IMPORT_MAX) throw new ApiError(400, `一度に取り込めるのは ${SHOT_IMPORT_MAX} 球までです`);
+    const shots = list.map(normalizeShot);
+    const existing = D.distances.filter((d) => d.club_id === clubId && d.source === source);
+    const { add, duplicates } = planShotImport(existing, shots);
+    const place = b.place === 'simulator' ? 'simulator' : 'range';
+    add.forEach((s) => insert('distances', { club_id: clubId, date: s.date, carry: s.carry, total: s.total, place, source, ...Object.fromEntries(SHOT_FIELDS.map((k) => [k, s[k]])), equalizer: s.equalizer }));
+    return { inserted: add.length, duplicates };
+  }
+  // 取り込んだ練習データをまとめて削除（クラブごと。手で入れた記録は消さない）
+  function deleteShots(q) {
+    const clubId = id(q.get('club_id'));
+    const before = D.distances.length;
+    remove('distances', (d) => d.club_id === clubId && d.source != null);
+    return { deleted: before - D.distances.length };
   }
   function updateDistance(did, b) {
     const d = mustFind('distances', did, '記録が見つかりません');
@@ -471,6 +494,8 @@ export function createLocalBackend(store, {
 
     ['GET', /^\/api\/distances$/, (c) => listDistances(c.q)],
     ['POST', /^\/api\/distances$/, (c) => addDistances(c.body), W],
+    ['POST', /^\/api\/distances\/import$/, (c) => importShots(c.body), W],
+    ['DELETE', /^\/api\/distances\/import$/, (c) => deleteShots(c.q), W],
     ['PUT', /^\/api\/distances\/(\d+)$/, (c) => updateDistance(id(c.m[1]), c.body), W],
     ['DELETE', /^\/api\/distances\/(\d+)$/, (c) => deleteDistance(id(c.m[1])), W],
 

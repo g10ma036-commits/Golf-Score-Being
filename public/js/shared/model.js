@@ -47,7 +47,11 @@ export const SCHEMA = {
     id: 'id', category: 'text!', name: 'text!', brand: 'text', model: 'text', loft: 'real', shaft: 'text', flex: 'text',
     length: 'real', target_carry: 'int', in_bag: 'int=1', sort_order: 'int=0', memo: 'text', created_at: 'ts',
   },
-  distances: { id: 'id', club_id: 'int!', date: 'text!', carry: 'real', total: 'real', place: 'text', memo: 'text', created_at: 'ts' },
+  // 飛距離の記録。club_speed 以降は弾道測定器（スイングキャディなど）から取り込んだ球だけにある（手で入れた記録は空）
+  distances: {
+    id: 'id', club_id: 'int!', date: 'text!', carry: 'real', total: 'real', place: 'text', memo: 'text', created_at: 'ts',
+    club_speed: 'real', ball_speed: 'real', launch: 'real', side: 'real', smash: 'real', apex: 'real', spin: 'real', equalizer: 'int', source: 'text',
+  },
   albums: { id: 'id', title: 'text!', description: 'text', date: 'text', cover_photo_id: 'int', created_at: 'ts' },
   photos: {
     id: 'id', filename: 'text!', thumb: 'text', original_name: 'text', mime: 'text', size: 'int', album_id: 'int',
@@ -338,6 +342,40 @@ export function normalizeDistance(b, clubExists) {
   if (carry == null && total == null) throw new ApiError(400, 'キャリーかトータルのどちらかを入力してください');
   return { club_id: clubId, date: date('日付', b.date), carry, total, place: oneOf('場所', b.place, PLACES), memo: text(b.memo, 500) };
 }
+
+// 弾道測定器から取り込む球（距離はアプリの単位、スピードは m/s、高さは m、左右はマイナスが左）
+export const SHOT_FIELDS = ['club_speed', 'ball_speed', 'launch', 'side', 'smash', 'apex', 'spin'];
+const SHOT_LIMITS = { club_speed: [0, 100], ball_speed: [0, 130], launch: [-30, 90], side: [-90, 90], smash: [0, 2], apex: [0, 200], spin: [0, 20000] };
+export const SHOT_SOURCES = ['swingcaddie'];
+export function normalizeShot(b) {
+  const carry = num('キャリー', b.carry, { min: 0, max: 450 });
+  const total = num('トータル', b.total, { min: 0, max: 500 });
+  if (carry == null && total == null) throw new ApiError(400, 'キャリーかトータルのない球があります');
+  const row = { date: date('日付', b.date), carry, total };
+  for (const k of SHOT_FIELDS) {
+    const v = Number(b[k]);
+    const [lo, hi] = SHOT_LIMITS[k];
+    row[k] = b[k] == null || b[k] === '' || !Number.isFinite(v) || v < lo || v > hi ? null : v;
+  }
+  row.equalizer = b.equalizer === 1 || b.equalizer === true ? 1 : b.equalizer === 0 || b.equalizer === false ? 0 : null;
+  return row;
+}
+// 取り込み直しても同じ球を二重に入れない：同じクラブ・同じ取り込み元で、日付とすべての数値が同じ球を「同じ球」とみなす
+// （同じ日に同じ数値の球が複数あれば、その数までは別の球として扱う）
+export const shotKey = (r) => [r.date, ...['carry', 'total', ...SHOT_FIELDS].map((k) => (r[k] == null ? '' : Number(r[k]).toFixed(2))), r.equalizer ?? ''].join('|');
+export function planShotImport(existing, incoming) {
+  const have = new Map();
+  for (const r of existing) have.set(shotKey(r), (have.get(shotKey(r)) || 0) + 1);
+  const add = [];
+  let duplicates = 0;
+  for (const r of incoming) {
+    const k = shotKey(r);
+    const n = have.get(k) || 0;
+    if (n > 0) { have.set(k, n - 1); duplicates++; } else add.push(r);
+  }
+  return { add, duplicates };
+}
+export const SHOT_IMPORT_MAX = 50000;
 
 export function normalizeAlbum(b) {
   const title = text(b.title, 100);

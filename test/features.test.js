@@ -606,3 +606,102 @@ test('言葉の説明：画面で使っている言葉がすべて説明にあ�
   // 説明のない言葉は、ふつうの文字のまま
   assert.equal(termLabel('ラウンド数', 'nope'), 'ラウンド数');
 });
+
+// スイングキャディの書き出しと同じ形の CSV（新しい順。「平均」の行・測れなかった「-」・イコライザー OFF を含む）
+const SC_CSV = [
+  'No.,日付,イコライザー,飛距離(yd),総距離(yd),スイング スピード(m/s),ボール スピード(m/s),打ち出し角(deg),左右角(deg),ミート率,最高到達点(m),スピン(rpm)',
+  '平均, , ,205.0,226.0,40.5,57.0,16.0,-0.5,1.40,27.0,3200',
+  '4,2026-11-28,ON,218.3,239.5,42.6,59.7,14.8,-1.6,1.4,27.4,3060',
+  '3,2026-11-28,ON,193.2,216.4,42.1,58.0,-,-6.9,1.38,14.9,4480',
+  '2,2026-11-23,OFF,61.4,88.2,18.6,27.2,18.7,0.4,1.46,5.3,1410',
+  '1,2026-11-23,OFF,215.9,238.0,41.2,60.1,12.6,-,1.46,21.8,2710',
+].join('\r\n');
+
+test('練習データ（スイングキャディの CSV）：見出しで列を見つけ、平均の行と「-」を扱い、古い順・アプリの単位にそろえる', async () => {
+  const { parseLaunchCsv, decodeText, guessClub } = await load('public/js/shared/launchData.js');
+  const r = parseLaunchCsv(SC_CSV, { unit: 'yd' });
+  assert.equal(r.shots.length, 4);
+  assert.equal(r.skipped, 0); // 「平均」の行は飛ばすが、読めなかった行には数えない
+  assert.equal(r.from, '2026-11-23');
+  assert.equal(r.to, '2026-11-28');
+  // 古い順（同じ日はファイルの下＝先に打った球から）
+  assert.deepEqual(r.shots.map((s) => s.carry), [215.9, 61.4, 193.2, 218.3]);
+  const s = r.shots[3];
+  assert.deepEqual({ ...s }, { date: '2026-11-28', carry: 218.3, total: 239.5, club_speed: 42.6, ball_speed: 59.7, launch: 14.8, side: -1.6, smash: 1.4, apex: 27.4, spin: 3060, equalizer: 1, club: null });
+  assert.equal(r.shots[2].launch, null); // 「-」は測れなかった値
+  assert.equal(r.shots[0].side, null);
+  assert.equal(r.shots[0].equalizer, 0);
+  // アプリの単位が m なら距離を換算（高さ・スピードはそのまま）
+  const m = parseLaunchCsv(SC_CSV, { unit: 'm' });
+  assert.equal(m.shots[3].carry, 199.6);
+  assert.equal(m.shots[3].apex, 27.4);
+  // BOM 付き UTF-8・Shift_JIS も読める（「日付,飛距離(yd)」を Shift_JIS で）
+  assert.equal(decodeText(new TextEncoder().encode('﻿日付')), '日付');
+  const sjis = new Uint8Array([0x93, 0xFA, 0x95, 0x74, 0x2C, 0x94, 0xF2, 0x8B, 0x97, 0x97, 0xA3, 0x28, 0x79, 0x64, 0x29, 0x0A, 0x32, 0x30, 0x32, 0x36, 0x2F, 0x31, 0x2F, 0x35, 0x2C, 0x31, 0x35, 0x30]);
+  const j = parseLaunchCsv(decodeText(sjis));
+  assert.deepEqual([j.shots[0].date, j.shots[0].carry], ['2026-01-05', 150]);
+  // 違うファイル・取り込める球がないファイルはエラー
+  assert.throws(() => parseLaunchCsv('名前,スコア\n山田,90'), /練習データ/);
+  assert.throws(() => parseLaunchCsv('日付,飛距離(yd)\n2026-01-01,-'), /取り込める球/);
+  assert.equal(parseLaunchCsv('日付,飛距離(yd),スピン(rpm)\n2026-01-01,150,99999').shots[0].spin, null); // ありえない値は捨てる
+  // ファイル名からクラブを推測
+  const clubs = [{ id: 1, name: '1W', category: 'driver' }, { id: 2, name: '3W', category: 'wood' }, { id: 3, name: '7I', category: 'iron' }, { id: 4, name: 'PW', category: 'wedge' }, { id: 5, name: '52°', category: 'wedge' }];
+  assert.equal(guessClub('SwingCaddie_1W.csv', clubs)?.id, 1);
+  assert.equal(guessClub('ドライバー練習.csv', clubs)?.id, 1);
+  assert.equal(guessClub('7番アイアン.csv', clubs)?.id, 3);
+  assert.equal(guessClub('data_PW_2026.csv', clubs)?.id, 4);
+  assert.equal(guessClub('17I.csv', clubs), null); // 「7I」と取り違えない
+  assert.equal(guessClub('export.csv', clubs), null);
+});
+
+test('練習データの取り込み：取り込み直しても同じ球は二重に入れない', async () => {
+  const { planShotImport, normalizeShot } = await load('public/js/shared/model.js');
+  const a = normalizeShot({ date: '2026-11-28', carry: 218.3, total: 239.5, club_speed: 42.6, equalizer: 1 });
+  const b = normalizeShot({ date: '2026-11-28', carry: 200, total: 220 });
+  assert.equal(a.spin, null);
+  assert.throws(() => normalizeShot({ date: '2026-11-28' }), /キャリーかトータル/);
+  assert.equal(normalizeShot({ date: '2026-11-28', carry: 100, spin: -5 }).spin, null); // 範囲外は空に
+  const first = planShotImport([], [a, b, { ...b }]); // 同じ日に同じ数値の球が 2 つ
+  assert.equal(first.add.length, 3);
+  const again = planShotImport(first.add, [a, b, { ...b }, { ...a, date: '2026-11-29' }]);
+  assert.deepEqual([again.add.length, again.duplicates], [1, 3]);
+});
+
+test('練習データの分析：ミスショットを除いた平均・左右の傾向・飛ぶ条件', async () => {
+  const { practiceStats, hasLaunch } = await load('public/js/practice.js');
+  // ミート率が高いほど飛ぶ 60 球 ＋ ミスショット 2 球
+  const shots = [];
+  for (let i = 0; i < 60; i++) {
+    const smash = 1.30 + (i % 20) * 0.01;
+    const ball = 41 * smash;
+    shots.push({ date: `2026-10-${String(1 + (i % 20)).padStart(2, '0')}`, carry: 120 + ball * 1.6 + (i % 3), total: 240, club_speed: 41, ball_speed: ball, smash, launch: 12 + (i % 8), side: i % 3 === 0 ? -6 : i % 3 === 1 ? 0 : 7, spin: 2600 + (i % 6) * 200, apex: 28, equalizer: 1 });
+  }
+  shots.push({ date: '2026-10-05', carry: 60, total: 80, club_speed: 30, ball_speed: 30, smash: 1.0, launch: 30, side: 2, spin: 5000, apex: 5, equalizer: 1 });
+  shots.push({ date: '2026-10-06', carry: 90, total: 100, club_speed: 35, ball_speed: 40, smash: 1.1, launch: null, side: 0, spin: 4500, apex: 8, equalizer: 0 });
+  assert.ok(shots.every(hasLaunch));
+  assert.equal(hasLaunch({ carry: 150 }), false);
+  const st = practiceStats(shots, { unit: 'yd', today: '2026-10-31' });
+  assert.equal(st.n, 62);
+  assert.equal(st.mishits, 2);
+  assert.ok(st.avg.carry > 200);
+  assert.deepEqual([st.dir.left, st.dir.straight, st.dir.right], [20, 20, 20]);
+  assert.deepEqual(st.eq, { on: 61, off: 1 });
+  assert.ok(st.days.length >= 10 && st.days.every((d) => d.n >= 3));
+  assert.ok(st.hist.reduce((a, h) => a + h.n, 0) === 60);
+  assert.ok(st.insights.some((it) => it.key === 'smash' && /芯で打てると/.test(it.text)));
+  assert.ok(st.insights.some((it) => it.key === 'dir'));
+  // 球が少ないときはミスショットの判定をしない
+  assert.equal(practiceStats(shots.slice(0, 5)).mishits, 0);
+});
+
+test('AI分析の質問文：練習データのまとめが入る（クラブ・飛距離を含めるとき）', async () => {
+  const ai = await load('public/js/aiPrompt.js');
+  const clubs = [{ id: 1, name: '1W', category: 'driver', in_bag: 1, avg_carry: 210, shot_count: 40 }];
+  const distances = Array.from({ length: 40 }, (_, i) => ({ club_id: 1, date: '2026-11-01', carry: 200 + (i % 10), total: 220, club_speed: 41, ball_speed: 57, smash: 1.39, launch: 15, side: 1, spin: 3000, apex: 27, equalizer: 1 }));
+  const lines = ai.practiceLines(clubs, distances, 'yd', '2026-11-28');
+  assert.match(lines[0], /^- 1W：直近90日 40球/);
+  assert.match(lines[0], /ミート率 1\.39/);
+  const text = ai.buildAiPrompt({ rounds: [], courses: [], clubs, distances, settings: {} }, { purpose: 'clubs', clubs: true });
+  assert.match(text, /# 練習データ/);
+  assert.doesNotMatch(ai.buildAiPrompt({ rounds: [], courses: [], clubs, distances: [], settings: {} }, { purpose: 'clubs', clubs: true }), /# 練習データ/);
+});

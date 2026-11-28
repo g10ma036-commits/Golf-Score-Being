@@ -88,7 +88,11 @@ CREATE TABLE IF NOT EXISTS distances (
   total      REAL,
   place      TEXT,   -- range | course | simulator
   memo       TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  -- 弾道測定器から取り込んだ球だけ（スピード m/s・角度 度・高さ m・スピン rpm）
+  club_speed REAL, ball_speed REAL, launch REAL, side REAL, smash REAL, apex REAL, spin REAL,
+  equalizer  INTEGER,
+  source     TEXT    -- swingcaddie など（手で入れた記録は NULL）
 );
 CREATE INDEX IF NOT EXISTS idx_distances_club ON distances(club_id);
 
@@ -154,6 +158,11 @@ function migrate(raw) {
   if (!cols('course_holes').includes('memo')) raw.exec('ALTER TABLE course_holes ADD COLUMN memo TEXT');
   if (!cols('round_holes').includes('note')) raw.exec('ALTER TABLE round_holes ADD COLUMN note TEXT'); // ラウンドのホールのメモ（後から追加した列）
   if (!cols('round_holes').includes('tee_club')) raw.exec('ALTER TABLE round_holes ADD COLUMN tee_club TEXT'); // ティーショットのクラブ（後から追加した列）
+  // 飛距離の記録に弾道のデータ（弾道測定器から取り込んだ球）
+  const dc = cols('distances');
+  for (const [c, type] of [['club_speed', 'REAL'], ['ball_speed', 'REAL'], ['launch', 'REAL'], ['side', 'REAL'], ['smash', 'REAL'], ['apex', 'REAL'], ['spin', 'REAL'], ['equalizer', 'INTEGER'], ['source', 'TEXT']]) {
+    if (!dc.includes(c)) raw.exec(`ALTER TABLE distances ADD COLUMN ${c} ${type}`);
+  }
 }
 
 function openDb(file) {

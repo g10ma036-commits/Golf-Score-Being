@@ -8,6 +8,7 @@ const {
   ApiError: HttpError, TABLES, SETTING_KEYS, SETTING_DEFAULTS, uuid, num, id, text, takenAt,
   normalizeSetting, normalizeCourse, normalizeRound, normalizeClub, normalizeDistance, normalizeAlbum, normalizeCover,
   photoLinks, imageExt, thumbExt, originalName, cleanImport, parseNines, ninesLabel, parseParty,
+  normalizeShot, planShotImport, SHOT_FIELDS, SHOT_SOURCES, SHOT_IMPORT_MAX,
 } = require('../public/js/shared/model.js');
 const { readBackup, backupParts, backupFileName } = require('../public/js/shared/backup.js');
 const { pickSample } = require('../public/js/shared/sample.js');
@@ -214,6 +215,29 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
     const rows = records.map(validateDistance);
     db.tx(() => rows.forEach((r) => db.run('INSERT INTO distances(club_id, date, carry, total, place, memo) VALUES (?,?,?,?,?,?)', ...r)));
     return { inserted: rows.length };
+  }
+  // 弾道測定器の練習データを取り込む（同じ球は二重に入れない）
+  function importShots(b) {
+    const clubId = id(b.club_id);
+    if (!db.get('SELECT id FROM clubs WHERE id = ?', clubId)) throw new HttpError(404, 'クラブが見つかりません');
+    const source = SHOT_SOURCES.includes(b.source) ? b.source : 'swingcaddie';
+    const list = Array.isArray(b.shots) ? b.shots : [];
+    if (!list.length) throw new HttpError(400, '取り込む球がありません');
+    if (list.length > SHOT_IMPORT_MAX) throw new HttpError(400, `一度に取り込めるのは ${SHOT_IMPORT_MAX} 球までです`);
+    const shots = list.map(normalizeShot);
+    const existing = db.all('SELECT * FROM distances WHERE club_id = ? AND source = ?', clubId, source);
+    const { add, duplicates } = planShotImport(existing, shots);
+    const place = b.place === 'simulator' ? 'simulator' : 'range';
+    const cols = ['club_id', 'date', 'carry', 'total', 'place', 'source', ...SHOT_FIELDS, 'equalizer'];
+    const sql = `INSERT INTO distances(${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+    db.tx(() => add.forEach((s) => db.run(sql, clubId, s.date, s.carry, s.total, place, source, ...SHOT_FIELDS.map((k) => s[k]), s.equalizer)));
+    return { inserted: add.length, duplicates };
+  }
+  // 取り込んだ練習データをまとめて削除（クラブごと。手で入れた記録は消さない）
+  function deleteShots(q) {
+    const clubId = id(q.get('club_id'));
+    const r = db.run('DELETE FROM distances WHERE club_id = ? AND source IS NOT NULL', clubId);
+    return { deleted: Number(r.changes) };
   }
   function updateDistance(did, b) {
     if (!db.get('SELECT id FROM distances WHERE id = ?', did)) throw new HttpError(404, '記録が見つかりません');
@@ -453,6 +477,8 @@ function createApi(db, { photoDir, lan = null, onLanChange = () => {} }) {
 
     ['GET', /^\/api\/distances$/, (c) => listDistances(c.q)],
     ['POST', /^\/api\/distances$/, (c) => addDistances(c.body)],
+    ['POST', /^\/api\/distances\/import$/, (c) => importShots(c.body)],
+    ['DELETE', /^\/api\/distances\/import$/, (c) => deleteShots(c.q)],
     ['PUT', /^\/api\/distances\/(\d+)$/, (c) => updateDistance(id(c.m[1]), c.body)],
     ['DELETE', /^\/api\/distances\/(\d+)$/, (c) => { const did = id(c.m[1]); exists('distances', did, '記録'); db.run('DELETE FROM distances WHERE id = ?', did); return { ok: true }; }],
 
