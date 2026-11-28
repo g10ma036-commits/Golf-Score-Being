@@ -121,10 +121,11 @@ p { margin: 0 0 8px; }
 .brand:hover { text-decoration: none; }
 .brand svg { width: 34px; height: 34px; flex: none; }
 .brand small { font-weight: 500; color: var(--text-secondary); font-size: 12px; }
-.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; margin: 0 -4px; padding: 0 4px; }
+.nav-group { font-size: 11px; font-weight: 650; color: var(--text-muted); padding: 8px 10px 1px; letter-spacing: .04em; }
 .nav a {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: 8px;
+  padding: 6px 10px; border-radius: 8px;
   color: var(--text-secondary); font-weight: 500;
 }
 .nav a:hover { background: var(--surface-2); color: var(--text-primary); text-decoration: none; }
@@ -148,7 +149,8 @@ p { margin: 0 0 8px; }
   }
   .brand { padding: 4px 8px; }
   .brand span { display: none; }
-  .nav { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+  .nav { flex-direction: row; overflow-x: auto; overflow-y: visible; scrollbar-width: none; margin: 0; padding: 0; }
+  .nav-group { display: none; }
   .nav a { padding: 8px 10px; white-space: nowrap; font-size: 13px; }
   .nav a span { display: inline; }
   .view { padding: 16px 14px 48px; }

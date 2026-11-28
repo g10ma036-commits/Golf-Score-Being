@@ -1,4 +1,4 @@
-// 統計分析
+// 分析
 import { html, mount, $, $$, fmt, pct, toPar, fmtDate, shortDate, icon } from '../util.js';
 import { api, getSettings } from '../api.js';
 import {
@@ -9,7 +9,9 @@ import {
 import { lineChart, barChart, segmentedBar, chartCard, setupChart, clearCharts } from '../charts.js';
 import { navigate } from '../main.js';
 
-const state = { period: 'all', course: '', cond: 'weather' };
+const state = { period: 'all', course: '', cond: 'weather', tab: 'summary' };
+// 画面をタブで分ける（期間とコースの絞り込みはどのタブにも効く）。選んだタブはアプリを開いている間は覚えておく
+const STATS_TABS = [['summary', 'まとめ'], ['practice', 'ミスと|練習'], ['course', 'コース・|条件'], ['charts', 'グラフ']];
 
 // ミスの影響：良い場合とミスの場合の「ホールあたりのパー比」を棒で並べ、ミス 1 回・1 ラウンドあたりの損失を示す
 const sgn = (v, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(d)}`;
@@ -18,7 +20,7 @@ function impactCard(items) {
   const max = Math.max(0.5, ...items.flatMap((it) => [it.good.avg, ...it.bads.map((b) => b.avg)]).map((v) => Math.abs(v)));
   const bar = (g, good) => html`<div class="imp-bar ${good ? 'good' : 'bad'}"><span class="imp-label">${g.label}<span class="muted">（${g.n}）</span></span>
     <span class="imp-track"><span style="width:${Math.max(2, Math.round((Math.max(0, g.avg) / max) * 100))}%"></span></span><span class="imp-val">${sgn(g.avg)}</span></div>`;
-  return html`<div class="card section">
+  return html`<div class="card section" id="st-impact">
     <div class="card-header"><div><h2>ミスの影響</h2><div class="sub">ホールあたりのパー比。ミスすると何打多くなっているか、大きい順</div></div></div>
     <div class="impact">${items.map((it) => html`<div class="imp-item">
       <div class="imp-title">${it.title}</div>
@@ -43,7 +45,7 @@ const DRILLS = {
 function practiceCard(items) {
   const picks = items.filter((it) => DRILLS[it.key] && it.loss >= 0.3 && (it.perRound ?? 0) >= 0.8).slice(0, 2);
   if (!picks.length) return '';
-  return html`<div class="card section practice-card">
+  return html`<div class="card section practice-card" id="st-practice">
     <div class="card-header"><div><h2>🏌️ 今やるべき練習</h2><div class="sub">ミスの影響が大きいところから（くわしい練習メニューは AI分析の「練習メニュー」でも作れます）</div></div>
       <a class="btn btn-sm" href="#/ai?purpose=practice">${icon('ai')}AIに練習メニューを相談</a></div>
     ${picks.map((it) => html`<div class="pr-item"><div class="pr-head"><strong>${DRILLS[it.key].title}</strong><span class="small muted">1ラウンドで約 ${it.perRound.toFixed(1)} 打の差</span></div>
@@ -54,10 +56,10 @@ function practiceCard(items) {
 // ティーショットのクラブ別（パー4・5）。スコア入力で「使ったクラブ」を選ぶと集計される
 function teeClubCard(rows) {
   if (!rows.length) {
-    return html`<div class="card section"><h2 style="margin-bottom:6px">ティーショットのクラブ別</h2>
+    return html`<div class="card section" id="st-tee"><h2 style="margin-bottom:6px">ティーショットのクラブ別</h2>
       <p class="small muted">スコア入力（1ホールずつ）のティーショットで「使ったクラブ」を選ぶと、ドライバーとウッド・UT のどちらが良い結果になっているかを比べられます。</p></div>`;
   }
-  return html`<div class="card section">
+  return html`<div class="card section" id="st-tee">
     <div class="card-header"><div><h2>ティーショットのクラブ別</h2><div class="sub">パー4・5。刻むべきかの判断に（回数が少ないうちは参考程度に）</div></div></div>
     <div class="table-wrap"><table class="data"><thead><tr><th>クラブ</th><th class="r">回数</th><th class="r">FWキープ率</th><th class="r">OB・ペナ率</th><th class="r">平均パー比</th></tr></thead>
       <tbody>${rows.map((r) => html`<tr><td><strong>${r.club}</strong></td><td class="r">${r.n}</td><td class="r">${pct(r.fwRate)}</td><td class="r">${pct(r.penaltyRate)}</td><td class="r">${sgn(r.toPar, 2)}</td></tr>`)}</tbody></table></div>
@@ -65,6 +67,8 @@ function teeClubCard(rows) {
 }
 
 // コース別の成績（2 コース以上のとき）。ホールあたりのパー比で、コースの難しさも比べられる
+// コースが多いときは、回数の多い順に COURSE_ROWS 件だけ出して、残りはボタンで開く
+const COURSE_ROWS = 8;
 function courseTable(sums) {
   const by = new Map();
   for (const s of sums) {
@@ -78,11 +82,12 @@ function courseTable(sums) {
     const toParPerHole = a.holes ? c.list.reduce((t, s) => t + s.toPar, 0) / a.holes : null;
     return { ...c, n: c.list.length, avg: a.avgScore, best: a.best?.strokes ?? null, putts: a.puttsPerRound, tph: toParPerHole };
   }).sort((x, y) => y.n - x.n || (x.avg ?? 999) - (y.avg ?? 999));
-  return html`<div class="card section">
+  return html`<div class="card section" id="st-courses">
     <div class="card-header"><div><h2>コース別の成績</h2><div class="sub">「パー比/H」はホールあたりのパー比（小さいほど相性が良い）</div></div></div>
     <div class="table-wrap"><table class="data"><thead><tr><th>コース</th><th class="r">回数</th><th class="r">平均</th><th class="r">ベスト</th><th class="r hide-sm">平均パット</th><th class="r">パー比/H</th></tr></thead>
-      <tbody>${rows.map((r) => html`<tr ${r.courseId ? html`class="link" data-course="${r.courseId}"` : ''}><td class="wrap">${r.name}</td><td class="r">${r.n}</td><td class="r">${fmt(r.avg, 1)}</td><td class="r">${r.best ?? '—'}</td>
+      <tbody>${rows.map((r, i) => html`<tr ${r.courseId ? html`class="link" data-course="${r.courseId}"` : ''} ${i >= COURSE_ROWS ? html`data-more-row hidden` : ''}><td class="wrap">${r.name}</td><td class="r">${r.n}</td><td class="r">${fmt(r.avg, 1)}</td><td class="r">${r.best ?? '—'}</td>
         <td class="r hide-sm">${fmt(r.putts, 1)}</td><td class="r">${r.tph != null ? sgn(r.tph, 2) : '—'}</td></tr>`)}</tbody></table></div>
+    ${rows.length > COURSE_ROWS ? html`<button type="button" class="btn btn-sm" style="margin-top:10px" data-more-courses>すべてのコースを見る（あと ${rows.length - COURSE_ROWS}）</button>` : ''}
   </div>`;
 }
 
@@ -98,7 +103,7 @@ function distanceCard(rows) {
     for (const r of rs) if (r.toPar - avg >= 0.3 && (!weak || r.toPar - avg > weak.gap)) weak = { ...r, gap: r.toPar - avg };
   }
   let prevPar = 0;
-  return html`<div class="card section">
+  return html`<div class="card section" id="st-distance">
     <div class="card-header"><div><h2>距離別の成績</h2><div class="sub">コースに登録したホールの距離から。パー比は小さいほど良い</div></div></div>
     ${weak ? html`<p class="dist-weak">苦手な距離：<strong>パー${weak.par}の${weak.label}</strong>（平均 ${sgn(weak.toPar)}・パー${weak.par}全体の平均より約 ${weak.gap.toFixed(1)} 打多い）</p>` : ''}
     <div class="table-wrap"><table class="data"><thead><tr><th>パー</th><th>距離</th><th class="r">ホール数</th><th class="r">平均パー比</th><th class="r">パー以内</th></tr></thead>
@@ -232,7 +237,7 @@ function flowCard(f) {
   const worst = Math.max(...segs.map((s) => s[2]));
   const ins = flowInsights(f);
   const bigDiff = f.afterBig.avg != null && f.afterOther.avg != null ? f.afterBig.avg - f.afterOther.avg : null;
-  return html`<div class="card section">
+  return html`<div class="card section" id="st-flow">
     <div class="card-header"><div><h2>スコアの流れ</h2><div class="sub">18ホールのラウンド ${f.rounds} 件。1番から順に回ったものとして計算（ホールあたりのパー比）</div></div></div>
     <div class="flow-segs">${segs.map(([l, sub, v]) => html`<div class="flow-seg ${v === worst && v - f.all >= 0.25 ? 'worst' : ''}"><div class="label">${l}<span class="muted">${sub}</span></div><div class="value">${sgn(v)}</div></div>`)}</div>
     <div class="flow-rows">
@@ -251,7 +256,7 @@ function drawConditions(box, list) {
   if (!avail.some((c) => c.k === state.cond)) state.cond = avail[0].k;
   const cur = avail.find((c) => c.k === state.cond);
   const note = { day: '祝日は平日として数えます。', companion: '2回以上一緒に回った人だけ。同伴者の名前は AI 分析には含めません。' }[cur.k] || '';
-  mount(box, html`<div class="card section">
+  mount(box, html`<div class="card section" id="st-cond">
     <div class="card-header"><div><h2>条件別のスコア</h2><div class="sub">18ホールの平均。「差」は全体の平均 ${fmt(cur.res.overall, 1)} との比較（マイナスほど良い）</div></div></div>
     <div class="seg cond-seg" role="group" aria-label="比べる条件">${avail.map((c) => html`<button type="button" data-cond="${c.k}" class="${c.k === cur.k ? 'on' : ''}" aria-pressed="${c.k === cur.k}">${c.l}</button>`)}</div>
     <div class="table-wrap"><table class="data"><thead><tr><th>${cur.l}</th><th class="r">回数</th><th class="r">平均</th><th class="r">ベスト</th><th class="r">差</th></tr></thead>
@@ -262,21 +267,25 @@ function drawConditions(box, list) {
 }
 
 export async function render(root) {
+  const query = new URLSearchParams(location.hash.split('?')[1] || '');
+  const want = query.get('sim') === '1' ? 'practice' : query.get('tab');
+  if (STATS_TABS.some(([k]) => k === want)) state.tab = want;
   const [rounds, allCourses, settings] = await Promise.all([api.get('/api/rounds'), api.get('/api/courses').catch(() => []), getSettings().catch(() => ({}))]);
   const courses = [...new Map(rounds.filter((r) => r.course_id).map((r) => [r.course_id, r.course_name])).entries()]
     .sort((a, b) => a[1].localeCompare(b[1], 'ja'));
 
   mount(root, html`
-    <div class="page-header"><div><h1>統計分析</h1><div class="sub">期間とコースで絞り込むと、下のすべての数値・グラフが連動します</div></div>
-      <div class="actions"><a class="btn" href="#/progress">📈 上達の履歴</a><a class="btn" href="#/review">🗓 年間のまとめ</a><a class="btn" href="#/ai">${icon('ai')}AIに分析してもらう</a></div></div>
+    <div class="page-header"><div><h1>分析</h1><div class="sub">期間とコースで絞り込むと、どのタブの数値・グラフも連動します</div></div></div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="期間">${PERIODS.map(([k, l]) => html`<button data-period="${k}" class="${state.period === k ? 'on' : ''}">${l}</button>`)}</div>
       <select id="f-course" aria-label="コース"><option value="">すべてのコース</option>
         ${courses.map(([cid, n]) => html`<option value="${cid}" ${String(cid) === state.course ? 'selected' : ''}>${n}</option>`)}</select>
     </div>
-    <div id="body"></div>
+    <div class="stats-tabs" role="tablist" aria-label="分析の内容">${STATS_TABS.map(([k, l]) => html`<button type="button" role="tab" id="st-tab-${k}" data-tab="${k}" aria-controls="body" aria-selected="${k === state.tab}" tabindex="${k === state.tab ? '0' : '-1'}">${l.split('|').map((p) => html`<span class="nb">${p}</span>`)}</button>`)}</div>
+    <div id="body" class="stats-body" role="tabpanel" aria-labelledby="st-tab-${state.tab}"></div>
   `);
   const body = $('#body', root);
+  const tabs = $('.stats-tabs', root);
 
   const draw = () => {
     clearCharts();
@@ -308,27 +317,63 @@ export async function render(root) {
       .map(([k, v]) => ({ k, n: v.length, avg: v.reduce((p, c) => p + c, 0) / v.length }));
 
     const t = (label, value, sub = '') => html`<div class="tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
-    mount(body, html`
+    const halves = html`<div class="card section" id="st-halves">
+      <h2 style="margin-bottom:12px">前半・後半</h2>
       <div class="tiles">
-        ${t('ラウンド数', a.rounds, `18ホール ${a.completeRounds} R`)}
-        ${t('平均スコア', fmt(a.avgScore, 1), a.avgToPar != null ? `パー比 ${toPar(Math.round(a.avgToPar * 10) / 10)}` : '')}
-        ${t('ベストスコア', a.best ? a.best.strokes : '—', a.best ? `${shortDate(a.best.date)}` : '')}
-        ${t('推定ハンディキャップ', a.handicap != null ? a.handicap.toFixed(1) : '—', '簡易計算')}
-        ${t('平均パット', fmt(a.puttsPerRound, 1), `1ホール ${fmt(a.puttsPerHole, 2)}`)}
-        ${t('FWキープ率', pct(a.fwRate), a.fwTotal ? `${a.fwHit}/${a.fwTotal}` : '')}
-        ${t('パーオン率', pct(a.girRate), a.puttsPerGir != null ? `パーオン時 ${fmt(a.puttsPerGir, 2)} パット` : '')}
-        ${t('ボギーオン率', pct(a.bogeyOnRate), '規定打数-1 までにオン')}
-        ${t('1パット率', pct(a.onePuttRate), 'パットを記録したホール')}
-        ${t('リカバリー率', pct(a.scrambleRate), 'パーオンせずパー以上')}
-        ${t('サンドセーブ率', pct(a.sandSaveRate), a.sandChances ? `バンカー ${a.sandChances} ホール` : '簡易：バンカー後パー以上')}
-        ${t('3パット率', pct(a.threePuttRate, 1), `1R あたり ${fmt(a.threePuttsPerRound, 1)} 回`)}
-        ${t('OB・ペナ / R', fmt(a.penaltiesPerRound, 1))}
-        ${t('バーディ / R', fmt(a.birdiesPerRound, 2), `パー以上率 ${pct(a.parOrBetterRate)}`)}
-      </div>
-
-      ${chartCard('trend', 'スコアの推移', `18ホールのラウンド ${complete.length} 件・点をクリックで詳細`, 'section')}
-
-      <div class="grid grid-2 section">
+        ${t('前半（OUT）平均', fmt(a.frontAvg, 1), a.frontToPar != null ? `パー比 ${toPar(Math.round(a.frontToPar * 10) / 10)}` : '')}
+        ${t('後半（IN）平均', fmt(a.backAvg, 1), a.backToPar != null ? `パー比 ${toPar(Math.round(a.backToPar * 10) / 10)}` : '')}
+      </div></div>`;
+    const views = {
+      summary: () => html`
+        <div class="tiles">
+          ${t('ラウンド数', a.rounds, `18ホール ${a.completeRounds} R`)}
+          ${t('平均スコア', fmt(a.avgScore, 1), a.avgToPar != null ? `パー比 ${toPar(Math.round(a.avgToPar * 10) / 10)}` : '')}
+          ${t('ベストスコア', a.best ? a.best.strokes : '—', a.best ? `${shortDate(a.best.date)}` : '')}
+          ${t('推定ハンディキャップ', a.handicap != null ? a.handicap.toFixed(1) : '—', '簡易計算')}
+          ${t('平均パット', fmt(a.puttsPerRound, 1), `1ホール ${fmt(a.puttsPerHole, 2)}`)}
+          ${t('パーオン率', pct(a.girRate), a.puttsPerGir != null ? `パーオン時 ${fmt(a.puttsPerGir, 2)} パット` : '')}
+        </div>
+        <details class="more-fields more-tiles" id="st-all-tiles"><summary>すべての数字を見る<span class="small muted">FWキープ率・3パット率・OB など、あと 8 つ</span></summary>
+          <div class="tiles">
+            ${t('FWキープ率', pct(a.fwRate), a.fwTotal ? `${a.fwHit}/${a.fwTotal}` : '')}
+            ${t('3パット率', pct(a.threePuttRate, 1), `1R あたり ${fmt(a.threePuttsPerRound, 1)} 回`)}
+            ${t('OB・ペナ / R', fmt(a.penaltiesPerRound, 1))}
+            ${t('ボギーオン率', pct(a.bogeyOnRate), '規定打数-1 までにオン')}
+            ${t('1パット率', pct(a.onePuttRate), 'パットを記録したホール')}
+            ${t('リカバリー率', pct(a.scrambleRate), 'パーオンせずパー以上')}
+            ${t('サンドセーブ率', pct(a.sandSaveRate), a.sandChances ? `バンカー ${a.sandChances} ホール` : '簡易：バンカー後パー以上')}
+            ${t('バーディ / R', fmt(a.birdiesPerRound, 2), `パー以上率 ${pct(a.parOrBetterRate)}`)}
+          </div>
+        </details>
+        ${chartCard('trend', 'スコアの推移', `18ホールのラウンド ${complete.length} 件・点をタップで詳細`, 'section')}
+        <div class="grid grid-2 section">
+          <div class="card" id="st-insights">
+            <h2 style="margin-bottom:12px">直近の傾向</h2>
+            ${insights.length ? html`<ul class="insights">${insights.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '↑' : '↓'}</span><span>${i.text}</span></li>`)}</ul>`
+              : html`<p class="muted small">18ホールのラウンドが6つ以上で、直近5ラウンドと以前を比較します。</p>`}
+          </div>
+          <div class="card" id="st-top5">
+            <h2 style="margin-bottom:8px">ベストスコア TOP5</h2>
+            ${top5.length ? html`<div class="table-wrap"><table class="data"><thead><tr><th>#</th><th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パット</th></tr></thead>
+              <tbody>${top5.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${i + 1}</td><td class="nowrap">${fmtDate(s.date)}</td><td class="wrap">${s.course}</td>
+                <td class="r"><strong>${s.strokes}</strong></td><td class="r">${s.puttHoles ? s.putts : '—'}</td></tr>`)}</tbody></table></div>`
+              : html`<p class="muted small">18ホールのラウンドがありません。</p>`}
+          </div>
+        </div>
+        <div class="card section">
+          <h2 style="margin-bottom:10px">ほかの振り返り</h2>
+          <div class="actions"><a class="btn" href="#/progress">${icon('trend')}上達の履歴</a><a class="btn" href="#/review">${icon('calendar')}年間のまとめ</a><a class="btn" href="#/ai">${icon('ai')}AI分析</a></div>
+        </div>`,
+      practice: () => (impact.length ? html`${impactCard(impact)}${practiceCard(impact)}<div id="sim-box"></div>`
+        : html`<div class="card empty">${icon('stats')}<h2>まだ計算できません</h2><p>パット・ティーショット（FW）・OB・バンカーを記録したラウンドが増えると、ミスで何打損しているか、今やるべき練習、スコアのシミュレーターが表示されます。</p></div>`),
+      course: () => html`
+        ${courseTable(sums)}
+        <div id="cond-box"></div>
+        ${distanceCard(distanceStats(list, allCourses, settings.unit))}
+        ${teeClubCard(teeClubStats(list))}
+        ${flowCard(flowStats(list))}
+        ${halves}`,
+      charts: () => html`<div class="grid grid-2">
         ${chartCard('dist', 'スコア内訳', `全 ${a.holes} ホールの結果`)}
         ${chartCard('bypar', 'パー別の平均（パー比）', 'ホールあたり。小さいほど良い')}
         ${chartCard('putts', 'パット数の推移', '18ホールすべてパットを記録したラウンド')}
@@ -337,41 +382,14 @@ export async function render(root) {
         ${chartCard('months', '月別の平均スコア', '直近12か月分（18ホール）')}
         ${chartCard('scoredist', 'スコアの分布', '18ホールのスコアを5打ごとに')}
         ${chartCard('hctrend', '推定ハンディキャップの推移', '3ラウンド目から・小さいほど良い')}
-      </div>
-
-      ${impactCard(impact)}
-      ${practiceCard(impact)}
-      <div id="sim-box"></div>
-      ${teeClubCard(teeClubStats(list))}
-      ${courseTable(sums)}
-      <div id="cond-box"></div>
-      ${distanceCard(distanceStats(list, allCourses, settings.unit))}
-      ${flowCard(flowStats(list))}
-
-      <div class="grid grid-2 section">
-        <div class="card">
-          <h2 style="margin-bottom:12px">前半・後半</h2>
-          <div class="tiles">
-            ${t('前半（OUT）平均', fmt(a.frontAvg, 1), a.frontToPar != null ? `パー比 ${toPar(Math.round(a.frontToPar * 10) / 10)}` : '')}
-            ${t('後半（IN）平均', fmt(a.backAvg, 1), a.backToPar != null ? `パー比 ${toPar(Math.round(a.backToPar * 10) / 10)}` : '')}
-          </div>
-          <h2 style="margin:20px 0 12px">直近の傾向</h2>
-          ${insights.length ? html`<ul class="insights">${insights.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '↑' : '↓'}</span><span>${i.text}</span></li>`)}</ul>`
-            : html`<p class="muted small">18ホールのラウンドが6つ以上で、直近5ラウンドと以前を比較します。</p>`}
-        </div>
-        <div class="card">
-          <h2 style="margin-bottom:8px">ベストスコア TOP5</h2>
-          ${top5.length ? html`<div class="table-wrap"><table class="data"><thead><tr><th>#</th><th>日付</th><th>コース</th><th class="r">スコア</th><th class="r">パット</th></tr></thead>
-            <tbody>${top5.map((s, i) => html`<tr class="link" data-id="${s.id}"><td>${i + 1}</td><td class="nowrap">${fmtDate(s.date)}</td><td class="wrap">${s.course}</td>
-              <td class="r"><strong>${s.strokes}</strong></td><td class="r">${s.puttHoles ? s.putts : '—'}</td></tr>`)}</tbody></table></div>`
-            : html`<p class="muted small">18ホールのラウンドがありません。</p>`}
-        </div>
-      </div>
-    `);
+      </div>`,
+    };
+    mount(body, views[state.tab]());
     $$('tr[data-id]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/rounds/${tr.dataset.id}`)));
     $$('tr[data-course]', body).forEach((tr) => tr.addEventListener('click', () => navigate(`/courses/${tr.dataset.course}`)));
-    drawConditions($('#cond-box', body), list);
-    drawSim($('#sim-box', body), { list, sums, impact, avg: a.avgScore, goal: Number(settings.goal) || null });
+    $('[data-more-courses]', body)?.addEventListener('click', (e) => { $$('[data-more-row]', body).forEach((tr) => { tr.hidden = false; }); e.currentTarget.hidden = true; });
+    if ($('#cond-box', body)) drawConditions($('#cond-box', body), list);
+    if ($('#sim-box', body)) drawSim($('#sim-box', body), { list, sums, impact, avg: a.avgScore, goal: Number(settings.goal) || null });
 
     setupChart(body, 'trend', (el) => lineChart(el, {
       labels: complete.map((s) => shortDate(s.date)),
@@ -490,6 +508,30 @@ export async function render(root) {
     draw();
   }));
   $('#f-course', root).addEventListener('change', (e) => { state.course = e.target.value; draw(); });
+  const setTab = (k, focus = false) => {
+    state.tab = k;
+    for (const b of $$('[data-tab]', tabs)) {
+      const on = b.dataset.tab === k;
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    }
+    body.setAttribute('aria-labelledby', `st-tab-${k}`);
+    if (location.hash.includes('?')) history.replaceState(null, '', '#/stats'); // 戻ってきたときに、もとのタブ（試算など）に引き戻されないように
+    draw();
+    // 下までスクロールしていたら、タブのすぐ下（新しいタブの先頭）へ
+    const top = body.getBoundingClientRect().top + window.scrollY - tabs.offsetHeight - 24;
+    if (window.scrollY > top) window.scrollTo(0, Math.max(0, top));
+  };
+  tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b && b.dataset.tab !== state.tab) setTab(b.dataset.tab); });
+  tabs.addEventListener('keydown', (e) => {
+    const keys = STATS_TABS.map(([k]) => k);
+    const i = keys.indexOf(state.tab);
+    const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: keys.length - 1 }[e.key];
+    if (next == null) return;
+    e.preventDefault();
+    setTab(keys[(next + keys.length) % keys.length], true);
+  });
   draw();
   // ホームの目標カードの「試算」から来たときはシミュレーターへ
   if (/[?&]sim=1/.test(location.hash)) requestAnimationFrame(() => $("#simulator", root)?.scrollIntoView({ block: "start" }));

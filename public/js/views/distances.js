@@ -21,8 +21,8 @@ export async function render(root) {
   const clubs = (await api.get('/api/clubs')).filter((c) => c.category !== 'putter');
   if (!clubs.length) {
     mount(root, html`<div class="page-header"><h1>飛距離</h1></div>
-      <div class="card empty">${icon('club')}<h2>クラブが登録されていません</h2><p>先にクラブセッティングでクラブを登録してください。</p>
-      <a class="btn btn-primary" href="#/clubs">クラブセッティングへ</a></div>`);
+      <div class="card empty">${icon('club')}<h2>クラブが登録されていません</h2><p>先に「クラブ」でクラブを登録してください。</p>
+      <a class="btn btn-primary" href="#/clubs">クラブを登録する</a></div>`);
     return;
   }
   const bag = clubs.filter((c) => c.in_bag);

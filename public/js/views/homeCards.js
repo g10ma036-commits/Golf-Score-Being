@@ -147,13 +147,22 @@ export async function guideHtml({ rounds, courses, sample }) {
       action: html`<button type="button" class="btn btn-sm" data-guide="backup">バックアップ</button>`,
     });
   }
+  const steplist = html`<ol class="guide-steps">${steps.map((s, i) => html`<li class="${s.done ? 'done' : ''}">
+      <span class="gs-no" aria-hidden="true">${s.done ? '✓' : i + 1}</span>
+      <div class="gs-body"><div class="gs-title">${s.title}${s.done ? html`<span class="sr-only">（完了）</span>` : ''}</div><div class="small muted">${s.sub}</div></div>
+      ${s.done ? '' : html`<div class="gs-act">${s.action}</div>`}</li>`)}</ol>`;
+  if (realRounds > 0) {
+    const left = steps.filter((s) => !s.done);
+    return html`<details class="card guide-card guide-mini section" id="guide-card">
+      <summary><span class="gm-title">はじめに：準備 あと ${left.length} つ</span><span class="small muted">${left.map((s) => s.title).join('・')}</span></summary>
+      <div class="gm-body">${steplist}
+        <div class="gm-foot small"><a href="#/help">使い方を見る</a><button type="button" class="btn btn-ghost btn-sm" data-guide="close">この案内を閉じる</button></div></div>
+    </details>`;
+  }
   return html`<div class="card guide-card section" id="guide-card">
     <div class="card-header"><div><h2>はじめに：${steps.length}つのステップで準備</h2><div class="sub">終わったものには ✓ が付きます。詳しくは <a href="#/help">使い方</a> へ</div></div>
       <button type="button" class="btn btn-ghost btn-sm" data-guide="close">閉じる</button></div>
-    <ol class="guide-steps">${steps.map((s, i) => html`<li class="${s.done ? 'done' : ''}">
-      <span class="gs-no" aria-hidden="true">${s.done ? '✓' : i + 1}</span>
-      <div class="gs-body"><div class="gs-title">${s.title}${s.done ? html`<span class="sr-only">（完了）</span>` : ''}</div><div class="small muted">${s.sub}</div></div>
-      ${s.done ? '' : html`<div class="gs-act">${s.action}</div>`}</li>`)}</ol>
+    ${steplist}
   </div>`;
 }
 

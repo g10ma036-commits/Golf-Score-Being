@@ -19,7 +19,7 @@ export async function render(root) {
 
   mount(root, html`
     <div class="page-header">
-      <div><h1>スコア・ラウンド</h1><div class="sub">通算 ${rounds.length} ラウンド</div></div>
+      <div><h1>スコア</h1><div class="sub">通算 ${rounds.length} ラウンド</div></div>
       <div class="actions"><a class="btn btn-primary" href="#/rounds/new">${icon('plus')}新しいラウンド</a></div>
     </div>
     ${rounds.length ? html`

@@ -46,7 +46,7 @@ export async function render(root) {
 
   mount(root, html`
     <div class="page-header">
-      <div><h1>AIに分析してもらう</h1>
+      <div><h1>AI分析</h1>
         <div class="sub">記録したスコアから、ChatGPT・Claude・Gemini などのAIに貼り付ける「質問文（プロンプト）」を作ります。料金はかかりません（各AIの無料プランで使えます）。</div></div>
     </div>
     <div class="ai-layout">

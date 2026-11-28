@@ -3,6 +3,7 @@
 const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 
 const load = (rel) => import(pathToFileURL(path.join(__dirname, '..', rel)).href);
@@ -546,4 +547,30 @@ test('上達の履歴：年ごとの成績・ベスト更新・初めての○�
   assert.equal(h.firstAvg, 102); // 108, 99, 99
   assert.equal(h.recentAvg, 84); // 90, 81, 81
   assert.deepEqual(stats.progressHistory([]).years, []);
+});
+
+test('機能をさがす：ひらがな・カタカナ・全角を区別せず、リンク先の画面と場所がある', async () => {
+  const { FEATURES, searchFeatures, normalize } = await load('public/js/views/search.js');
+  assert.equal(normalize('バックアップ　ＣＳＶ'), 'ばっくあっぷ csv');
+  assert.equal(searchFeatures('ばっくあっぷ')[0][0], 'バックアップ・復元');
+  assert.equal(searchFeatures('しさん')[0][0], 'スコアのシミュレーター（試算）');
+  assert.ok(searchFeatures('天気').some((f) => f[2].includes('go=st-cond')));
+  assert.ok(searchFeatures('ｉｋｓｃｏｒｅｃａｒｄ').length >= 1);
+  assert.equal(searchFeatures('そんな機能はない').length, 0);
+  assert.equal(searchFeatures('  ').length, FEATURES.length); // 何も入れないときは全部
+  // リンク先の画面がルーターにあり、go= の場所（id）とタブがその画面にある
+  const dir = path.join(__dirname, '..', 'public', 'js');
+  const main = fs.readFileSync(path.join(dir, 'main.js'), 'utf8');
+  const routes = [...main.matchAll(/\[\/\^(.+?)\$\/, \(\) => import/g)].map((m) => new RegExp(`^${m[1]}$`));
+  const views = fs.readdirSync(path.join(dir, 'views')).map((f) => fs.readFileSync(path.join(dir, 'views', f), 'utf8')).join('\n');
+  const help = fs.readFileSync(path.join(dir, 'views', 'help.js'), 'utf8');
+  const statsView = fs.readFileSync(path.join(dir, 'views', 'stats.js'), 'utf8');
+  for (const [title, , href] of FEATURES) {
+    const [p, q = ''] = href.replace(/^#/, '').split('?');
+    assert.ok(routes.some((re) => re.test(p)), `${title}: 画面がない ${p}`);
+    const go = new URLSearchParams(q).get('go');
+    if (go) assert.ok(go.startsWith('help-') ? help.includes(`id: '${go.slice(5)}'`) : views.includes(`id="${go}"`), `${title}: 場所がない ${go}`);
+    const tab = new URLSearchParams(q).get('tab');
+    if (tab) assert.ok(statsView.includes(`['${tab}', `), `${title}: タブがない ${tab}`);
+  }
 });

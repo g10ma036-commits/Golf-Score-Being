@@ -30,7 +30,7 @@ export async function render(root) {
   mount(root, html`
     <div class="page-header"><div><h1>設定</h1></div></div>
     ${STANDALONE ? html`
-      <div class="card" style="margin-bottom:16px">
+      <div class="card" id="s-device" style="margin-bottom:16px">
         <h2 style="margin-bottom:12px">📱 この端末に保存（スマホ単独版）</h2>
         <div id="device-body"><div class="loading">読み込み中…</div></div>
       </div>` : html`
@@ -64,7 +64,7 @@ export async function render(root) {
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="s-import">
         <h2 style="margin-bottom:8px">ほかのアプリから取り込む</h2>
         <p class="small muted" style="margin-bottom:10px">いまの記録は消えません。取り込む前に、追加・置き換えの件数を確認できます。</p>
         <label class="btn btn-wrap">⌚ Garmin Golf のデータから取り込む<input type="file" id="import-garmin" multiple accept=".zip,.json,application/zip,application/json" hidden></label>
@@ -73,7 +73,7 @@ export async function render(root) {
         <p class="small muted" style="margin-top:8px">IKScoreCard のバックアップ（ZIP、または IKScoreCard_sc.sqlite3 などのファイル）を選んでください。スコア・パット・OB などのペナルティ・同伴者のスコア・コース（パーと距離）を取り込みます。まだ無いラウンドだけを追加します（同じ日でスコアもほぼ同じラウンドは飛ばします）。</p>
       </div>
 
-      <div class="card">
+      <div class="card" id="s-profile">
         <h2 style="margin-bottom:12px">プロフィール・表示</h2>
         <form id="settings-form" autocomplete="off"><div class="form-grid">
           <label class="field wide"><span>プレーヤー名</span><input name="player_name" maxlength="100" value="${s.player_name || ''}" placeholder="ホーム画面に表示されます"></label>
@@ -95,7 +95,7 @@ export async function render(root) {
 
       ${sample?.present ? '' : sampleCard}
 
-      <div class="card">
+      <div class="card" id="s-danger">
         <h2 style="margin-bottom:12px">すべてのデータを削除</h2>
         <p class="secondary">ラウンド・コース・クラブ・飛距離・アルバム・写真をすべて削除します（設定は残ります）。元に戻せないので、先にバックアップを取ってください。</p>
         <button class="btn btn-danger" id="delete-all" ${isEmpty ? 'disabled' : ''}>すべて削除…</button>
@@ -104,7 +104,7 @@ export async function render(root) {
     ${!STANDALONE && PHONE_APP_URL ? html`<div class="card section" id="phone-app">
       <h2 style="margin-bottom:12px">📲 スマホ単独版（PC なしで使う）</h2>
       <div id="phone-app-body"></div></div>` : ''}
-    <div class="card section">
+    <div class="card section" id="s-about">
       <h2 style="margin-bottom:8px">このアプリについて</h2>
       <dl class="kv">
         <dt>アプリ</dt><dd>Golf Enjoy Manager ${APP_VERSION}${STANDALONE ? '（スマホ単独版）' : ''}</dd>

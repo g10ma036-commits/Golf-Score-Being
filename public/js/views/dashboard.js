@@ -99,14 +99,14 @@ export async function render(root) {
     goal: () => html`<div class="section">${goalCardHtml(sums, settings.goal)}</div>`,
     links: () => html`<div class="quick-links section">
       <a class="quick-link" href="#/review"><span class="ql-ico">🗓</span><span><strong>${new Date().getFullYear()}年のまとめ</strong><span class="small muted">ラウンド数・ベスト・前年比・記録</span></span></a>
-      <a class="quick-link" href="#/ai"><span class="ql-ico">✨</span><span><strong>AIに分析してもらう</strong><span class="small muted">練習メニュー・コース攻略などを相談</span></span></a>
+      <a class="quick-link" href="#/ai"><span class="ql-ico">✨</span><span><strong>AI分析</strong><span class="small muted">練習メニュー・コース攻略などを相談</span></span></a>
       <a class="quick-link" href="#/achievements"><span class="ql-ico">🏅</span><span><strong>実績</strong><span class="small muted">初めての100切り・初バーディなど</span></span></a>
       ${nextRound ? '' : html`<button type="button" class="quick-link" data-nr-edit><span class="ql-ico">📅</span><span><strong>次のラウンドの予定</strong><span class="small muted">日付とコースを入れると、あと何日・攻略のヒント</span></span></button>`}
     </div>`,
     trend: () => html`<div class="grid grid-3 section">
       ${chartCard('trend', 'スコアの推移', html`直近 ${trend.length} ラウンド（18ホール）・<a href="#/progress">これまでの履歴を見る →</a>`, 'span-2')}
       <div class="card">
-        <div class="card-header"><h2>直近の傾向</h2><a class="small" href="#/stats">統計分析へ →</a></div>
+        <div class="card-header"><h2>直近の傾向</h2><a class="small" href="#/stats">分析へ →</a></div>
         ${insights.length ? html`<ul class="insights">${insights.map((i) => html`<li><span class="ico ${i.type}">${i.type === 'good' ? '↑' : '↓'}</span><span>${i.text}</span></li>`)}</ul>`
           : html`<p class="muted small">18ホールのラウンドが6つ以上になると、直近5ラウンドと以前の比較が表示されます。</p>`}
       </div>
@@ -124,7 +124,7 @@ export async function render(root) {
         </table></div>
       </div>
       <div class="card">
-        <div class="card-header"><h2>クラブセッティング</h2><a class="small" href="#/clubs">編集 →</a></div>
+        <div class="card-header"><h2>クラブ</h2><a class="small" href="#/clubs">編集 →</a></div>
         <div class="count-14">${inBag}<small class="secondary" style="font-size:14px"> / 14 本</small></div>
         ${inBag > 14 ? html`<p><span class="badge warn">⚠ 15本以上（競技では14本まで）</span></p>` : ''}
         <p class="small secondary">${clubs.filter((c) => c.in_bag).map((c) => c.name).join('・') || 'クラブが未登録です'}</p>
@@ -148,7 +148,7 @@ export async function render(root) {
       </div>
     </div>
     ${draftNotice}
-    ${showNews ? html`<div class="notice news-notice" id="news-notice"><span>🎉 新しくなりました（バージョン ${APP_VERSION}）：目標に届かないとき、シミュレーターが「まずは手前の目標」と縮め方を教えます</span><a class="btn btn-sm btn-primary" href="#/help?open=news" data-news-ok>見る</a><button type="button" class="btn btn-sm btn-ghost" data-news-close>閉じる</button></div>` : ''}
+    ${showNews ? html`<div class="notice news-notice news-line" id="news-notice"><a href="#/help?open=news&amp;go=help-news" data-news-ok>🎉 新しくなりました（${APP_VERSION}）<span class="nl-more">何が変わった？ ›</span></a><button type="button" class="btn btn-sm btn-ghost btn-icon" data-news-close aria-label="お知らせを閉じる">✕</button></div>` : ''}
     ${sampleNoticeHtml(sample)}
     ${guide}
     ${reminder ? html`<div class="notice" id="backup-notice">

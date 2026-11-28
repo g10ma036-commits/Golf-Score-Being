@@ -37,8 +37,8 @@ export async function render(root) {
   const lastYear = h.years[h.years.length - 1].year;
 
   mount(root, html`
-    <div class="page-header"><div><h1>📈 上達の履歴</h1><div class="sub">${firstYear === lastYear ? `${firstYear}年` : `${firstYear}年〜${lastYear}年`}・全 ${h.totalRounds} ラウンド（18ホール ${h.completeRounds}）</div></div>
-      <div class="actions"><a class="btn" href="#/review">🗓 年間のまとめ</a><a class="btn" href="#/stats">${icon('stats')}統計分析</a></div></div>
+    <div class="page-header"><div><h1>上達の履歴</h1><div class="sub">${firstYear === lastYear ? `${firstYear}年` : `${firstYear}年〜${lastYear}年`}・全 ${h.totalRounds} ラウンド（18ホール ${h.completeRounds}）</div></div>
+      <div class="actions"><a class="btn" href="#/review">🗓 年間のまとめ</a><a class="btn" href="#/stats">${icon('stats')}分析</a></div></div>
     <div class="tiles">
       ${tile(`最初の${h.compareN}R → 直近${h.compareN}R`, html`${fmt(h.firstAvg, 1)} → ${fmt(h.recentAvg, 1)}`, diff != null ? html`<span class="${diff <= 0 ? 'good' : 'bad'}">${diff <= 0 ? '▼' : '▲'} ${Math.abs(diff).toFixed(1)} 打</span>` : '')}
       ${tile('ベストスコア', bestNow.strokes, `${shortDate(bestNow.date)} ${bestNow.course || ''}`)}

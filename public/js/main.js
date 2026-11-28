@@ -4,22 +4,21 @@ import { clearCharts, hideTooltip } from './charts.js';
 import { api, getSettings, STANDALONE } from './api.js';
 import { BACKGROUNDS } from './shared/model.js';
 
-const NAV = [
-  ['/', 'home', 'ホーム'],
-  ['/rounds', 'score', 'スコア・ラウンド'],
-  ['/stats', 'stats', '統計分析'],
-  ['/progress', 'stats', '上達の履歴'],
-  ['/ai', 'ai', 'AIに分析してもらう'],
-  ['/courses', 'course', 'コース'],
-  ['/clubs', 'club', 'クラブセッティング'],
-  ['/distances', 'distance', '飛距離'],
-  ['/album', 'album', 'アルバム'],
-  ['/settings', 'settings', '設定'],
-  ['/help', 'help', '使い方'],
+// メニュー。よく使う 3 つ（スマホは下のタブ）と、目的ごとのまとまり（スマホは「その他」）
+const MAIN = [['/', 'home', 'ホーム'], ['/rounds', 'score', 'スコア'], ['/stats', 'stats', '分析']];
+export const MENU_GROUPS = [
+  ['振り返る', [['/progress', 'trend', '上達の|履歴'], ['/review', 'calendar', '年間の|まとめ'], ['/achievements', 'medal', '実績'], ['/ai', 'ai', 'AI分析']]],
+  ['記録', [['/distances', 'distance', '飛距離'], ['/album', 'album', 'アルバム']]],
+  ['準備・道具', [['/courses', 'course', 'コース'], ['/clubs', 'club', 'クラブ']]],
+  ['アプリ', [['/settings', 'settings', '設定'], ['/help', 'help', '使い方']]],
 ];
-// スマホ用タブバー（中央はスコア入力ボタン）と「その他」メニュー
-const TABS = [['/', 'home', 'ホーム'], ['/rounds', 'score', 'スコア'], ['/rounds/new', 'plus', '入力'], ['/stats', 'stats', '分析']];
-const MORE = [['/progress', 'stats', '上達の履歴'], ['/ai', 'ai', 'AI分析'], ['/album', 'album', 'アルバム'], ['/distances', 'distance', '飛距離'], ['/clubs', 'club', 'クラブ'], ['/courses', 'course', 'コース'], ['/settings', 'settings', '設定'], ['/help', 'help', '使い方']];
+const SEARCH = ['/search', 'search', '機能をさがす'];
+// ラベルの「|」は、狭い画面で 2 行になるときの折り返し位置
+const labelParts = (label) => label.split('|').map((p) => html`<span class="nb">${p}</span>`);
+const plainLabel = (label) => label.replace(/\|/g, '');
+const MORE = [SEARCH, ...MENU_GROUPS.flatMap(([, items]) => items)];
+// スマホ用タブバー（中央はスコア入力ボタン）
+const TABS = [MAIN[0], MAIN[1], ['/rounds/new', 'plus', '入力'], MAIN[2]];
 
 const ROUTES = [
   [/^\/$/, () => import('./views/dashboard.js')],
@@ -42,6 +41,7 @@ const ROUTES = [
   [/^\/album\/(all|none|\d+)$/, () => import('./views/albumDetail.js')],
   [/^\/settings$/, () => import('./views/settings.js')],
   [/^\/help$/, () => import('./views/help.js')],
+  [/^\/search$/, () => import('./views/search.js')],
 ];
 
 // 未保存の変更があるときに画面遷移を確認する
@@ -95,10 +95,12 @@ function renderNav(path) {
   const tabbar = document.getElementById('tabbar');
   const sheet = document.getElementById('more-sheet');
   if (!nav.childElementCount) {
-    mount(nav, NAV.map(([p, ic, label]) => html`<a href="#${p}" data-path="${p}">${icon(ic)}<span>${label}</span></a>`));
+    const link = ([p, ic, label]) => html`<a href="#${p}" data-path="${p}">${icon(ic)}<span>${plainLabel(label)}</span></a>`;
+    mount(nav, html`<a href="#/search" data-path="/search" class="nav-search">${icon('search')}<span>機能をさがす</span></a>${MAIN.map(link)}${MENU_GROUPS.map(([title, items]) => html`<div class="nav-group">${title}</div>${items.map(link)}`)}`);
     mount(tabbar, html`${TABS.map(([p, ic, label]) => html`<a href="#${p}" data-path="${p}" class="${p === '/rounds/new' ? 'fab' : ''}">${icon(ic)}<span>${label}</span></a>`)}
       <button type="button" data-more aria-expanded="false" aria-controls="more-sheet">${icon('menu')}<span>その他</span></button>`);
-    mount(sheet, html`<div class="more-panel" role="menu">${MORE.map(([p, ic, label]) => html`<a href="#${p}" data-path="${p}" role="menuitem">${icon(ic)}<span>${label}</span></a>`)}</div>`);
+    mount(sheet, html`<div class="more-panel"><a class="more-search" href="#/search" data-path="/search">${icon('search')}<span>機能をさがす<span class="muted">（例：バックアップ、試算）</span></span></a>${MENU_GROUPS.map(([title, items]) => html`<div class="more-group n${items.length}" role="group" aria-label="${title}">
+      <div class="more-head" aria-hidden="true">${title}</div>${items.map(([p, ic, label]) => html`<a href="#${p}" data-path="${p}" aria-label="${plainLabel(label)}">${icon(ic)}<span>${labelParts(label)}</span></a>`)}</div>`)}</div>`);
     const moreBtn = $('[data-more]', tabbar);
     const toggle = (open) => { sheet.hidden = !open; moreBtn.setAttribute('aria-expanded', String(open)); };
     moreBtn.addEventListener('click', () => toggle(sheet.hidden));
@@ -152,6 +154,7 @@ async function route() {
     cleanup = result || null;
     window.scrollTo(0, 0);
     view.focus({ preventScroll: true });
+    goTo(new URLSearchParams(location.hash.split('?')[1] || '').get('go'));
   } catch (e) {
     if (my !== token) return;
     console.error(e);
@@ -160,6 +163,21 @@ async function route() {
 }
 
 window.addEventListener('hashchange', route);
+
+// ?go=（画面の中の場所の id）：そこまでスクロールして、少しのあいだ枠で示す（機能をさがす・お知らせなどから）
+function goTo(id) {
+  if (!id) return;
+  requestAnimationFrame(() => {
+    const el = document.getElementById(id);
+    if (!el || !document.getElementById('view').contains(el)) return;
+    if (el.tagName === 'DETAILS') el.open = true;
+    el.scrollIntoView({ block: 'start' });
+    el.classList.remove('go-flash');
+    void el.offsetWidth;
+    el.classList.add('go-flash');
+    setTimeout(() => el.classList.remove('go-flash'), 2000);
+  });
+}
 
 // スマホで文字を入力している間（キーボードが出ている間）は、下部タブバーを隠す。
 // 画面の高さから推測すると機種によって誤判定して消えたままになるので、入力欄にフォーカスがあるかだけで決める

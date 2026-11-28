@@ -29,8 +29,8 @@ export async function render(root) {
 
   mount(root, html`
     <div class="page-header">
-      <div><h1>${year}年のまとめ</h1>
-        <div class="sub">${r.rounds ? `${shortDate(r.first.date)} 〜 ${shortDate(r.last.date)}・${r.rounds} ラウンド` : 'この年のラウンドはありません'}</div></div>
+      <div><h1>年間のまとめ</h1>
+        <div class="sub">${year}年：${r.rounds ? `${shortDate(r.first.date)} 〜 ${shortDate(r.last.date)}・${r.rounds} ラウンド` : 'この年のラウンドはありません'}</div></div>
       <div class="actions">
         ${years.length > 1 ? html`<select id="year" aria-label="年">${years.map((y) => html`<option value="${y}" ${y === year ? 'selected' : ''}>${y}年</option>`)}</select>` : ''}
         <a class="btn" href="#/achievements">🏅 実績</a>
